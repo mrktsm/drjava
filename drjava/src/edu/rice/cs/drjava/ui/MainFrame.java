@@ -178,6 +178,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   private volatile BreakpointsPanel _breakpointsPanel;
   private volatile BookmarksPanel _bookmarksPanel;
   private volatile DebugPanel _debugPanel;
+  private volatile AIChatPanel _aiChatPanel;
   
   private volatile InteractionsPane _consolePane;
   private volatile JScrollPane _consoleScroll;            // redirects focus to embedded _consolePane
@@ -2222,12 +2223,14 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
    * @param doc the document to be saved
    */
   public void _saveConsoleCopy(ConsoleDocument doc) {
+    assert EventQueue.isDispatchThread();
+    
     _saveChooser.resetChoosableFileFilters();
     _saveChooser.setFileFilter(_txtFileFilter);    
     _saveChooser.setMultiSelectionEnabled(false);
     _saveChooser.setSelectedFile(new File(""));
     try {
-      _model.saveConsoleCopy(doc, new FileSaveSelector() {
+      FileSaveSelector selector = new FileSaveSelector() {
         public File getFile() throws OperationCanceledException {
           int rc = _saveChooser.showSaveDialog(MainFrame.this);
           switch (rc) {
@@ -2252,7 +2255,28 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
         public boolean verifyOverwrite(File f) { return MainFrameStatics.verifyOverwrite(MainFrame.this, f); }
         public boolean shouldSaveAfterFileMoved(OpenDefinitionsDocument doc, File oldFile) { return true; }
         public boolean shouldUpdateDocumentState() { return false; }
-      });
+      };
+      
+      try {
+        final File file = selector.getFile();
+        // by getting the canonical file, we make sure that we get an IOException if the filename is illegal
+        if (! file.getCanonicalFile().exists() || selector.verifyOverwrite(file)) {  // confirm that existing file can be overwritten        
+          FileOps.saveFile(new FileOps.DefaultFileSaver(file) {
+            /** Only runs in event thread so no read lock is necessary. */
+            public void saveTo(OutputStream os) throws IOException {
+              final String text = doc.getText();
+              OutputStreamWriter osw = new OutputStreamWriter(os);
+              osw.write(text,0,text.length());
+              osw.flush();
+            }
+          });
+        }
+      }
+      catch (OperationCanceledException oce) {
+        // Thrown by selector.getFile() if the user cancels.
+        // We don't do anything if this happens.
+        return;
+      }
     }
     catch (IOException ioe) {
       MainFrameStatics.showIOError(MainFrame.this, new IOException("An error occured writing the contents to a file"));
@@ -3353,9 +3377,19 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
       
       JScrollPane defScroll = _createDefScrollPane(_model.getActiveDocument());
       
-      _docSplitPane = 
-        new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
-                                new JScrollPane(_model.getDocumentNavigator().asContainer()), defScroll);
+      // Initialize AI Chat Panel
+      _aiChatPanel = new AIChatPanel();
+      
+      // Create left panel (navigator + editor)
+      JSplitPane leftSplit = new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
+                                                     new JScrollPane(_model.getDocumentNavigator().asContainer()), defScroll);
+      leftSplit.setResizeWeight(0.2);  // Give more space to the editor
+      
+      // Create main three-panel layout with AI chat on the right
+      _docSplitPane = new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
+                                              leftSplit, _aiChatPanel);
+      _docSplitPane.setResizeWeight(0.8);  // Give most space to left side (navigator + editor)
+      
       _debugSplitPane = new BorderlessSplitPane(JSplitPane.VERTICAL_SPLIT, true);
       _mainSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, true, _docSplitPane, _tabbedPane);
 // Lightweight parsing has been disabled until we have something that is beneficial and works better in the background.
@@ -4939,10 +4973,10 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   boolean _closeProject() { return _closeProject(false); }
   
   /** Saves the project file; closes all open project files; and calls _model.closeProject(quitting) the 
-    * clean up the state of the global model.  It also restores the list view navigator
-    * @param quitting whether the project is being closed as part of quitting DrJava
-    * @return true if the project is closed, false if cancelled
-    */
+   * clean up the state of the global model.  It also restores the list view navigator
+   * @param quitting whether the project is being closed as part of quitting DrJava
+   * @return true if the project is closed, false if cancelled
+   */
   boolean _closeProject(boolean quitting) {
     // TODO: in some cases, it is possible to see the documents being removed in the navigation pane
     //       this can cause errors. fix this.
@@ -5543,19 +5577,6 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
       MainFrameStatics.showIOError(MainFrame.this, ioe);
     }
   }
-  
-  /**   private void _revertAll() {
-   try {
-   _model.revertAllFiles();
-   }
-   catch (FileMovedException fme) {
-   _showFileMovedError(fme);
-   }
-   catch (IOException ioe) {
-   MainFrameStatics.showIOError(MainFrame.this, ioe);
-   }
-   }
-   */
   
   void quit() {
 //    AbstractGlobalModel._log.log("MainFrame.quit() called");
@@ -8010,8 +8031,9 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
               if (!externalBinSelected && !auxiliaryBinSelected) {
                 // open only makes sense if it's real folders, and not
                 // the external or auxiliary bins
-                m.add(Utilities.createDelegateAction("Open All Files in All Folders (" + groupSelectedCount + ")",
-                                                     _openAllFolderAction));
+                m.add(Utilities.
+                        createDelegateAction("Open All Files in All Folders (" + groupSelectedCount + ")",
+                                             _openAllFolderAction));
               }
               m.add(Utilities.
                       createDelegateAction("Close All Folders ("+groupSelectedCount+")", _closeFolderAction));
