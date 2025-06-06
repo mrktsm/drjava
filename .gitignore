@@ -18,3 +18,14 @@ scratch
 .idea/
 *.iml
 *.exec
+
+# Compiled class file directories
+/classes/
+/built/
+/edu/
+
+# IDE-specific files
+.idea/
+*.swp
+*.swo
+.DS_Store
