@@ -57,7 +57,7 @@
   
   <!-- For code coverage report -->
   <taskdef uri="antlib:org.jacoco.ant" resource="org/jacoco/ant/antlib.xml">
-      <classpath path="lib/jacocoant.jar"/>
+      <classpath path="lib/buildlib/jacocoant.jar"/>
   </taskdef>
   <property name="coverage-report-dir" value="coverage_report"/>
   <property name="coverage-exec" value="jacoco.exec"/>
@@ -1173,6 +1173,21 @@
     <fail message="Can't find the java executable in the Java 8 home: ${java8-home}" unless="java8-exec" />
   </target>
 
+  <target name="resolve-java8-tools">
+    <property name="java8-tools-1" location="${java8-home}/lib/tools.jar" />
+    <available property="java8-tools" value="${java8-tools-1}" file="${java8-tools-1}" />
+
+    <property name="java8-tools-2" location="${java8-home}/../lib/tools.jar" />
+    <available property="java8-tools" value="${java8-tools-2}" file="${java8-tools-2}" />
+
+    <property name="java8-tools-3" location="${java8-home}/../Classes/classes.jar" />
+    <available property="java8-tools" value="${java8-tools-3}" file="${java8-tools-3}" />
+
+    <echo message="java8-tools = ${java8-tools}" />
+
+    <fail message="Can't find tools.jar in the Java 8 home: ${java8-home}" unless="java8-tools" />
+  </target>
+  
   <target name="resolve-java-tools">
     <property name="java-tools-1" location="extlib/tools.jar" />
     <available property="java-tools" value="${java-tools-1}" file="${java-tools-1}" />
@@ -1180,20 +1195,10 @@
     <property name="java-tools-2" location="${java-home}/lib/tools.jar" />
     <available property="java-tools" value="${java-tools-2}" file="${java-tools-2}" />
     
-    <property name="java8-tools-3" location="${java8-home}/../Classes/classes.jar" />
-    <available property="java8-tools" value="${java8-tools-3}" file="${java8-tools-3}" />
+    <property name="java-tools-3" location="${java8-home}/../Classes/classes.jar" />
+    <available property="java-tools" value="${java-tools-3}" file="${java-tools-3}" />
 
     <fail message="Can't find tools.jar in extlib or the Java home: ${java-home}" unless="java-tools" />
-  </target>
-  
-  <target name="resolve-current-tools">
-    <property name="current-tools-1" location="extlib/tools.jar" />
-    <available property="current-tools" value="${current-tools-1}" file="${current-tools-1}" />
-
-    <property name="current-tools-2" location="${java.home}/lib/tools.jar" />
-    <available property="current-tools" value="${current-tools-2}" file="${current-tools-2}" />
-
-    <fail message="Can't find tools.jar in extib or the Java home: ${java.home}" unless="current-tools" />
   </target>
   
   <target name="assert-jar-exists">
