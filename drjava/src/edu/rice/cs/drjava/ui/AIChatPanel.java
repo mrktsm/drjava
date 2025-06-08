@@ -278,7 +278,7 @@ public class AIChatPanel extends JPanel {
         // Position button panel precisely in the right side
         int buttonPanelWidth = 44;
         int buttonPanelHeight = 44;
-        int x = c.getWidth() - buttonPanelWidth - 6; // 6px margin from right
+        int x = c.getWidth() - buttonPanelWidth - 3; // 3px margin from right
         int y = (c.getHeight() - buttonPanelHeight) / 2; // Center vertically
         buttonPanel.setBounds(x, y, buttonPanelWidth, buttonPanelHeight);
         
