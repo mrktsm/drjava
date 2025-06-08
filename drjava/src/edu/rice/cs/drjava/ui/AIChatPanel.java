@@ -75,27 +75,32 @@ public class AIChatPanel extends JPanel {
   }
   
   private ImageIcon _createDefaultAvatar() {
-    // Create a beautiful gradient avatar as fallback
-    BufferedImage avatar = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
+    // Create a circular avatar with a beautiful gradient background
+    BufferedImage avatar = new BufferedImage(AVATAR_SIZE, AVATAR_SIZE, BufferedImage.TYPE_INT_ARGB);
     Graphics2D g2d = avatar.createGraphics();
     g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     
-    // Create gradient from blue to purple
+    // Create a subtle gradient from light blue to darker blue
     GradientPaint gradient = new GradientPaint(
-      0, 0, new Color(13, 110, 253),
-      32, 32, new Color(120, 119, 198)
+      0, 0, new Color(99, 179, 237),  // Light blue
+      AVATAR_SIZE, AVATAR_SIZE, new Color(65, 131, 215)  // Darker blue
     );
     g2d.setPaint(gradient);
-    g2d.fillOval(0, 0, 32, 32);
+    g2d.fillOval(0, 0, AVATAR_SIZE, AVATAR_SIZE);
     
-    // Add AI text
-    g2d.setColor(Color.WHITE);
-    g2d.setFont(new Font("Segoe UI", Font.BOLD, 12));
-    FontMetrics fm = g2d.getFontMetrics();
-    String text = "AI";
-    int textX = (32 - fm.stringWidth(text)) / 2;
-    int textY = (32 + fm.getAscent()) / 2 - 2;
-    g2d.drawString(text, textX, textY);
+    g2d.dispose();
+    return new ImageIcon(avatar);
+  }
+  
+  private ImageIcon _createUserAvatar() {
+    // Create a simple grey circle for user messages
+    BufferedImage avatar = new BufferedImage(AVATAR_SIZE, AVATAR_SIZE, BufferedImage.TYPE_INT_ARGB);
+    Graphics2D g2d = avatar.createGraphics();
+    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    
+    // Simple grey circle - clean and minimal
+    g2d.setColor(new Color(156, 163, 175)); // Nice medium grey
+    g2d.fillOval(0, 0, AVATAR_SIZE, AVATAR_SIZE);
     
     g2d.dispose();
     return new ImageIcon(avatar);
@@ -369,13 +374,25 @@ public class AIChatPanel extends JPanel {
     messagePanel.setOpaque(false);
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
-    // User name header
+    // Header with avatar and name (like AI messages)
+    JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    headerPanel.setOpaque(false);
+    
+    // User avatar - simple grey circle
+    JLabel avatarLabel = new JLabel(_createUserAvatar());
+    avatarLabel.setBorder(new EmptyBorder(0, 0, 0, 8));
+    avatarLabel.setVerticalAlignment(SwingConstants.TOP);
+    
+    // User name
     JLabel nameLabel = new JLabel("You");
     nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
     nameLabel.setForeground(TEXT_COLOR);
-    nameLabel.setBorder(new EmptyBorder(0, 16, 4, 0));
+    nameLabel.setVerticalAlignment(SwingConstants.CENTER);
     
-    // Message text (no bubble, clean style)
+    headerPanel.add(avatarLabel);
+    headerPanel.add(nameLabel);
+    
+    // Message text (no bubble, clean style like AI messages)
     JTextArea messageText = new JTextArea(message);
     messageText.setEditable(false);
     messageText.setOpaque(false);
@@ -383,9 +400,9 @@ public class AIChatPanel extends JPanel {
     messageText.setForeground(TEXT_COLOR);
     messageText.setLineWrap(true);
     messageText.setWrapStyleWord(true);
-    messageText.setBorder(new EmptyBorder(0, 16, 0, 16));
+    messageText.setBorder(new EmptyBorder(4, 40, 0, 16)); // Left margin to align with text
     
-    messagePanel.add(nameLabel, BorderLayout.NORTH);
+    messagePanel.add(headerPanel, BorderLayout.NORTH);
     messagePanel.add(messageText, BorderLayout.CENTER);
     
     return messagePanel;
