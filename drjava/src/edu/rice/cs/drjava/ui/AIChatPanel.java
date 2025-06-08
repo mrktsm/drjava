@@ -188,28 +188,17 @@ public class AIChatPanel extends JPanel {
   }
   
   private void _setUpLayout() {
-    // Clean header
-    JLabel headerLabel = new JLabel("AI Assistant");
-    headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-    headerLabel.setForeground(TEXT_COLOR);
-    headerLabel.setBorder(new EmptyBorder(12, 16, 8, 16));
-    
-    JPanel headerPanel = new JPanel(new BorderLayout());
-    headerPanel.setBackground(BACKGROUND_COLOR);
-    headerPanel.add(headerLabel, BorderLayout.WEST);
-    
     // Create the embedded input panel
     JPanel inputContainer = _createEmbeddedInputPanel();
     
-    // Chat area with subtle border
+    // Chat area
     JPanel chatPanel = new JPanel(new BorderLayout());
     chatPanel.setBackground(CHAT_BACKGROUND);
-    chatPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, BORDER_COLOR));
+    chatPanel.setBorder(null);
     chatPanel.add(_chatScroll, BorderLayout.CENTER);
     
     // Main layout
     setLayout(new BorderLayout());
-    add(headerPanel, BorderLayout.NORTH);
     add(chatPanel, BorderLayout.CENTER);
     add(inputContainer, BorderLayout.SOUTH);
   }
@@ -218,7 +207,7 @@ public class AIChatPanel extends JPanel {
     // Rounded background panel for the input field
     final JPanel roundedBackground = new JPanel(new BorderLayout());
     roundedBackground.setBackground(INPUT_BACKGROUND);
-    roundedBackground.setBorder(new RoundedBorder(22, BORDER_COLOR));
+    roundedBackground.setBorder(new RoundedBorder(36, BORDER_COLOR, true));
     roundedBackground.add(_inputField, BorderLayout.CENTER);
     
     // Button positioned on the right side
@@ -248,7 +237,7 @@ public class AIChatPanel extends JPanel {
     
     // We put the layeredPane inside a final container panel that has the outer border.
     JPanel inputContainer = new JPanel(new BorderLayout());
-    inputContainer.setBackground(BACKGROUND_COLOR);
+    inputContainer.setBackground(CHAT_BACKGROUND);
     inputContainer.setBorder(new EmptyBorder(12, 16, 16, 16));
     inputContainer.add(layeredPane, BorderLayout.CENTER);
     
@@ -416,28 +405,43 @@ public class AIChatPanel extends JPanel {
   
   // Simple rounded border implementation
   private static class RoundedBorder implements javax.swing.border.Border {
-    private int radius;
-    private Color color;
+    private final int radius;
+    private final Color color;
+    private final boolean _isCapsule;
     
     RoundedBorder(int radius, Color color) {
+      this(radius, color, false);
+    }
+    
+    RoundedBorder(int radius, Color color, boolean isCapsule) {
       this.radius = radius;
       this.color = color;
-    }
-    
-    public Insets getBorderInsets(Component c) {
-      return new Insets(1, 1, 1, 1);
-    }
-    
-    public boolean isBorderOpaque() {
-      return false;
+      this._isCapsule = isCapsule;
     }
     
     public void paintBorder(Component c, Graphics g, int x, int y, int width, int height) {
       Graphics2D g2d = (Graphics2D) g.create();
+      Insets insets = getBorderInsets(c);
       g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      int r = radius;
+      if (_isCapsule) {
+        r = c.getHeight() - insets.top - insets.bottom;
+      }
       g2d.setColor(color);
-      g2d.drawRoundRect(x, y, width - 1, height - 1, radius, radius);
+      g2d.drawRoundRect(x, y, width - 1, height - 1, r, r);
       g2d.dispose();
+    }
+    
+    public Insets getBorderInsets(Component c) {
+      int r = this.radius;
+      if (_isCapsule) {
+        r = c.getHeight();
+      }
+      return new Insets(r / 4, r / 2, r / 4, r / 2);
+    }
+    
+    public boolean isBorderOpaque() {
+      return false;
     }
   }
   
