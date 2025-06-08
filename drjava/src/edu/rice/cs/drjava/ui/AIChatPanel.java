@@ -25,11 +25,11 @@ public class AIChatPanel extends JPanel {
   private static final Color CHAT_BACKGROUND = Color.WHITE;
   private static final Color INPUT_BACKGROUND = Color.WHITE;
   private static final Color BORDER_COLOR = new Color(208, 215, 222);
-  private static final Color TEXT_COLOR = new Color(36, 41, 47);
+  private static final Color TEXT_COLOR = new Color(51, 51, 51); // Dark grey for text
   private static final Color SECONDARY_TEXT_COLOR = new Color(101, 109, 118);
   private static final Color ACCENT_COLOR = new Color(13, 110, 253);
   private static final Color USER_BUBBLE_COLOR = new Color(13, 110, 253);
-  private static final Color AI_BUBBLE_COLOR = new Color(248, 249, 250);
+  private static final Color AI_BUBBLE_COLOR = new Color(242, 242, 242);
   private static final Color USER_TEXT_COLOR = Color.WHITE;
   private static final Color AI_TEXT_COLOR = new Color(36, 41, 47);
   
@@ -41,7 +41,7 @@ public class AIChatPanel extends JPanel {
   private static final int AVATAR_SIZE = 32;
   
   // Color for the custom send button
-  private Color _sendButtonColor = new Color(99, 102, 241);
+  private Color _sendButtonColor = new Color(148, 163, 184); // Light blue-grey
   
   public AIChatPanel() {
     super(new BorderLayout());
@@ -117,26 +117,34 @@ public class AIChatPanel extends JPanel {
     _chatScroll.getVerticalScrollBar().setUnitIncrement(16);
     
     // Create embedded input field with send button inside
-    _createEmbeddedInputField();
+    _inputField = _createEmbeddedInputField();
+    _sendButton = _createSendButton();
   }
   
-  private void _createEmbeddedInputField() {
-    // Modern input field with rounded border
-    _inputField = new JTextField();
-    _inputField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-    _inputField.setBackground(INPUT_BACKGROUND);
-    _inputField.setForeground(TEXT_COLOR);
-    _inputField.setBorder(new EmptyBorder(12, 16, 12, 50)); // Extra right padding for button
-    _inputField.setPreferredSize(new Dimension(0, 44));
+  private JTextField _createEmbeddedInputField() {
+    final JTextField textField = new JTextField();
+    textField.setOpaque(false); // Let the container handle the background
+    textField.setBorder(new EmptyBorder(0, 12, 0, 50)); // Left padding + right space for button
+    textField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+    textField.setForeground(TEXT_COLOR);
+    textField.setCaretColor(TEXT_COLOR);
     
-    // Create custom circular send button
-    _sendButton = new JButton("→") {
+    // Remove any focus painting that might escape the clipping
+    textField.setFocusTraversalKeysEnabled(false);
+    
+    textField.addActionListener(e -> _sendMessage());
+    
+    return textField;
+  }
+  
+  private JButton _createSendButton() {
+    JButton button = new JButton("→") {
       @Override
       protected void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
-        // Draw circular background using our stored color
+        // Draw circular background
         g2d.setColor(_sendButtonColor);
         g2d.fillOval(0, 0, getWidth(), getHeight());
         
@@ -164,27 +172,29 @@ public class AIChatPanel extends JPanel {
       }
     };
     
-    _sendButton.setFont(new Font("Segoe UI", Font.BOLD, 16));
-    _sendButton.setBackground(new Color(99, 102, 241)); // Subtle purple
-    _sendButton.setForeground(Color.WHITE);
-    _sendButton.setBorder(null);
-    _sendButton.setFocusPainted(false);
-    _sendButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
-    _sendButton.setPreferredSize(new Dimension(32, 32));
-    _sendButton.setContentAreaFilled(false); // This removes the default square background
-    _sendButton.setOpaque(false); // Make background completely transparent
+    button.setFont(new Font("Segoe UI", Font.BOLD, 16));
+    button.setForeground(Color.WHITE);
+    button.setBorder(null);
+    button.setFocusPainted(false);
+    button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    button.setContentAreaFilled(false);
+    button.setOpaque(false);
     
-    // Add hover effect to button
-    _sendButton.addMouseListener(new java.awt.event.MouseAdapter() {
+    // Add hover effect
+    button.addMouseListener(new java.awt.event.MouseAdapter() {
       public void mouseEntered(java.awt.event.MouseEvent e) {
-        _sendButtonColor = new Color(79, 82, 221);
-        _sendButton.repaint();
+        _sendButtonColor = new Color(131, 146, 164);
+        button.repaint();
       }
       public void mouseExited(java.awt.event.MouseEvent e) {
-        _sendButtonColor = new Color(99, 102, 241);
-        _sendButton.repaint();
+        _sendButtonColor = new Color(148, 163, 184);
+        button.repaint();
       }
     });
+    
+    button.addActionListener(e -> _sendMessage());
+    
+    return button;
   }
   
   private void _setUpLayout() {
@@ -204,38 +214,75 @@ public class AIChatPanel extends JPanel {
   }
   
   private JPanel _createEmbeddedInputPanel() {
-    // Rounded background panel for the input field
-    final JPanel roundedBackground = new JPanel(new BorderLayout());
+    // Custom rounded background panel that masks all content to capsule shape
+    final JPanel roundedBackground = new JPanel(new BorderLayout()) {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Paint background
+        g2d.setColor(getBackground());
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+        g2d.dispose();
+      }
+      
+      @Override
+      protected void paintChildren(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Create capsule clipping mask for all children
+        int height = getHeight();
+        int width = getWidth();
+        int radius = height - 4; // Match border calculation: height - top inset - bottom inset
+        
+        // Apply capsule clipping to all child painting
+        g2d.setClip(new java.awt.geom.RoundRectangle2D.Float(0, 0, width, height, radius, radius));
+        
+        // Paint all children with clipping applied
+        super.paintChildren(g2d);
+        g2d.dispose();
+      }
+    };
     roundedBackground.setBackground(INPUT_BACKGROUND);
-    roundedBackground.setBorder(new RoundedBorder(36, BORDER_COLOR, true));
+    roundedBackground.setBorder(new RoundedBorder(22, BORDER_COLOR, true));
     roundedBackground.add(_inputField, BorderLayout.CENTER);
     
-    // Button positioned on the right side
-    final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 6));
+    // Small button panel that only covers the button area
+    final JPanel buttonPanel = new JPanel(null); // Use null layout for precise positioning
     buttonPanel.setOpaque(false);
+    buttonPanel.setPreferredSize(new Dimension(44, 44)); // Just big enough for the button
     buttonPanel.add(_sendButton);
 
     // Container for the embedded input. Use JLayeredPane for reliable layering.
     final JLayeredPane layeredPane = new JLayeredPane();
-    // Give the pane a preferred size based on its main content.
-    // This is crucial for the containing layout manager.
-    layeredPane.setPreferredSize(roundedBackground.getPreferredSize());
+    layeredPane.setPreferredSize(new Dimension(0, 44));
     
     // Add components to the layered pane
-    layeredPane.add(roundedBackground, JLayeredPane.DEFAULT_LAYER); // z-index 0
-    layeredPane.add(buttonPanel, JLayeredPane.PALETTE_LAYER); // z-index 100
+    layeredPane.add(roundedBackground, JLayeredPane.DEFAULT_LAYER);
+    layeredPane.add(buttonPanel, JLayeredPane.PALETTE_LAYER);
     
-    // Since JLayeredPane has a null layout by default, we must manage child bounds.
+    // Layout manager for JLayeredPane
     layeredPane.addComponentListener(new ComponentAdapter() {
       @Override
       public void componentResized(ComponentEvent e) {
         Component c = e.getComponent();
         roundedBackground.setBounds(0, 0, c.getWidth(), c.getHeight());
-        buttonPanel.setBounds(0, 0, c.getWidth(), c.getHeight());
+        
+        // Position button panel precisely in the right side
+        int buttonPanelWidth = 44;
+        int buttonPanelHeight = 44;
+        int x = c.getWidth() - buttonPanelWidth - 6; // 6px margin from right
+        int y = (c.getHeight() - buttonPanelHeight) / 2; // Center vertically
+        buttonPanel.setBounds(x, y, buttonPanelWidth, buttonPanelHeight);
+        
+        // Position the send button within its panel
+        _sendButton.setBounds(6, 6, 32, 32); // Center the 32x32 button in the 44x44 panel
       }
     });
     
-    // We put the layeredPane inside a final container panel that has the outer border.
+    // Container for the input with padding
     JPanel inputContainer = new JPanel(new BorderLayout());
     inputContainer.setBackground(CHAT_BACKGROUND);
     inputContainer.setBorder(new EmptyBorder(12, 16, 16, 16));
@@ -258,8 +305,25 @@ public class AIChatPanel extends JPanel {
           _sendMessage();
         }
       }
-      public void keyReleased(KeyEvent e) {}
-      public void keyTyped(KeyEvent e) {}
+      public void keyReleased(KeyEvent e) {
+        // Force repaint to ensure text is visible
+        _inputField.repaint();
+      }
+      public void keyTyped(KeyEvent e) {
+        // Force repaint to ensure text is visible
+        SwingUtilities.invokeLater(new Runnable() {
+          public void run() {
+            _inputField.repaint();
+          }
+        });
+      }
+    });
+    
+    // Ensure input field gets focus when panel is shown
+    SwingUtilities.invokeLater(new Runnable() {
+      public void run() {
+        _inputField.requestFocusInWindow();
+      }
     });
   }
   
@@ -433,10 +497,11 @@ public class AIChatPanel extends JPanel {
     }
     
     public Insets getBorderInsets(Component c) {
-      int r = this.radius;
       if (_isCapsule) {
-        r = c.getHeight();
+        // For capsule style, use much smaller insets to prevent text clipping
+        return new Insets(2, 8, 2, 8);
       }
+      int r = this.radius;
       return new Insets(r / 4, r / 2, r / 4, r / 2);
     }
     
