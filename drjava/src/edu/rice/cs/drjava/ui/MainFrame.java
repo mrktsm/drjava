@@ -3384,6 +3384,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
       JSplitPane leftSplit = new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
                                                      new JScrollPane(_model.getDocumentNavigator().asContainer()), defScroll);
       leftSplit.setResizeWeight(0.2);  // Give more space to the editor
+      leftSplit.setOneTouchExpandable(true);  // Enable collapse/expand arrows for navigator
       
       // Create main three-panel layout with AI chat on the right
       _docSplitPane = new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
