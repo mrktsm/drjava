@@ -58,12 +58,11 @@ public class AIChatPanel extends JPanel {
   
   private void _loadAvatarIcon() {
     try {
-      // Use DrJava's standard icon loading mechanism
-      // Expects a pre-processed 32x32 circular animated GIF
-      ImageIcon avatarIcon = MainFrame.getIcon("ai-avatar32.gif");
-      if (avatarIcon != null) {
-        // Use the pre-processed avatar directly
-        _aiAvatarIcon = avatarIcon;
+      // Try to load the animated gif avatar
+      URL avatarUrl = getClass().getResource("/edu/rice/cs/drjava/ui/icons/ai-avatar32.gif");
+      if (avatarUrl != null) {
+        // Use the animated gif directly - don't transform it or it breaks the animation
+        _aiAvatarIcon = new ImageIcon(avatarUrl);
       } else {
         // Fallback: create a simple circular avatar with gradient
         _aiAvatarIcon = _createDefaultAvatar();
@@ -94,13 +93,14 @@ public class AIChatPanel extends JPanel {
   
   private ImageIcon _createUserAvatar() {
     // Create a simple grey circle for user messages
-    BufferedImage avatar = new BufferedImage(AVATAR_SIZE, AVATAR_SIZE, BufferedImage.TYPE_INT_ARGB);
+    int size = AVATAR_SIZE + 4; // Match AI avatar background size
+    BufferedImage avatar = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
     Graphics2D g2d = avatar.createGraphics();
     g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     
     // Simple grey circle - clean and minimal
     g2d.setColor(new Color(156, 163, 175)); // Nice medium grey
-    g2d.fillOval(0, 0, AVATAR_SIZE, AVATAR_SIZE);
+    g2d.fillOval(0, 0, size, size);
     
     g2d.dispose();
     return new ImageIcon(avatar);
@@ -375,13 +375,14 @@ public class AIChatPanel extends JPanel {
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
     // Header with avatar and name (like AI messages)
-    JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
     headerPanel.setOpaque(false);
     
     // User avatar - simple grey circle
     JLabel avatarLabel = new JLabel(_createUserAvatar());
-    avatarLabel.setBorder(new EmptyBorder(0, 0, 0, 8));
+    avatarLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
     avatarLabel.setVerticalAlignment(SwingConstants.TOP);
+    avatarLabel.setPreferredSize(new Dimension(AVATAR_SIZE + 4, AVATAR_SIZE + 4)); // Same size as AI avatar
     
     // User name
     JLabel nameLabel = new JLabel("You");
@@ -400,7 +401,7 @@ public class AIChatPanel extends JPanel {
     messageText.setForeground(TEXT_COLOR);
     messageText.setLineWrap(true);
     messageText.setWrapStyleWord(true);
-    messageText.setBorder(new EmptyBorder(4, 40, 0, 16)); // Left margin to align with text
+    messageText.setBorder(new EmptyBorder(4, 52, 0, 16)); // Left margin to align with text
     
     messagePanel.add(headerPanel, BorderLayout.NORTH);
     messagePanel.add(messageText, BorderLayout.CENTER);
@@ -414,13 +415,35 @@ public class AIChatPanel extends JPanel {
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
     // Header with avatar and name (like Copilot)
-    JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
     headerPanel.setOpaque(false);
     
-    // Avatar
-    JLabel avatarLabel = new JLabel(_aiAvatarIcon);
-    avatarLabel.setBorder(new EmptyBorder(0, 0, 0, 8));
+    // Avatar with grey circle background
+    JLabel avatarLabel = new JLabel(_aiAvatarIcon) {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Paint grey circle background first
+        g2d.setColor(new Color(229, 231, 235)); // Light grey background circle
+        g2d.fillOval(0, 0, getWidth(), getHeight());
+        
+        // Paint the animated gif icon on top, centered (preserves animation)
+        if (getIcon() != null) {
+          int iconWidth = getIcon().getIconWidth();
+          int iconHeight = getIcon().getIconHeight();
+          int x = (getWidth() - iconWidth) / 2;
+          int y = (getHeight() - iconHeight) / 2;
+          getIcon().paintIcon(this, g2d, x, y);
+        }
+        
+        g2d.dispose();
+      }
+    };
+    avatarLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
     avatarLabel.setVerticalAlignment(SwingConstants.TOP);
+    avatarLabel.setPreferredSize(new Dimension(AVATAR_SIZE + 4, AVATAR_SIZE + 4)); // Slightly larger for outline
     
     // Assistant name
     JLabel nameLabel = new JLabel("Assistant");
@@ -439,7 +462,7 @@ public class AIChatPanel extends JPanel {
     messageText.setForeground(TEXT_COLOR);
     messageText.setLineWrap(true);
     messageText.setWrapStyleWord(true);
-    messageText.setBorder(new EmptyBorder(4, 40, 0, 16)); // Left margin to align with text
+    messageText.setBorder(new EmptyBorder(4, 52, 0, 16)); // Left margin to align with text
     
     messagePanel.add(headerPanel, BorderLayout.NORTH);
     messagePanel.add(messageText, BorderLayout.CENTER);
