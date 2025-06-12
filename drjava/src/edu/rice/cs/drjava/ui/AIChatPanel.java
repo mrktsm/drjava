@@ -57,7 +57,7 @@ public class AIChatPanel extends JPanel {
     _addWelcomeMessage();
     
     setPreferredSize(new Dimension(300, 400));
-    setMinimumSize(new Dimension(250, 200));
+    setMinimumSize(new Dimension(200, 200));
     setBackground(BACKGROUND_COLOR);
     
     // Add component listener to handle resizing properly
@@ -147,7 +147,7 @@ public class AIChatPanel extends JPanel {
     codePane.setEditable(false);
     codePane.setOpaque(true);
     codePane.setBackground(Color.WHITE);
-    codePane.setBorder(new EmptyBorder(12, 12, 12, 12));
+    codePane.setBorder(null); // Remove padding from text area
     
     StyledDocument doc = codePane.getStyledDocument();
     
@@ -322,7 +322,7 @@ public class AIChatPanel extends JPanel {
     int fullHeight = (numLines * lineHeight) + 24; // Add padding
     
     // Set the scroll pane to show full content height
-    codeScrollPane.setPreferredSize(new Dimension(400, fullHeight));
+    codeScrollPane.setPreferredSize(new Dimension(0, fullHeight));
     
     // Wrap in a panel with grey border around white background
     JPanel codeContainer = new JPanel(new BorderLayout()) {
@@ -343,7 +343,7 @@ public class AIChatPanel extends JPanel {
       }
     };
     codeContainer.setBackground(Color.WHITE);
-    codeContainer.setBorder(new EmptyBorder(1, 1, 1, 1));
+    codeContainer.setBorder(new EmptyBorder(12, 12, 12, 12)); // Add padding to container instead
     codeContainer.add(codeScrollPane, BorderLayout.CENTER);
     
     return codeContainer;
@@ -420,7 +420,7 @@ public class AIChatPanel extends JPanel {
     _messagesPanel = new JPanel();
     _messagesPanel.setLayout(new BoxLayout(_messagesPanel, BoxLayout.Y_AXIS));
     _messagesPanel.setBackground(CHAT_BACKGROUND);
-    _messagesPanel.setBorder(new EmptyBorder(16, 20, 16, 20)); // Increased side padding from 16 to 20
+    _messagesPanel.setBorder(new EmptyBorder(16, 8, 16, 8)); // Reduced side padding from 20 to 8
     
     // Modern scroll pane
     _chatScroll = new JScrollPane(_messagesPanel);
@@ -436,19 +436,64 @@ public class AIChatPanel extends JPanel {
   }
   
   private JTextField _createEmbeddedInputField() {
-    final JTextField textField = new JTextField();
-    textField.setOpaque(false); // Let the container handle the background
-    textField.setBorder(new EmptyBorder(0, 12, 0, 50)); // Left padding + right space for button
-    textField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
-    textField.setForeground(TEXT_COLOR);
-    textField.setCaretColor(TEXT_COLOR);
+    // Create a completely transparent input field
+    JTextField inputField = new JTextField() {
+      @Override
+      protected void paintComponent(Graphics g) {
+        // Don't call super.paintComponent() to avoid any default background painting
+        // Only paint the text content
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        
+        // Paint text using the UI delegate but without background
+        if (getUI() != null) {
+          // Temporarily set background to transparent for UI painting
+          Color oldBg = getBackground();
+          setBackground(new Color(0, 0, 0, 0));
+          
+          // Let the UI paint text and caret, but not background
+          getUI().paint(g2d, this);
+          
+          // Restore background
+          setBackground(oldBg);
+        }
+        
+        g2d.dispose();
+      }
+      
+      @Override
+      public boolean isOpaque() {
+        return false; // Always return false to prevent background painting
+      }
+    };
+    inputField.setOpaque(false);
+    inputField.setBorder(null);
+    inputField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+    inputField.setForeground(TEXT_COLOR);
+    inputField.setCaretColor(TEXT_COLOR);
+    inputField.setBackground(new Color(0, 0, 0, 0)); // Completely transparent
+    inputField.addActionListener(e -> _sendMessage());
     
-    // Remove any focus painting that might escape the clipping
-    textField.setFocusTraversalKeysEnabled(false);
+    // Add key listener to the new input field
+    inputField.addKeyListener(new KeyListener() {
+      public void keyPressed(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+          _sendMessage();
+        }
+      }
+      public void keyReleased(KeyEvent e) {
+        inputField.repaint();
+      }
+      public void keyTyped(KeyEvent e) {
+        SwingUtilities.invokeLater(() -> inputField.repaint());
+      }
+    });
     
-    textField.addActionListener(e -> _sendMessage());
+    // Update the class field reference
+    _inputField = inputField;
     
-    return textField;
+    return inputField;
   }
   
   private JButton _createSendButton() {
@@ -528,52 +573,76 @@ public class AIChatPanel extends JPanel {
   }
   
   private JPanel _createEmbeddedInputPanel() {
-    // Custom rounded background panel that masks all content to capsule shape
+    // Create a rounded panel with custom rendering
     final JPanel roundedBackground = new JPanel(new BorderLayout()) {
       @Override
       protected void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
-        // Paint background
-        g2d.setColor(getBackground());
-        g2d.fillRect(0, 0, getWidth(), getHeight());
-        g2d.dispose();
-      }
-      
-      @Override
-      protected void paintChildren(Graphics g) {
-        Graphics2D g2d = (Graphics2D) g.create();
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
-        // Create capsule clipping mask for all children
+        // Calculate capsule dimensions
         int height = getHeight();
         int width = getWidth();
-        int radius = height - 4; // Match border calculation: height - top inset - bottom inset
+        int radius = height;
         
-        // Apply capsule clipping to all child painting
-        g2d.setClip(new java.awt.geom.RoundRectangle2D.Float(0, 0, width, height, radius, radius));
+        // Paint white background with rounded corners
+        g2d.setColor(getBackground());
+        g2d.fillRoundRect(0, 0, width, height, radius, radius);
         
-        // Paint all children with clipping applied
-        super.paintChildren(g2d);
+        // Paint border
+        g2d.setColor(BORDER_COLOR);
+        g2d.setStroke(new BasicStroke(1.0f));
+        g2d.drawRoundRect(0, 0, width - 1, height - 1, radius, radius);
+        
         g2d.dispose();
       }
     };
     roundedBackground.setBackground(INPUT_BACKGROUND);
-    roundedBackground.setBorder(new RoundedBorder(22, BORDER_COLOR, true));
-    roundedBackground.add(_inputField, BorderLayout.CENTER);
+    roundedBackground.setBorder(new EmptyBorder(0, 16, 0, 50)); // Left padding + right space for button
     
-    // Small button panel that only covers the button area
-    final JPanel buttonPanel = new JPanel(null); // Use null layout for precise positioning
+    // Create a completely transparent input field
+    JTextField inputField = new JTextField();
+    inputField.setOpaque(false);
+    inputField.setBorder(null);
+    inputField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
+    inputField.setForeground(TEXT_COLOR);
+    inputField.setCaretColor(TEXT_COLOR);
+    inputField.setBackground(new Color(0, 0, 0, 0)); // Completely transparent
+    inputField.addActionListener(e -> _sendMessage());
+    
+    // Add key listener to the input field
+    inputField.addKeyListener(new KeyListener() {
+      public void keyPressed(KeyEvent e) {
+        if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+          _sendMessage();
+        }
+      }
+      public void keyReleased(KeyEvent e) {
+        inputField.repaint();
+      }
+      public void keyTyped(KeyEvent e) {
+        SwingUtilities.invokeLater(() -> inputField.repaint());
+      }
+    });
+    
+    // Update the class field reference
+    _inputField = inputField;
+    
+    roundedBackground.add(inputField, BorderLayout.CENTER);
+    
+    // Create button panel
+    final JPanel buttonPanel = new JPanel(null);
     buttonPanel.setOpaque(false);
-    buttonPanel.setPreferredSize(new Dimension(44, 44)); // Just big enough for the button
+    buttonPanel.setBackground(new Color(0, 0, 0, 0)); // Completely transparent
+    buttonPanel.setPreferredSize(new Dimension(44, 44));
     buttonPanel.add(_sendButton);
 
-    // Container for the embedded input. Use JLayeredPane for reliable layering.
+    // Use JLayeredPane for proper layering
     final JLayeredPane layeredPane = new JLayeredPane();
     layeredPane.setPreferredSize(new Dimension(0, 44));
+    layeredPane.setOpaque(false); // Make sure layered pane is transparent
+    layeredPane.setBackground(new Color(0, 0, 0, 0)); // Completely transparent
     
-    // Add components to the layered pane
     layeredPane.add(roundedBackground, JLayeredPane.DEFAULT_LAYER);
     layeredPane.add(buttonPanel, JLayeredPane.PALETTE_LAYER);
     
@@ -585,34 +654,28 @@ public class AIChatPanel extends JPanel {
         int width = c.getWidth();
         int height = c.getHeight();
         
-        // Only proceed if we have valid dimensions
         if (width <= 0 || height <= 0) return;
         
         roundedBackground.setBounds(0, 0, width, height);
         
-        // Position button panel precisely in the right side
         int buttonPanelWidth = 44;
         int buttonPanelHeight = 44;
         
-        // Ensure button panel fits within the component
         if (width > buttonPanelWidth + 6 && height >= buttonPanelHeight) {
-          int x = width - buttonPanelWidth - 3; // 3px margin from right
-          int y = (height - buttonPanelHeight) / 2; // Center vertically
+          int x = width - buttonPanelWidth - 3;
+          int y = (height - buttonPanelHeight) / 2;
           buttonPanel.setBounds(x, y, buttonPanelWidth, buttonPanelHeight);
-          
-          // Position the send button within its panel
-          _sendButton.setBounds(6, 6, 32, 32); // Center the 32x32 button in the 44x44 panel
+          _sendButton.setBounds(6, 6, 32, 32);
         } else {
-          // Hide button panel if component is too small
           buttonPanel.setBounds(-buttonPanelWidth, -buttonPanelHeight, buttonPanelWidth, buttonPanelHeight);
         }
       }
     });
     
-    // Container for the input with padding
+    // Container for the input with padding - make sure this is also transparent
     JPanel inputContainer = new JPanel(new BorderLayout());
     inputContainer.setBackground(CHAT_BACKGROUND);
-    inputContainer.setBorder(new EmptyBorder(0, 8, 16, 8)); // Increased side padding from 5 to 8
+    inputContainer.setBorder(new EmptyBorder(0, 8, 16, 8));
     inputContainer.add(layeredPane, BorderLayout.CENTER);
     
     return inputContainer;
@@ -668,68 +731,15 @@ public class AIChatPanel extends JPanel {
     String message = _inputField.getText().trim();
     if (!message.isEmpty()) {
       _addUserMessage(message);
-      _addAIMessage("I'm still learning! This feature will be available soon. " +
-        "In the meantime, keep coding! 🚀\n\n" +
-        "**Here's a sample of syntax highlighting with different examples:**\n" +
-        "- *Italic text*\n" +
-        "- **Bold text**\n" +
-        "- `inline code`\n\n" +
-        "**Data Structures Example:**\n" +
+      _addAIMessage("Here's a simple Java example:\n\n" +
         "```java\n" +
-        "import java.util.*;\n" +
-        "\n" +
-        "public class StudentManager {\n" +
-        "    private Map<Integer, Student> students = new HashMap<>();\n" +
-        "    private List<String> courses = new ArrayList<>();\n" +
-        "    \n" +
-        "    public void addStudent(int id, String name, double gpa) {\n" +
-        "        Student student = new Student(id, name, gpa);\n" +
-        "        students.put(id, student);\n" +
-        "        System.out.println(\"Added student: \" + name + \" with GPA: \" + gpa);\n" +
-        "    }\n" +
-        "    \n" +
-        "    public List<Student> getHonorsStudents() {\n" +
-        "        return students.values().stream()\n" +
-        "            .filter(s -> s.getGpa() >= 3.5)\n" +
-        "            .sorted((a, b) -> Double.compare(b.getGpa(), a.getGpa()))\n" +
-        "            .collect(Collectors.toList());\n" +
+        "public class Hello {\n" +
+        "    public static void main(String[] args) {\n" +
+        "        System.out.println(\"Hello, World!\");\n" +
         "    }\n" +
         "}\n" +
         "```\n\n" +
-        "**Algorithm Example:**\n" +
-        "```java\n" +
-        "public class QuickSort {\n" +
-        "    public static void quickSort(int[] arr, int low, int high) {\n" +
-        "        if (low < high) {\n" +
-        "            int pivotIndex = partition(arr, low, high);\n" +
-        "            \n" +
-        "            // Recursively sort elements before and after partition\n" +
-        "            quickSort(arr, low, pivotIndex - 1);\n" +
-        "            quickSort(arr, pivotIndex + 1, high);\n" +
-        "        }\n" +
-        "    }\n" +
-        "    \n" +
-        "    private static int partition(int[] arr, int low, int high) {\n" +
-        "        int pivot = arr[high]; // Choose rightmost element as pivot\n" +
-        "        int i = low - 1; // Index of smaller element\n" +
-        "        \n" +
-        "        for (int j = low; j < high; j++) {\n" +
-        "            if (arr[j] <= pivot) {\n" +
-        "                i++;\n" +
-        "                swap(arr, i, j);\n" +
-        "            }\n" +
-        "        }\n" +
-        "        swap(arr, i + 1, high);\n" +
-        "        return i + 1;\n" +
-        "    }\n" +
-        "}\n" +
-        "```\n\n" +
-        "Notice the **syntax highlighting** with different colors for:\n" +
-        "- Keywords like `public`, `private`, `static`, `if`, `for`\n" +
-        "- Types like `String`, `int`, `double`, `List`, `Map`\n" +
-        "- String literals in red\n" +
-        "- Comments in green\n" +
-        "- Numbers in cyan");
+        "The code block should now have proper rounded corners!");
       _inputField.setText("");
       _scrollToBottom();
     }
@@ -763,7 +773,7 @@ public class AIChatPanel extends JPanel {
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
-        // Paint rounded background
+        // Paint rounded background with proper anti-aliasing
         g2d.setColor(getBackground());
         g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
         
@@ -784,7 +794,7 @@ public class AIChatPanel extends JPanel {
             }
           } else {
             // During initial layout or when parent is too small, use a reasonable default
-            int maxWidth = Math.max(250, pref.width);
+            int maxWidth = Math.max(150, pref.width);
             pref.width = Math.min(pref.width, maxWidth);
           }
         }
@@ -866,7 +876,7 @@ public class AIChatPanel extends JPanel {
               }
             } else {
               // During initial layout or when parent is too small, use a reasonable default
-              int maxWidth = Math.max(250, pref.width);
+              int maxWidth = Math.max(150, pref.width);
               pref.width = Math.min(pref.width, maxWidth);
             }
           }
@@ -914,9 +924,9 @@ public class AIChatPanel extends JPanel {
     bubble.add(textArea, BorderLayout.CENTER);
     
     // Limit bubble width
-    Dimension maxSize = new Dimension(250, Integer.MAX_VALUE);
+    Dimension maxSize = new Dimension(150, Integer.MAX_VALUE);
     bubble.setMaximumSize(maxSize);
-    bubble.setPreferredSize(new Dimension(Math.min(250, bubble.getPreferredSize().width), bubble.getPreferredSize().height));
+    bubble.setPreferredSize(new Dimension(Math.min(150, bubble.getPreferredSize().width), bubble.getPreferredSize().height));
     
     return bubble;
   }
