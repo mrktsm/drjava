@@ -9,6 +9,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseWheelEvent;
 import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
 import java.net.URL;
@@ -19,6 +20,7 @@ import java.util.regex.Matcher;
 import edu.rice.cs.drjava.DrJava;
 import edu.rice.cs.drjava.config.OptionConstants;
 import edu.rice.cs.util.swing.Utilities;
+import java.util.stream.Collectors;
 
 /**
  * A modern AI chat panel for DrJava with Cursor-inspired clean design.
@@ -129,55 +131,28 @@ public class AIChatPanel extends JPanel {
    * Creates a syntax-highlighted code pane for Java code with horizontal scrolling
    */
   private JComponent _createSyntaxHighlightedCodePane(String code) {
-    // Custom JTextPane that properly handles preferred size for horizontal scrolling
+    // Create JTextPane with syntax highlighting and no word wrapping
     JTextPane codePane = new JTextPane() {
       @Override
-      public Dimension getPreferredSize() {
-        // Force a minimum width to ensure horizontal scrolling works
-        Dimension d = super.getPreferredSize();
-        
-        // Calculate the actual text width needed by measuring each line
-        FontMetrics fm = getFontMetrics(getFont());
-        if (fm != null) {
-          String[] lines = getText().split("\n");
-          int maxWidth = 300; // Start with minimum width
-          
-          for (String line : lines) {
-            if (!line.trim().isEmpty()) {
-              int lineWidth = fm.stringWidth(line) + 50; // Add extra space for safety
-              maxWidth = Math.max(maxWidth, lineWidth);
-            }
-          }
-          
-          d.width = maxWidth;
-        }
-        
-        return d;
-      }
-      
-      @Override
-      public Dimension getMinimumSize() {
-        return getPreferredSize();
-      }
-      
-      @Override
       public boolean getScrollableTracksViewportWidth() {
-        // This is crucial - return false to allow horizontal scrolling
-        return false;
+        return false; // Critical: Allow horizontal scrolling
       }
       
       @Override
       public boolean getScrollableTracksViewportHeight() {
-        // Allow vertical scrolling if needed
-        return false;
+        return false; // Allow vertical scrolling when needed
       }
     };
+    
+    codePane.setEditable(false);
+    codePane.setOpaque(true);
+    codePane.setBackground(Color.WHITE);
+    codePane.setBorder(new EmptyBorder(12, 12, 12, 12));
     
     StyledDocument doc = codePane.getStyledDocument();
     
     // Define styles based on DrJava's color scheme
     Style defaultStyle = StyleContext.getDefaultStyleContext().getStyle(StyleContext.DEFAULT_STYLE);
-    
     Style normalStyle = doc.addStyle("normal", defaultStyle);
     
     // Use DrJava's main font family but with chat text size (13)
@@ -200,7 +175,7 @@ public class AIChatPanel extends JPanel {
     StyleConstants.setItalic(commentStyle, true);
     
     Style numberStyle = doc.addStyle("number", normalStyle);
-    StyleConstants.setForeground(numberStyle, new Color(0, 139, 139)); // Muted cyan for numbers
+    StyleConstants.setForeground(numberStyle, new Color(0, 139, 139)); // Cyan for numbers
     
     // Java keywords
     String[] keywords = {
@@ -294,38 +269,53 @@ public class AIChatPanel extends JPanel {
       }
     }
     
-    // Configure the text pane
-    codePane.setEditable(false);
-    codePane.setOpaque(true);
-    codePane.setBackground(Color.WHITE);
-    codePane.setBorder(new EmptyBorder(12, 12, 12, 12));
-    
-    // Set tab size for proper indentation
-    TabStop[] tabs = new TabStop[50];
-    FontMetrics fm = codePane.getFontMetrics(new Font(mainFont.getFamily(), Font.PLAIN, 13));
-    int tabWidth = fm.charWidth(' ') * 4; // 4 spaces per tab
-    for (int i = 0; i < tabs.length; i++) {
-      tabs[i] = new TabStop((i + 1) * tabWidth);
-    }
-    TabSet tabSet = new TabSet(tabs);
-    SimpleAttributeSet attributes = new SimpleAttributeSet();
-    StyleConstants.setTabSet(attributes, tabSet);
-    codePane.setParagraphAttributes(attributes, false);
-    
-    // Wrap in a scroll pane for horizontal scrolling
+    // Wrap in a scroll pane for horizontal scrolling only
     JScrollPane codeScrollPane = new JScrollPane(codePane);
     codeScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-    codeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+    codeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER); // No vertical scrolling
     codeScrollPane.setBorder(null);
     codeScrollPane.setOpaque(false);
     codeScrollPane.getViewport().setOpaque(false);
     
-    // Force the scroll pane to respect the preferred size
-    codeScrollPane.setPreferredSize(new Dimension(400, Math.min(300, codePane.getPreferredSize().height + 24)));
-    
-    // Set scroll increments
+    // Set scroll increments for smooth horizontal scrolling
     codeScrollPane.getHorizontalScrollBar().setUnitIncrement(16);
-    codeScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+    
+    // Forward vertical mouse wheel events to parent scroll pane
+    codeScrollPane.addMouseWheelListener(e -> {
+      // Since we have no vertical scrolling, forward all wheel events to parent
+      Container parent = codeScrollPane.getParent();
+      while (parent != null && !(parent instanceof JScrollPane)) {
+        parent = parent.getParent();
+      }
+      if (parent instanceof JScrollPane) {
+        JScrollPane parentScroll = (JScrollPane) parent;
+        // Create a new event targeted at the parent scroll pane
+        MouseWheelEvent parentEvent = new MouseWheelEvent(
+          parentScroll,
+          e.getID(),
+          e.getWhen(),
+          e.getModifiers(),
+          e.getX(),
+          e.getY(),
+          e.getClickCount(),
+          e.isPopupTrigger(),
+          e.getScrollType(),
+          e.getScrollAmount(),
+          e.getWheelRotation()
+        );
+        parentScroll.dispatchEvent(parentEvent);
+      }
+    });
+    
+    // Calculate full height based on number of lines - no height limit
+    FontMetrics fm = codePane.getFontMetrics(new Font(mainFont.getFamily(), Font.PLAIN, 13));
+    int lineHeight = fm.getHeight();
+    String[] lines = code.split("\n");
+    int numLines = Math.max(1, lines.length);
+    int fullHeight = (numLines * lineHeight) + 24; // Add padding
+    
+    // Set the scroll pane to show full content height
+    codeScrollPane.setPreferredSize(new Dimension(400, fullHeight));
     
     // Wrap in a panel with grey border around white background
     JPanel codeContainer = new JPanel(new BorderLayout()) {
@@ -340,7 +330,7 @@ public class AIChatPanel extends JPanel {
         
         // Draw white inner area with rounded corners
         g2d.setColor(Color.WHITE);
-        g2d.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 11, 11);
+        g2d.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 10, 10);
         
         g2d.dispose();
       }
@@ -673,34 +663,66 @@ public class AIChatPanel extends JPanel {
       _addUserMessage(message);
       _addAIMessage("I'm still learning! This feature will be available soon. " +
         "In the meantime, keep coding! 🚀\n\n" +
-        "**Here's a sample of syntax highlighting:**\n" +
+        "**Here's a sample of syntax highlighting with different examples:**\n" +
         "- *Italic text*\n" +
         "- **Bold text**\n" +
         "- `inline code`\n\n" +
+        "**Data Structures Example:**\n" +
         "```java\n" +
-        "public class HelloWorld {\n" +
-        "    private static final String GREETING = \"Hello World!\";\n" +
+        "import java.util.*;\n" +
+        "\n" +
+        "public class StudentManager {\n" +
+        "    private Map<Integer, Student> students = new HashMap<>();\n" +
+        "    private List<String> courses = new ArrayList<>();\n" +
         "    \n" +
-        "    public static void main(String[] args) {\n" +
-        "        // This is a very long comment that should definitely cause horizontal scrolling if the feature is working properly - it keeps going and going\n" +
-        "        int count = 42;\n" +
-        "        boolean isReady = true;\n" +
-        "        String reallyLongVariableName = \"This is a very long string that should definitely cause horizontal scrolling in the code block if everything is working correctly\";\n" +
+        "    public void addStudent(int id, String name, double gpa) {\n" +
+        "        Student student = new Student(id, name, gpa);\n" +
+        "        students.put(id, student);\n" +
+        "        System.out.println(\"Added student: \" + name + \" with GPA: \" + gpa);\n" +
+        "    }\n" +
+        "    \n" +
+        "    public List<Student> getHonorsStudents() {\n" +
+        "        return students.values().stream()\n" +
+        "            .filter(s -> s.getGpa() >= 3.5)\n" +
+        "            .sorted((a, b) -> Double.compare(b.getGpa(), a.getGpa()))\n" +
+        "            .collect(Collectors.toList());\n" +
+        "    }\n" +
+        "}\n" +
+        "```\n\n" +
+        "**Algorithm Example:**\n" +
+        "```java\n" +
+        "public class QuickSort {\n" +
+        "    public static void quickSort(int[] arr, int low, int high) {\n" +
+        "        if (low < high) {\n" +
+        "            int pivotIndex = partition(arr, low, high);\n" +
+        "            \n" +
+        "            // Recursively sort elements before and after partition\n" +
+        "            quickSort(arr, low, pivotIndex - 1);\n" +
+        "            quickSort(arr, pivotIndex + 1, high);\n" +
+        "        }\n" +
+        "    }\n" +
+        "    \n" +
+        "    private static int partition(int[] arr, int low, int high) {\n" +
+        "        int pivot = arr[high]; // Choose rightmost element as pivot\n" +
+        "        int i = low - 1; // Index of smaller element\n" +
         "        \n" +
-        "        if (isReady) {\n" +
-        "            System.out.println(GREETING + \" - and this line is also very long to test horizontal scrolling functionality\");\n" +
-        "            for (int i = 0; i < count; i++) {\n" +
-        "                System.out.println(\"Number: \" + i + \" - adding more text to make this line longer and test scrolling\");\n" +
+        "        for (int j = low; j < high; j++) {\n" +
+        "            if (arr[j] <= pivot) {\n" +
+        "                i++;\n" +
+        "                swap(arr, i, j);\n" +
         "            }\n" +
         "        }\n" +
+        "        swap(arr, i + 1, high);\n" +
+        "        return i + 1;\n" +
         "    }\n" +
         "}\n" +
         "```\n\n" +
         "Notice the **syntax highlighting** with different colors for:\n" +
-        "- Keywords like `public`, `static`, `if`, `for`\n" +
-        "- Types like `String`, `int`, `boolean`\n" +
+        "- Keywords like `public`, `private`, `static`, `if`, `for`\n" +
+        "- Types like `String`, `int`, `double`, `List`, `Map`\n" +
         "- String literals in red\n" +
-        "- Comments in green");
+        "- Comments in green\n" +
+        "- Numbers in cyan");
       _inputField.setText("");
       _scrollToBottom();
     }
