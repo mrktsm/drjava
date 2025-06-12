@@ -398,6 +398,25 @@ public class AIChatPanel extends JPanel {
         
         g2d.dispose();
       }
+      
+      @Override
+      public Dimension getPreferredSize() {
+        Dimension pref = super.getPreferredSize();
+        // Limit to 70% of parent width but be responsive
+        Container parent = getParent();
+        if (parent != null) {
+          int maxWidth = (int) (parent.getWidth() * 0.7);
+          if (maxWidth > 0 && pref.width > maxWidth) {
+            pref.width = maxWidth;
+          }
+        }
+        return pref;
+      }
+      
+      @Override
+      public Dimension getMaximumSize() {
+        return getPreferredSize();
+      }
     };
     bubblePanel.setBackground(USER_BUBBLE_COLOR);
     bubblePanel.setBorder(new EmptyBorder(8, 12, 8, 12));
@@ -415,9 +434,6 @@ public class AIChatPanel extends JPanel {
     
     bubblePanel.add(messageText, BorderLayout.CENTER);
     
-    // Limit bubble width
-    bubblePanel.setMaximumSize(new Dimension(250, Integer.MAX_VALUE));
-    
     messagePanel.add(bubblePanel, BorderLayout.CENTER);
     
     return messagePanel;
@@ -429,7 +445,26 @@ public class AIChatPanel extends JPanel {
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
     // Use JEditorPane for rich HTML content (AI messages support markdown)
-    JEditorPane messageText = new JEditorPane();
+    JEditorPane messageText = new JEditorPane() {
+      @Override
+      public Dimension getPreferredSize() {
+        Dimension pref = super.getPreferredSize();
+        // Limit to 85% of parent width but be responsive
+        Container parent = getParent();
+        if (parent != null) {
+          int maxWidth = (int) (parent.getWidth() * 0.85);
+          if (maxWidth > 0 && pref.width > maxWidth) {
+            pref.width = maxWidth;
+          }
+        }
+        return pref;
+      }
+      
+      @Override
+      public Dimension getMaximumSize() {
+        return getPreferredSize();
+      }
+    };
     messageText.setContentType("text/html");
     messageText.setEditable(false);
     messageText.setOpaque(false);
