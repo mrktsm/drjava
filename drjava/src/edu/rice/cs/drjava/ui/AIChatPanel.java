@@ -56,8 +56,8 @@ public class AIChatPanel extends JPanel {
     _setUpEventListeners();
     _addWelcomeMessage();
     
-    setPreferredSize(new Dimension(300, 400));
-    setMinimumSize(new Dimension(200, 200));
+    setPreferredSize(new Dimension(400, 400));
+    setMinimumSize(new Dimension(380, 200));
     setBackground(BACKGROUND_COLOR);
     
     // Add component listener to handle resizing properly
