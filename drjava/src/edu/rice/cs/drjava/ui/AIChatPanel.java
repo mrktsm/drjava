@@ -385,24 +385,40 @@ public class AIChatPanel extends JPanel {
     messagePanel.setOpaque(false);
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
-    // Simple role label - like Cursor
-    JLabel roleLabel = new JLabel("You");
-    roleLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
-    roleLabel.setForeground(SECONDARY_TEXT_COLOR);
-    roleLabel.setBorder(new EmptyBorder(0, 0, 3, 0));
+    // Create rounded chat bubble for user message
+    JPanel bubblePanel = new JPanel(new BorderLayout()) {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Paint rounded background
+        g2d.setColor(getBackground());
+        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+        
+        g2d.dispose();
+      }
+    };
+    bubblePanel.setBackground(USER_BUBBLE_COLOR);
+    bubblePanel.setBorder(new EmptyBorder(8, 12, 8, 12));
     
-    // Message text - clean and minimal (plain text for user messages)
+    // Message text inside the bubble
     JTextArea messageText = new JTextArea(message);
     messageText.setEditable(false);
     messageText.setOpaque(false);
+    messageText.setBackground(new Color(0, 0, 0, 0)); // Fully transparent
     messageText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-    messageText.setForeground(TEXT_COLOR);
+    messageText.setForeground(USER_TEXT_COLOR);
     messageText.setLineWrap(true);
     messageText.setWrapStyleWord(true);
-    messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
+    messageText.setBorder(null);
     
-    messagePanel.add(roleLabel, BorderLayout.NORTH);
-    messagePanel.add(messageText, BorderLayout.CENTER);
+    bubblePanel.add(messageText, BorderLayout.CENTER);
+    
+    // Limit bubble width
+    bubblePanel.setMaximumSize(new Dimension(250, Integer.MAX_VALUE));
+    
+    messagePanel.add(bubblePanel, BorderLayout.CENTER);
     
     return messagePanel;
   }
@@ -411,12 +427,6 @@ public class AIChatPanel extends JPanel {
     JPanel messagePanel = new JPanel(new BorderLayout());
     messagePanel.setOpaque(false);
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-    
-    // Simple role label - like Cursor
-    JLabel roleLabel = new JLabel("Assistant");
-    roleLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
-    roleLabel.setForeground(SECONDARY_TEXT_COLOR);
-    roleLabel.setBorder(new EmptyBorder(0, 0, 3, 0));
     
     // Use JEditorPane for rich HTML content (AI messages support markdown)
     JEditorPane messageText = new JEditorPane();
@@ -429,7 +439,6 @@ public class AIChatPanel extends JPanel {
     // Don't honor display properties to ensure HTML uses our CSS sizes
     messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
     
-    messagePanel.add(roleLabel, BorderLayout.NORTH);
     messagePanel.add(messageText, BorderLayout.CENTER);
     
     return messagePanel;
