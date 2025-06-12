@@ -140,10 +140,10 @@ public class AIChatPanel extends JPanel {
     
     Style normalStyle = doc.addStyle("normal", defaultStyle);
     
-    // Use DrJava's main font configuration
+    // Use DrJava's main font family but with chat text size (13)
     Font mainFont = DrJava.getConfig().getSetting(OptionConstants.FONT_MAIN);
     StyleConstants.setFontFamily(normalStyle, mainFont.getFamily());
-    StyleConstants.setFontSize(normalStyle, mainFont.getSize());
+    StyleConstants.setFontSize(normalStyle, 13); // Match chat text size
     StyleConstants.setForeground(normalStyle, new Color(51, 51, 51)); // NORMAL_COLOR
     StyleConstants.setLineSpacing(normalStyle, 0.2f);
     
@@ -267,12 +267,13 @@ public class AIChatPanel extends JPanel {
     codePane.setBackground(Color.WHITE); // White background for code
     codePane.setBorder(new EmptyBorder(12, 12, 12, 12)); // Increased padding for better readability
     
-    // Use DrJava's main font for consistency
-    codePane.setFont(mainFont);
+    // Use DrJava's main font family but with chat text size (13)
+    Font codeFont = new Font(mainFont.getFamily(), Font.PLAIN, 13);
+    codePane.setFont(codeFont);
     
     // Set tab size for proper indentation (4 spaces)
     TabStop[] tabs = new TabStop[50]; // Support up to 50 tab stops
-    int tabWidth = codePane.getFontMetrics(mainFont).charWidth(' ') * 4; // 4 spaces per tab
+    int tabWidth = codePane.getFontMetrics(codeFont).charWidth(' ') * 4; // 4 spaces per tab
     for (int i = 0; i < tabs.length; i++) {
       tabs[i] = new TabStop((i + 1) * tabWidth);
     }
