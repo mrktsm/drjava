@@ -16,6 +16,9 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentAdapter;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import edu.rice.cs.drjava.DrJava;
+import edu.rice.cs.drjava.config.OptionConstants;
+import edu.rice.cs.util.swing.Utilities;
 
 /**
  * A modern AI chat panel for DrJava with Cursor-inspired clean design.
@@ -31,9 +34,9 @@ public class AIChatPanel extends JPanel {
   private static final Color TEXT_COLOR = new Color(51, 51, 51); // Dark grey for text
   private static final Color SECONDARY_TEXT_COLOR = new Color(101, 109, 118);
   private static final Color ACCENT_COLOR = new Color(13, 110, 253);
-  private static final Color USER_BUBBLE_COLOR = new Color(13, 110, 253);
+  private static final Color USER_BUBBLE_COLOR = new Color(242, 242, 242); // Light gray
   private static final Color AI_BUBBLE_COLOR = new Color(242, 242, 242);
-  private static final Color USER_TEXT_COLOR = Color.WHITE;
+  private static final Color USER_TEXT_COLOR = new Color(51, 51, 51); // Dark text for gray background
   private static final Color AI_TEXT_COLOR = new Color(36, 41, 47);
   
   private JPanel _messagesPanel;
@@ -66,10 +69,10 @@ public class AIChatPanel extends JPanel {
     
     String html = markdown;
     
-    // Convert code blocks (```...```)
+    // Convert code blocks (```...```) - we'll handle these specially now
     Pattern codeBlockPattern = Pattern.compile("```(.*?)```", Pattern.DOTALL);
     Matcher codeBlockMatcher = codeBlockPattern.matcher(html);
-    html = codeBlockMatcher.replaceAll("<pre style='background-color: #f6f8fa; padding: 6px; border-radius: 3px; font-family: Consolas, Monaco, monospace; font-size: 11px; margin: 6px 0; line-height: 1.3;'><code>$1</code></pre>");
+    html = codeBlockMatcher.replaceAll("__CODE_BLOCK__$1__CODE_BLOCK_END__");
     
     // Convert inline code (`...`)
     Pattern inlineCodePattern = Pattern.compile("`([^`]+)`");
@@ -104,6 +107,269 @@ public class AIChatPanel extends JPanel {
            "li { margin: 1px 0; }" +
            "p { margin: 0; padding: 0; }" +
            "</style></head><body>" + html + "</body></html>";
+  }
+  
+  /**
+   * Creates a syntax-highlighted JTextPane for Java code
+   */
+  private JComponent _createSyntaxHighlightedCodePane(String code) {
+    // Custom JTextPane that clips to rounded corners
+    JTextPane codePane = new JTextPane() {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Create rounded clipping area
+        g2d.setClip(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 10, 10));
+        
+        // Fill background with white
+        g2d.setColor(Color.WHITE);
+        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+        
+        // Let the text pane paint its content within the clipped area
+        super.paintComponent(g2d);
+        g2d.dispose();
+      }
+    };
+    
+    StyledDocument doc = codePane.getStyledDocument();
+    
+    // Define styles based on DrJava's color scheme
+    Style defaultStyle = StyleContext.getDefaultStyleContext().getStyle(StyleContext.DEFAULT_STYLE);
+    
+    Style normalStyle = doc.addStyle("normal", defaultStyle);
+    
+    // Use DrJava's main font configuration
+    Font mainFont = DrJava.getConfig().getSetting(OptionConstants.FONT_MAIN);
+    StyleConstants.setFontFamily(normalStyle, mainFont.getFamily());
+    StyleConstants.setFontSize(normalStyle, mainFont.getSize());
+    StyleConstants.setForeground(normalStyle, new Color(51, 51, 51)); // NORMAL_COLOR
+    StyleConstants.setLineSpacing(normalStyle, 0.2f);
+    
+    Style keywordStyle = doc.addStyle("keyword", normalStyle);
+    StyleConstants.setForeground(keywordStyle, new Color(0, 0, 255)); // Blue for keywords
+    
+    Style typeStyle = doc.addStyle("type", normalStyle);
+    StyleConstants.setForeground(typeStyle, new Color(0, 0, 139)); // Dark blue for types
+    
+    Style stringStyle = doc.addStyle("string", normalStyle);
+    StyleConstants.setForeground(stringStyle, new Color(139, 0, 0)); // Dark red for strings
+    
+    Style commentStyle = doc.addStyle("comment", normalStyle);
+    StyleConstants.setForeground(commentStyle, new Color(0, 128, 0)); // Green for comments
+    StyleConstants.setItalic(commentStyle, true);
+    
+    Style numberStyle = doc.addStyle("number", normalStyle);
+    StyleConstants.setForeground(numberStyle, new Color(0, 139, 139)); // Muted cyan for numbers
+    
+    // Java keywords (excluding primitive types which are treated as types)
+    String[] keywords = {
+      "abstract", "assert", "break", "case", "catch", "class", "const",
+      "continue", "default", "do", "else", "enum", "extends", "final", "finally",
+      "for", "goto", "if", "implements", "import", "instanceof", "interface", "native",
+      "new", "package", "private", "protected", "public", "return", "static", "strictfp",
+      "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void",
+      "volatile", "while", "true", "false", "null"
+    };
+    
+    // Java types (primitives and common reference types)
+    String[] types = {
+      // Primitive types
+      "boolean", "byte", "char", "double", "float", "int", "long", "short",
+      // Reference types
+      "String", "Object", "Integer", "Boolean", "Character", "Double", "Float", "Long", "Short",
+      "BigInteger", "BigDecimal", "StringBuilder", "StringBuffer", "ArrayList", "HashMap", "List",
+      "Map", "Set", "Collection", "Iterator", "Exception", "RuntimeException", "Thread", "System"
+    };
+    
+    try {
+      String[] lines = code.split("\n");
+      for (int i = 0; i < lines.length; i++) {
+        String line = lines[i];
+        if (i > 0) {
+          doc.insertString(doc.getLength(), "\n", normalStyle);
+        }
+        
+        int lineStart = 0;
+        
+        // Check for comments first (they override everything else)
+        if (line.trim().startsWith("//")) {
+          doc.insertString(doc.getLength(), line, commentStyle);
+          continue;
+        }
+        
+        // Check for multi-line comments
+        if (line.trim().startsWith("/*") || line.trim().startsWith("*")) {
+          doc.insertString(doc.getLength(), line, commentStyle);
+          continue;
+        }
+        
+        // Tokenize and highlight - preserve whitespace and handle string literals properly
+        Pattern tokenPattern = Pattern.compile("(\"[^\"]*\"|'[^']*'|\\w+|\\s+|[^\\w\\s])");
+        Matcher tokenMatcher = tokenPattern.matcher(line);
+        
+        while (tokenMatcher.find()) {
+          String token = tokenMatcher.group();
+          Style styleToUse = normalStyle;
+          
+          // Don't style whitespace - just insert as-is
+          if (token.matches("\\s+")) {
+            doc.insertString(doc.getLength(), token, normalStyle);
+            continue;
+          }
+          
+          // Check if it's a string literal (including quotes)
+          if ((token.startsWith("\"") && token.endsWith("\"")) || 
+              (token.startsWith("'") && token.endsWith("'"))) {
+            styleToUse = stringStyle;
+          }
+          // Check if it's a keyword
+          else if (token.matches("\\w+")) {
+            for (String keyword : keywords) {
+              if (token.equals(keyword)) {
+                styleToUse = keywordStyle;
+                break;
+              }
+            }
+            
+            // Check if it's a type (only if not already a keyword)
+            if (styleToUse == normalStyle) {
+              for (String type : types) {
+                if (token.equals(type)) {
+                  styleToUse = typeStyle;
+                  break;
+                }
+              }
+            }
+            
+            // Check if it's a number
+            if (styleToUse == normalStyle && token.matches("\\d+(\\.\\d+)?[fFdDlL]?")) {
+              styleToUse = numberStyle;
+            }
+          }
+          
+          doc.insertString(doc.getLength(), token, styleToUse);
+        }
+      }
+    } catch (BadLocationException e) {
+      // Fallback: just insert as plain text
+      try {
+        doc.insertString(0, code, normalStyle);
+      } catch (BadLocationException ex) {
+        // This shouldn't happen
+      }
+    }
+    
+    // Configure the text pane
+    codePane.setEditable(false);
+    codePane.setOpaque(true);
+    codePane.setBackground(Color.WHITE); // White background for code
+    codePane.setBorder(new EmptyBorder(12, 12, 12, 12)); // Increased padding for better readability
+    
+    // Use DrJava's main font for consistency
+    codePane.setFont(mainFont);
+    
+    // Set tab size for proper indentation (4 spaces)
+    TabStop[] tabs = new TabStop[50]; // Support up to 50 tab stops
+    int tabWidth = codePane.getFontMetrics(mainFont).charWidth(' ') * 4; // 4 spaces per tab
+    for (int i = 0; i < tabs.length; i++) {
+      tabs[i] = new TabStop((i + 1) * tabWidth);
+    }
+    TabSet tabSet = new TabSet(tabs);
+    SimpleAttributeSet attributes = new SimpleAttributeSet();
+    StyleConstants.setTabSet(attributes, tabSet);
+    codePane.setParagraphAttributes(attributes, false);
+    
+    // Wrap in a panel with grey border around white background
+    JPanel codeContainer = new JPanel(new BorderLayout()) {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    
+        // Draw grey border with rounded corners
+        g2d.setColor(new Color(208, 215, 222)); // Grey border color
+        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+        
+        // Draw white inner area with rounded corners (slightly smaller to show border)
+        g2d.setColor(Color.WHITE);
+        g2d.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 11, 11);
+    
+    g2d.dispose();
+      }
+    };
+    codeContainer.setBackground(Color.WHITE);
+    codeContainer.setBorder(new EmptyBorder(1, 1, 1, 1)); // Minimal border to show the grey outline
+    codeContainer.add(codePane, BorderLayout.CENTER);
+    
+    return codeContainer;
+  }
+  
+  /**
+   * Creates a mixed content panel that can contain both HTML text and syntax-highlighted code blocks
+   */
+  private JComponent _createMixedContentPanel(String message) {
+    JPanel contentPanel = new JPanel();
+    contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+    contentPanel.setOpaque(false);
+    contentPanel.setBorder(null); // Remove any default border
+    
+    // Split message by code blocks
+    Pattern codeBlockPattern = Pattern.compile("```(.*?)```", Pattern.DOTALL);
+    Matcher matcher = codeBlockPattern.matcher(message);
+    
+    int lastEnd = 0;
+    
+    while (matcher.find()) {
+      // Add text before code block
+      String beforeText = message.substring(lastEnd, matcher.start());
+      if (!beforeText.trim().isEmpty()) {
+        JEditorPane textPane = new JEditorPane();
+        textPane.setContentType("text/html");
+        textPane.setEditable(false);
+        textPane.setOpaque(false);
+        textPane.setText(_convertMarkdownToHTML(beforeText));
+        textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+        textPane.setBorder(new EmptyBorder(0, 0, 4, 0)); // Reduced bottom spacing
+        textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(textPane);
+      }
+      
+      // Add syntax-highlighted code block
+      String codeContent = matcher.group(1).trim();
+      // Remove language identifier if present (e.g., "java\n" -> "")
+      if (codeContent.startsWith("java\n")) {
+        codeContent = codeContent.substring(5);
+      } else if (codeContent.startsWith("java ")) {
+        codeContent = codeContent.substring(5);
+      }
+      
+      JComponent codePane = _createSyntaxHighlightedCodePane(codeContent);
+      codePane.setAlignmentX(Component.LEFT_ALIGNMENT);
+      contentPanel.add(codePane);
+      contentPanel.add(Box.createVerticalStrut(4)); // Reduced spacing
+      
+      lastEnd = matcher.end();
+    }
+    
+    // Add remaining text after last code block
+    if (lastEnd < message.length()) {
+      String remainingText = message.substring(lastEnd);
+      if (!remainingText.trim().isEmpty()) {
+        JEditorPane textPane = new JEditorPane();
+        textPane.setContentType("text/html");
+        textPane.setEditable(false);
+        textPane.setOpaque(false);
+        textPane.setText(_convertMarkdownToHTML(remainingText));
+        textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+        textPane.setBorder(null); // No border for final text
+        textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(textPane);
+      }
+    }
+    
+    return contentPanel;
   }
   
   private void _setUpComponents() {
@@ -348,17 +614,33 @@ public class AIChatPanel extends JPanel {
       _addUserMessage(message);
       _addAIMessage("I'm still learning! This feature will be available soon. " +
         "In the meantime, keep coding! 🚀\n\n" +
-        "**Here's a sample of markdown formatting:**\n" +
+        "**Here's a sample of syntax highlighting:**\n" +
         "- *Italic text*\n" +
         "- **Bold text**\n" +
         "- `inline code`\n\n" +
         "```java\n" +
-        "public class Hello {\n" +
+        "public class HelloWorld {\n" +
+        "    private static final String GREETING = \"Hello World!\";\n" +
+        "    \n" +
         "    public static void main(String[] args) {\n" +
-        "        System.out.println(\"Hello World!\");\n" +
+        "        // This is a comment\n" +
+        "        int count = 42;\n" +
+        "        boolean isReady = true;\n" +
+        "        \n" +
+        "        if (isReady) {\n" +
+        "            System.out.println(GREETING);\n" +
+        "            for (int i = 0; i < count; i++) {\n" +
+        "                System.out.println(\"Number: \" + i);\n" +
+        "            }\n" +
+        "        }\n" +
         "    }\n" +
         "}\n" +
-        "```");
+        "```\n\n" +
+        "Notice the **syntax highlighting** with different colors for:\n" +
+        "- Keywords like `public`, `static`, `if`, `for`\n" +
+        "- Types like `String`, `int`, `boolean`\n" +
+        "- String literals in red\n" +
+        "- Comments in green");
       _inputField.setText("");
       _scrollToBottom();
     }
@@ -444,37 +726,72 @@ public class AIChatPanel extends JPanel {
     messagePanel.setOpaque(false);
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
-    // Use JEditorPane for rich HTML content (AI messages support markdown)
-    JEditorPane messageText = new JEditorPane() {
-      @Override
-      public Dimension getPreferredSize() {
-        Dimension pref = super.getPreferredSize();
-        // Limit to 85% of parent width but be responsive
-        Container parent = getParent();
-        if (parent != null) {
-          int maxWidth = (int) (parent.getWidth() * 0.85);
-          if (maxWidth > 0 && pref.width > maxWidth) {
-            pref.width = maxWidth;
-          }
-        }
-        return pref;
-      }
+    // Check if message contains code blocks
+    boolean hasCodeBlocks = message.contains("```");
+    
+    if (hasCodeBlocks) {
+      // Use mixed content panel with syntax highlighting
+      JComponent contentComponent = _createMixedContentPanel(message);
+      contentComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
       
+      // Override preferred size for responsiveness
+      JPanel wrapper = new JPanel(new BorderLayout()) {
       @Override
-      public Dimension getMaximumSize() {
-        return getPreferredSize();
-      }
-    };
-    messageText.setContentType("text/html");
+        public Dimension getPreferredSize() {
+          Dimension pref = super.getPreferredSize();
+          // Limit to 85% of parent width but be responsive
+          Container parent = getParent();
+          if (parent != null) {
+            int maxWidth = (int) (parent.getWidth() * 0.85);
+            if (maxWidth > 0 && pref.width > maxWidth) {
+              pref.width = maxWidth;
+            }
+          }
+          return pref;
+        }
+        
+        @Override
+        public Dimension getMaximumSize() {
+          return getPreferredSize();
+        }
+      };
+      wrapper.setOpaque(false);
+      wrapper.add(contentComponent, BorderLayout.CENTER);
+      
+      messagePanel.add(wrapper, BorderLayout.CENTER);
+    } else {
+      // Use simple HTML for text-only messages
+      JEditorPane messageText = new JEditorPane() {
+        @Override
+        public Dimension getPreferredSize() {
+          Dimension pref = super.getPreferredSize();
+          // Limit to 85% of parent width but be responsive
+          Container parent = getParent();
+          if (parent != null) {
+            int maxWidth = (int) (parent.getWidth() * 0.85);
+            if (maxWidth > 0 && pref.width > maxWidth) {
+              pref.width = maxWidth;
+            }
+          }
+          return pref;
+        }
+        
+        @Override
+        public Dimension getMaximumSize() {
+          return getPreferredSize();
+        }
+      };
+      messageText.setContentType("text/html");
     messageText.setEditable(false);
     messageText.setOpaque(false);
-    messageText.setText(_convertMarkdownToHTML(message));
-    messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
-    
-    // Don't honor display properties to ensure HTML uses our CSS sizes
-    messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
-    
+      messageText.setText(_convertMarkdownToHTML(message));
+      messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
+      
+      // Don't honor display properties to ensure HTML uses our CSS sizes
+      messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+      
     messagePanel.add(messageText, BorderLayout.CENTER);
+    }
     
     return messagePanel;
   }
