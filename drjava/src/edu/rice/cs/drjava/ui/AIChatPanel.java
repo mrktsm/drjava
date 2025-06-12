@@ -3,6 +3,7 @@ package edu.rice.cs.drjava.ui;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.text.*;
+import javax.swing.text.html.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -13,10 +14,12 @@ import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentAdapter;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 
 /**
- * A modern AI chat panel for DrJava with GitHub Copilot-inspired design.
- * Features animated avatars, message bubbles, and a chat-like interface.
+ * A modern AI chat panel for DrJava with Cursor-inspired clean design.
+ * Features a minimal interface with clean message layout and markdown support.
  */
 public class AIChatPanel extends JPanel {
   
@@ -37,15 +40,12 @@ public class AIChatPanel extends JPanel {
   private JTextField _inputField;
   private JButton _sendButton;
   private JScrollPane _chatScroll;
-  private ImageIcon _aiAvatarIcon;
-  private static final int AVATAR_SIZE = 32;
   
   // Color for the custom send button
   private Color _sendButtonColor = new Color(148, 163, 184); // Light blue-grey
   
   public AIChatPanel() {
     super(new BorderLayout());
-    _loadAvatarIcon();
     _setUpComponents();
     _setUpLayout();
     _setUpEventListeners();
@@ -56,54 +56,54 @@ public class AIChatPanel extends JPanel {
     setBackground(BACKGROUND_COLOR);
   }
   
-  private void _loadAvatarIcon() {
-    try {
-      // Try to load the animated gif avatar
-      URL avatarUrl = getClass().getResource("/edu/rice/cs/drjava/ui/icons/ai-avatar32.gif");
-      if (avatarUrl != null) {
-        // Use the animated gif directly - don't transform it or it breaks the animation
-        _aiAvatarIcon = new ImageIcon(avatarUrl);
-      } else {
-        // Fallback: create a simple circular avatar with gradient
-        _aiAvatarIcon = _createDefaultAvatar();
-      }
-    } catch (Exception e) {
-      // Fallback avatar
-      _aiAvatarIcon = _createDefaultAvatar();
+  /**
+   * Simple markdown to HTML converter for basic formatting
+   */
+  private String _convertMarkdownToHTML(String markdown) {
+    if (markdown == null || markdown.trim().isEmpty()) {
+      return "";
     }
-  }
-  
-  private ImageIcon _createDefaultAvatar() {
-    // Create a circular avatar with a beautiful gradient background
-    BufferedImage avatar = new BufferedImage(AVATAR_SIZE, AVATAR_SIZE, BufferedImage.TYPE_INT_ARGB);
-    Graphics2D g2d = avatar.createGraphics();
-    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     
-    // Create a subtle gradient from light blue to darker blue
-    GradientPaint gradient = new GradientPaint(
-      0, 0, new Color(99, 179, 237),  // Light blue
-      AVATAR_SIZE, AVATAR_SIZE, new Color(65, 131, 215)  // Darker blue
-    );
-    g2d.setPaint(gradient);
-    g2d.fillOval(0, 0, AVATAR_SIZE, AVATAR_SIZE);
+    String html = markdown;
     
-    g2d.dispose();
-    return new ImageIcon(avatar);
-  }
-  
-  private ImageIcon _createUserAvatar() {
-    // Create a simple grey circle for user messages
-    int size = AVATAR_SIZE + 4; // Match AI avatar background size
-    BufferedImage avatar = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
-    Graphics2D g2d = avatar.createGraphics();
-    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    // Convert code blocks (```...```)
+    Pattern codeBlockPattern = Pattern.compile("```(.*?)```", Pattern.DOTALL);
+    Matcher codeBlockMatcher = codeBlockPattern.matcher(html);
+    html = codeBlockMatcher.replaceAll("<pre style='background-color: #f6f8fa; padding: 6px; border-radius: 3px; font-family: Consolas, Monaco, monospace; font-size: 11px; margin: 6px 0; line-height: 1.3;'><code>$1</code></pre>");
     
-    // Simple grey circle - clean and minimal
-    g2d.setColor(new Color(156, 163, 175)); // Nice medium grey
-    g2d.fillOval(0, 0, size, size);
+    // Convert inline code (`...`)
+    Pattern inlineCodePattern = Pattern.compile("`([^`]+)`");
+    Matcher inlineCodeMatcher = inlineCodePattern.matcher(html);
+    html = inlineCodeMatcher.replaceAll("<code style='background-color: #f6f8fa; padding: 1px 3px; border-radius: 2px; font-family: Consolas, Monaco, monospace; font-size: 11px;'>$1</code>");
     
-    g2d.dispose();
-    return new ImageIcon(avatar);
+    // Convert bold (**text**)
+    Pattern boldPattern = Pattern.compile("\\*\\*([^*]+)\\*\\*");
+    Matcher boldMatcher = boldPattern.matcher(html);
+    html = boldMatcher.replaceAll("<strong>$1</strong>");
+    
+    // Convert italic (*text*)
+    Pattern italicPattern = Pattern.compile("\\*([^*]+)\\*");
+    Matcher italicMatcher = italicPattern.matcher(html);
+    html = italicMatcher.replaceAll("<em>$1</em>");
+    
+    // Convert bullet points (• or -)
+    html = html.replaceAll("^[•-]\\s+(.*)$", "<li>$1</li>");
+    
+    // Wrap consecutive <li> elements in <ul>
+    html = html.replaceAll("(<li>.*?</li>)(?:\\s*<li>.*?</li>)*", "<ul>$0</ul>");
+    
+    // Convert line breaks
+    html = html.replaceAll("\n", "<br>");
+    
+    // Wrap in basic HTML structure with consistent styling
+    return "<html><head><style>" +
+           "body { font-family: 'Segoe UI', sans-serif; font-size: 10px; line-height: 1.4; margin: 0; padding: 0; }" +
+           "code { background-color: #f6f8fa; padding: 1px 3px; border-radius: 2px; font-family: Consolas, Monaco, monospace; font-size: 11px; }" +
+           "pre { background-color: #f6f8fa; padding: 6px; border-radius: 3px; font-family: Consolas, Monaco, monospace; font-size: 11px; margin: 6px 0; overflow-x: auto; line-height: 1.3; }" +
+           "ul { margin: 6px 0; padding-left: 18px; }" +
+           "li { margin: 1px 0; }" +
+           "p { margin: 0; padding: 0; }" +
+           "</style></head><body>" + html + "</body></html>";
   }
   
   private void _setUpComponents() {
@@ -333,7 +333,7 @@ public class AIChatPanel extends JPanel {
   }
   
   private void _addWelcomeMessage() {
-    _addAIMessage("Hello! I'm your AI programming assistant. 🤖\n\n" +
+    _addAIMessage("Hello! I'm your AI programming assistant.\n\n" +
       "I can help you with:\n" +
       "• Code explanations and debugging\n" +
       "• Java programming questions\n" +
@@ -347,7 +347,18 @@ public class AIChatPanel extends JPanel {
     if (!message.isEmpty()) {
       _addUserMessage(message);
       _addAIMessage("I'm still learning! This feature will be available soon. " +
-        "In the meantime, keep coding! 🚀");
+        "In the meantime, keep coding! 🚀\n\n" +
+        "**Here's a sample of markdown formatting:**\n" +
+        "- *Italic text*\n" +
+        "- **Bold text**\n" +
+        "- `inline code`\n\n" +
+        "```java\n" +
+        "public class Hello {\n" +
+        "    public static void main(String[] args) {\n" +
+        "        System.out.println(\"Hello World!\");\n" +
+        "    }\n" +
+        "}\n" +
+        "```");
       _inputField.setText("");
       _scrollToBottom();
     }
@@ -356,7 +367,7 @@ public class AIChatPanel extends JPanel {
   private void _addUserMessage(String message) {
     JPanel messagePanel = _createUserMessagePanel(message);
     _messagesPanel.add(messagePanel);
-    _messagesPanel.add(Box.createVerticalStrut(8));
+    _messagesPanel.add(Box.createVerticalStrut(16));
     _messagesPanel.revalidate();
     _messagesPanel.repaint();
   }
@@ -364,7 +375,7 @@ public class AIChatPanel extends JPanel {
   private void _addAIMessage(String message) {
     JPanel messagePanel = _createAIMessagePanel(message);
     _messagesPanel.add(messagePanel);
-    _messagesPanel.add(Box.createVerticalStrut(8));
+    _messagesPanel.add(Box.createVerticalStrut(16));
     _messagesPanel.revalidate();
     _messagesPanel.repaint();
   }
@@ -374,26 +385,13 @@ public class AIChatPanel extends JPanel {
     messagePanel.setOpaque(false);
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
-    // Header with avatar and name (like AI messages)
-    JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-    headerPanel.setOpaque(false);
+    // Simple role label - like Cursor
+    JLabel roleLabel = new JLabel("You");
+    roleLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+    roleLabel.setForeground(SECONDARY_TEXT_COLOR);
+    roleLabel.setBorder(new EmptyBorder(0, 0, 3, 0));
     
-    // User avatar - simple grey circle
-    JLabel avatarLabel = new JLabel(_createUserAvatar());
-    avatarLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
-    avatarLabel.setVerticalAlignment(SwingConstants.TOP);
-    avatarLabel.setPreferredSize(new Dimension(AVATAR_SIZE + 4, AVATAR_SIZE + 4)); // Same size as AI avatar
-    
-    // User name
-    JLabel nameLabel = new JLabel("You");
-    nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
-    nameLabel.setForeground(TEXT_COLOR);
-    nameLabel.setVerticalAlignment(SwingConstants.CENTER);
-    
-    headerPanel.add(avatarLabel);
-    headerPanel.add(nameLabel);
-    
-    // Message text (no bubble, clean style like AI messages)
+    // Message text - clean and minimal (plain text for user messages)
     JTextArea messageText = new JTextArea(message);
     messageText.setEditable(false);
     messageText.setOpaque(false);
@@ -401,9 +399,9 @@ public class AIChatPanel extends JPanel {
     messageText.setForeground(TEXT_COLOR);
     messageText.setLineWrap(true);
     messageText.setWrapStyleWord(true);
-    messageText.setBorder(new EmptyBorder(4, 52, 0, 16)); // Left margin to align with text
+    messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
     
-    messagePanel.add(headerPanel, BorderLayout.NORTH);
+    messagePanel.add(roleLabel, BorderLayout.NORTH);
     messagePanel.add(messageText, BorderLayout.CENTER);
     
     return messagePanel;
@@ -414,57 +412,24 @@ public class AIChatPanel extends JPanel {
     messagePanel.setOpaque(false);
     messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
-    // Header with avatar and name (like Copilot)
-    JPanel headerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-    headerPanel.setOpaque(false);
+    // Simple role label - like Cursor
+    JLabel roleLabel = new JLabel("Assistant");
+    roleLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+    roleLabel.setForeground(SECONDARY_TEXT_COLOR);
+    roleLabel.setBorder(new EmptyBorder(0, 0, 3, 0));
     
-    // Avatar with grey circle background
-    JLabel avatarLabel = new JLabel(_aiAvatarIcon) {
-      @Override
-      protected void paintComponent(Graphics g) {
-        Graphics2D g2d = (Graphics2D) g.create();
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
-        // Paint grey circle background first
-        g2d.setColor(new Color(229, 231, 235)); // Light grey background circle
-        g2d.fillOval(0, 0, getWidth(), getHeight());
-        
-        // Paint the animated gif icon on top, centered (preserves animation)
-        if (getIcon() != null) {
-          int iconWidth = getIcon().getIconWidth();
-          int iconHeight = getIcon().getIconHeight();
-          int x = (getWidth() - iconWidth) / 2;
-          int y = (getHeight() - iconHeight) / 2;
-          getIcon().paintIcon(this, g2d, x, y);
-        }
-        
-        g2d.dispose();
-      }
-    };
-    avatarLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
-    avatarLabel.setVerticalAlignment(SwingConstants.TOP);
-    avatarLabel.setPreferredSize(new Dimension(AVATAR_SIZE + 4, AVATAR_SIZE + 4)); // Slightly larger for outline
-    
-    // Assistant name
-    JLabel nameLabel = new JLabel("Assistant");
-    nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
-    nameLabel.setForeground(TEXT_COLOR);
-    nameLabel.setVerticalAlignment(SwingConstants.CENTER);
-    
-    headerPanel.add(avatarLabel);
-    headerPanel.add(nameLabel);
-    
-    // Message text (no bubble, just clean text)
-    JTextArea messageText = new JTextArea(message);
+    // Use JEditorPane for rich HTML content (AI messages support markdown)
+    JEditorPane messageText = new JEditorPane();
+    messageText.setContentType("text/html");
     messageText.setEditable(false);
     messageText.setOpaque(false);
-    messageText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-    messageText.setForeground(TEXT_COLOR);
-    messageText.setLineWrap(true);
-    messageText.setWrapStyleWord(true);
-    messageText.setBorder(new EmptyBorder(4, 52, 0, 16)); // Left margin to align with text
+    messageText.setText(_convertMarkdownToHTML(message));
+    messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
     
-    messagePanel.add(headerPanel, BorderLayout.NORTH);
+    // Don't honor display properties to ensure HTML uses our CSS sizes
+    messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+    
+    messagePanel.add(roleLabel, BorderLayout.NORTH);
     messagePanel.add(messageText, BorderLayout.CENTER);
     
     return messagePanel;
