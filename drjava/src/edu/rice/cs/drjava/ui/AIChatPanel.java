@@ -57,6 +57,22 @@ public class AIChatPanel extends JPanel {
     setPreferredSize(new Dimension(300, 400));
     setMinimumSize(new Dimension(250, 200));
     setBackground(BACKGROUND_COLOR);
+    
+    // Add component listener to handle resizing properly
+    addComponentListener(new ComponentAdapter() {
+      @Override
+      public void componentResized(ComponentEvent e) {
+        // Force revalidation of messages panel when the main panel is resized
+        SwingUtilities.invokeLater(new Runnable() {
+          public void run() {
+            if (_messagesPanel != null) {
+              _messagesPanel.revalidate();
+              _messagesPanel.repaint();
+            }
+          }
+        });
+      }
+    });
   }
   
   /**
@@ -378,7 +394,7 @@ public class AIChatPanel extends JPanel {
     _messagesPanel = new JPanel();
     _messagesPanel.setLayout(new BoxLayout(_messagesPanel, BoxLayout.Y_AXIS));
     _messagesPanel.setBackground(CHAT_BACKGROUND);
-    _messagesPanel.setBorder(new EmptyBorder(16, 16, 16, 16));
+    _messagesPanel.setBorder(new EmptyBorder(16, 20, 16, 20)); // Increased side padding from 16 to 20
     
     // Modern scroll pane
     _chatScroll = new JScrollPane(_messagesPanel);
@@ -540,24 +556,37 @@ public class AIChatPanel extends JPanel {
       @Override
       public void componentResized(ComponentEvent e) {
         Component c = e.getComponent();
-        roundedBackground.setBounds(0, 0, c.getWidth(), c.getHeight());
+        int width = c.getWidth();
+        int height = c.getHeight();
+        
+        // Only proceed if we have valid dimensions
+        if (width <= 0 || height <= 0) return;
+        
+        roundedBackground.setBounds(0, 0, width, height);
         
         // Position button panel precisely in the right side
         int buttonPanelWidth = 44;
         int buttonPanelHeight = 44;
-        int x = c.getWidth() - buttonPanelWidth - 3; // 3px margin from right
-        int y = (c.getHeight() - buttonPanelHeight) / 2; // Center vertically
-        buttonPanel.setBounds(x, y, buttonPanelWidth, buttonPanelHeight);
         
-        // Position the send button within its panel
-        _sendButton.setBounds(6, 6, 32, 32); // Center the 32x32 button in the 44x44 panel
+        // Ensure button panel fits within the component
+        if (width > buttonPanelWidth + 6 && height >= buttonPanelHeight) {
+          int x = width - buttonPanelWidth - 3; // 3px margin from right
+          int y = (height - buttonPanelHeight) / 2; // Center vertically
+          buttonPanel.setBounds(x, y, buttonPanelWidth, buttonPanelHeight);
+          
+          // Position the send button within its panel
+          _sendButton.setBounds(6, 6, 32, 32); // Center the 32x32 button in the 44x44 panel
+        } else {
+          // Hide button panel if component is too small
+          buttonPanel.setBounds(-buttonPanelWidth, -buttonPanelHeight, buttonPanelWidth, buttonPanelHeight);
+        }
       }
     });
     
     // Container for the input with padding
     JPanel inputContainer = new JPanel(new BorderLayout());
     inputContainer.setBackground(CHAT_BACKGROUND);
-    inputContainer.setBorder(new EmptyBorder(12, 16, 16, 16));
+    inputContainer.setBorder(new EmptyBorder(0, 8, 16, 8)); // Increased side padding from 5 to 8
     inputContainer.add(layeredPane, BorderLayout.CENTER);
     
     return inputContainer;
@@ -685,12 +714,20 @@ public class AIChatPanel extends JPanel {
       @Override
       public Dimension getPreferredSize() {
         Dimension pref = super.getPreferredSize();
-        // Limit to 70% of parent width but be responsive
+        // Limit to 98% of parent width for user messages (nearly full width for maximum text alignment)
         Container parent = getParent();
         if (parent != null) {
-          int maxWidth = (int) (parent.getWidth() * 0.7);
-          if (maxWidth > 0 && pref.width > maxWidth) {
-            pref.width = maxWidth;
+          int parentWidth = parent.getWidth();
+          // Use a minimum width threshold to avoid calculation issues during initial layout
+          if (parentWidth > 100) {
+            int maxWidth = (int) (parentWidth * 0.98);
+            if (pref.width > maxWidth) {
+              pref.width = maxWidth;
+            }
+          } else {
+            // During initial layout or when parent is too small, use a reasonable default
+            int maxWidth = Math.max(250, pref.width);
+            pref.width = Math.min(pref.width, maxWidth);
           }
         }
         return pref;
@@ -702,7 +739,7 @@ public class AIChatPanel extends JPanel {
       }
     };
     bubblePanel.setBackground(USER_BUBBLE_COLOR);
-    bubblePanel.setBorder(new EmptyBorder(8, 12, 8, 12));
+    bubblePanel.setBorder(new EmptyBorder(8, 8, 8, 12)); // Reduced left padding for better text alignment
     
     // Message text inside the bubble
     JTextArea messageText = new JTextArea(message);
@@ -740,12 +777,20 @@ public class AIChatPanel extends JPanel {
       @Override
         public Dimension getPreferredSize() {
           Dimension pref = super.getPreferredSize();
-          // Limit to 85% of parent width but be responsive
+          // Limit to 85% of parent width but be responsive (AI needs more space for code)
           Container parent = getParent();
           if (parent != null) {
-            int maxWidth = (int) (parent.getWidth() * 0.85);
-            if (maxWidth > 0 && pref.width > maxWidth) {
-              pref.width = maxWidth;
+            int parentWidth = parent.getWidth();
+            // Use a minimum width threshold to avoid calculation issues during initial layout
+            if (parentWidth > 100) {
+              int maxWidth = (int) (parentWidth);
+              if (pref.width > maxWidth) {
+                pref.width = maxWidth;
+              }
+            } else {
+              // During initial layout or when parent is too small, use a reasonable default
+              int maxWidth = Math.max(300, pref.width);
+              pref.width = Math.min(pref.width, maxWidth);
             }
           }
           return pref;
@@ -766,12 +811,20 @@ public class AIChatPanel extends JPanel {
         @Override
         public Dimension getPreferredSize() {
           Dimension pref = super.getPreferredSize();
-          // Limit to 85% of parent width but be responsive
+          // Limit to 85% of parent width but be responsive (AI text messages)
           Container parent = getParent();
           if (parent != null) {
-            int maxWidth = (int) (parent.getWidth() * 0.85);
-            if (maxWidth > 0 && pref.width > maxWidth) {
-              pref.width = maxWidth;
+            int parentWidth = parent.getWidth();
+            // Use a minimum width threshold to avoid calculation issues during initial layout
+            if (parentWidth > 100) {
+              int maxWidth = (int) (parentWidth * 0.85);
+              if (pref.width > maxWidth) {
+                pref.width = maxWidth;
+              }
+            } else {
+              // During initial layout or when parent is too small, use a reasonable default
+              int maxWidth = Math.max(250, pref.width);
+              pref.width = Math.min(pref.width, maxWidth);
             }
           }
           return pref;
