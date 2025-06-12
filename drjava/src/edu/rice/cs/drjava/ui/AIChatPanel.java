@@ -126,26 +126,50 @@ public class AIChatPanel extends JPanel {
   }
   
   /**
-   * Creates a syntax-highlighted JTextPane for Java code
+   * Creates a syntax-highlighted code pane for Java code with horizontal scrolling
    */
   private JComponent _createSyntaxHighlightedCodePane(String code) {
-    // Custom JTextPane that clips to rounded corners
+    // Custom JTextPane that properly handles preferred size for horizontal scrolling
     JTextPane codePane = new JTextPane() {
       @Override
-      protected void paintComponent(Graphics g) {
-        Graphics2D g2d = (Graphics2D) g.create();
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      public Dimension getPreferredSize() {
+        // Force a minimum width to ensure horizontal scrolling works
+        Dimension d = super.getPreferredSize();
         
-        // Create rounded clipping area
-        g2d.setClip(new java.awt.geom.RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 10, 10));
+        // Calculate the actual text width needed by measuring each line
+        FontMetrics fm = getFontMetrics(getFont());
+        if (fm != null) {
+          String[] lines = getText().split("\n");
+          int maxWidth = 300; // Start with minimum width
+          
+          for (String line : lines) {
+            if (!line.trim().isEmpty()) {
+              int lineWidth = fm.stringWidth(line) + 50; // Add extra space for safety
+              maxWidth = Math.max(maxWidth, lineWidth);
+            }
+          }
+          
+          d.width = maxWidth;
+        }
         
-        // Fill background with white
-        g2d.setColor(Color.WHITE);
-        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
-        
-        // Let the text pane paint its content within the clipped area
-        super.paintComponent(g2d);
-        g2d.dispose();
+        return d;
+      }
+      
+      @Override
+      public Dimension getMinimumSize() {
+        return getPreferredSize();
+      }
+      
+      @Override
+      public boolean getScrollableTracksViewportWidth() {
+        // This is crucial - return false to allow horizontal scrolling
+        return false;
+      }
+      
+      @Override
+      public boolean getScrollableTracksViewportHeight() {
+        // Allow vertical scrolling if needed
+        return false;
       }
     };
     
@@ -159,9 +183,8 @@ public class AIChatPanel extends JPanel {
     // Use DrJava's main font family but with chat text size (13)
     Font mainFont = DrJava.getConfig().getSetting(OptionConstants.FONT_MAIN);
     StyleConstants.setFontFamily(normalStyle, mainFont.getFamily());
-    StyleConstants.setFontSize(normalStyle, 13); // Match chat text size
-    StyleConstants.setForeground(normalStyle, new Color(51, 51, 51)); // NORMAL_COLOR
-    StyleConstants.setLineSpacing(normalStyle, 0.2f);
+    StyleConstants.setFontSize(normalStyle, 13);
+    StyleConstants.setForeground(normalStyle, new Color(51, 51, 51));
     
     Style keywordStyle = doc.addStyle("keyword", normalStyle);
     StyleConstants.setForeground(keywordStyle, new Color(0, 0, 255)); // Blue for keywords
@@ -179,7 +202,7 @@ public class AIChatPanel extends JPanel {
     Style numberStyle = doc.addStyle("number", normalStyle);
     StyleConstants.setForeground(numberStyle, new Color(0, 139, 139)); // Muted cyan for numbers
     
-    // Java keywords (excluding primitive types which are treated as types)
+    // Java keywords
     String[] keywords = {
       "abstract", "assert", "break", "case", "catch", "class", "const",
       "continue", "default", "do", "else", "enum", "extends", "final", "finally",
@@ -189,11 +212,9 @@ public class AIChatPanel extends JPanel {
       "volatile", "while", "true", "false", "null"
     };
     
-    // Java types (primitives and common reference types)
+    // Java types
     String[] types = {
-      // Primitive types
       "boolean", "byte", "char", "double", "float", "int", "long", "short",
-      // Reference types
       "String", "Object", "Integer", "Boolean", "Character", "Double", "Float", "Long", "Short",
       "BigInteger", "BigDecimal", "StringBuilder", "StringBuffer", "ArrayList", "HashMap", "List",
       "Map", "Set", "Collection", "Iterator", "Exception", "RuntimeException", "Thread", "System"
@@ -207,21 +228,18 @@ public class AIChatPanel extends JPanel {
           doc.insertString(doc.getLength(), "\n", normalStyle);
         }
         
-        int lineStart = 0;
-        
-        // Check for comments first (they override everything else)
+        // Check for comments first
         if (line.trim().startsWith("//")) {
           doc.insertString(doc.getLength(), line, commentStyle);
           continue;
         }
         
-        // Check for multi-line comments
         if (line.trim().startsWith("/*") || line.trim().startsWith("*")) {
           doc.insertString(doc.getLength(), line, commentStyle);
           continue;
         }
         
-        // Tokenize and highlight - preserve whitespace and handle string literals properly
+        // Tokenize and highlight
         Pattern tokenPattern = Pattern.compile("(\"[^\"]*\"|'[^']*'|\\w+|\\s+|[^\\w\\s])");
         Matcher tokenMatcher = tokenPattern.matcher(line);
         
@@ -229,13 +247,12 @@ public class AIChatPanel extends JPanel {
           String token = tokenMatcher.group();
           Style styleToUse = normalStyle;
           
-          // Don't style whitespace - just insert as-is
           if (token.matches("\\s+")) {
             doc.insertString(doc.getLength(), token, normalStyle);
             continue;
           }
           
-          // Check if it's a string literal (including quotes)
+          // Check if it's a string literal
           if ((token.startsWith("\"") && token.endsWith("\"")) || 
               (token.startsWith("'") && token.endsWith("'"))) {
             styleToUse = stringStyle;
@@ -249,7 +266,7 @@ public class AIChatPanel extends JPanel {
               }
             }
             
-            // Check if it's a type (only if not already a keyword)
+            // Check if it's a type
             if (styleToUse == normalStyle) {
               for (String type : types) {
                 if (token.equals(type)) {
@@ -280,16 +297,13 @@ public class AIChatPanel extends JPanel {
     // Configure the text pane
     codePane.setEditable(false);
     codePane.setOpaque(true);
-    codePane.setBackground(Color.WHITE); // White background for code
-    codePane.setBorder(new EmptyBorder(12, 12, 12, 12)); // Increased padding for better readability
+    codePane.setBackground(Color.WHITE);
+    codePane.setBorder(new EmptyBorder(12, 12, 12, 12));
     
-    // Use DrJava's main font family but with chat text size (13)
-    Font codeFont = new Font(mainFont.getFamily(), Font.PLAIN, 13);
-    codePane.setFont(codeFont);
-    
-    // Set tab size for proper indentation (4 spaces)
-    TabStop[] tabs = new TabStop[50]; // Support up to 50 tab stops
-    int tabWidth = codePane.getFontMetrics(codeFont).charWidth(' ') * 4; // 4 spaces per tab
+    // Set tab size for proper indentation
+    TabStop[] tabs = new TabStop[50];
+    FontMetrics fm = codePane.getFontMetrics(new Font(mainFont.getFamily(), Font.PLAIN, 13));
+    int tabWidth = fm.charWidth(' ') * 4; // 4 spaces per tab
     for (int i = 0; i < tabs.length; i++) {
       tabs[i] = new TabStop((i + 1) * tabWidth);
     }
@@ -298,27 +312,42 @@ public class AIChatPanel extends JPanel {
     StyleConstants.setTabSet(attributes, tabSet);
     codePane.setParagraphAttributes(attributes, false);
     
+    // Wrap in a scroll pane for horizontal scrolling
+    JScrollPane codeScrollPane = new JScrollPane(codePane);
+    codeScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+    codeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+    codeScrollPane.setBorder(null);
+    codeScrollPane.setOpaque(false);
+    codeScrollPane.getViewport().setOpaque(false);
+    
+    // Force the scroll pane to respect the preferred size
+    codeScrollPane.setPreferredSize(new Dimension(400, Math.min(300, codePane.getPreferredSize().height + 24)));
+    
+    // Set scroll increments
+    codeScrollPane.getHorizontalScrollBar().setUnitIncrement(16);
+    codeScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+    
     // Wrap in a panel with grey border around white background
     JPanel codeContainer = new JPanel(new BorderLayout()) {
       @Override
       protected void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
-    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-    
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
         // Draw grey border with rounded corners
-        g2d.setColor(new Color(208, 215, 222)); // Grey border color
+        g2d.setColor(new Color(208, 215, 222));
         g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
         
-        // Draw white inner area with rounded corners (slightly smaller to show border)
+        // Draw white inner area with rounded corners
         g2d.setColor(Color.WHITE);
         g2d.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 11, 11);
-    
-    g2d.dispose();
+        
+        g2d.dispose();
       }
     };
     codeContainer.setBackground(Color.WHITE);
-    codeContainer.setBorder(new EmptyBorder(1, 1, 1, 1)); // Minimal border to show the grey outline
-    codeContainer.add(codePane, BorderLayout.CENTER);
+    codeContainer.setBorder(new EmptyBorder(1, 1, 1, 1));
+    codeContainer.add(codeScrollPane, BorderLayout.CENTER);
     
     return codeContainer;
   }
@@ -653,14 +682,15 @@ public class AIChatPanel extends JPanel {
         "    private static final String GREETING = \"Hello World!\";\n" +
         "    \n" +
         "    public static void main(String[] args) {\n" +
-        "        // This is a comment\n" +
+        "        // This is a very long comment that should definitely cause horizontal scrolling if the feature is working properly - it keeps going and going\n" +
         "        int count = 42;\n" +
         "        boolean isReady = true;\n" +
+        "        String reallyLongVariableName = \"This is a very long string that should definitely cause horizontal scrolling in the code block if everything is working correctly\";\n" +
         "        \n" +
         "        if (isReady) {\n" +
-        "            System.out.println(GREETING);\n" +
+        "            System.out.println(GREETING + \" - and this line is also very long to test horizontal scrolling functionality\");\n" +
         "            for (int i = 0; i < count; i++) {\n" +
-        "                System.out.println(\"Number: \" + i);\n" +
+        "                System.out.println(\"Number: \" + i + \" - adding more text to make this line longer and test scrolling\");\n" +
         "            }\n" +
         "        }\n" +
         "    }\n" +
@@ -718,9 +748,8 @@ public class AIChatPanel extends JPanel {
         Container parent = getParent();
         if (parent != null) {
           int parentWidth = parent.getWidth();
-          // Use a minimum width threshold to avoid calculation issues during initial layout
           if (parentWidth > 100) {
-            int maxWidth = (int) (parentWidth * 0.98);
+            int maxWidth = parentWidth * 98 / 100;
             if (pref.width > maxWidth) {
               pref.width = maxWidth;
             }
@@ -772,33 +801,19 @@ public class AIChatPanel extends JPanel {
       JComponent contentComponent = _createMixedContentPanel(message);
       contentComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
       
-      // Override preferred size for responsiveness
+      // Override preferred size for responsiveness - DON'T CONSTRAIN WIDTH for code blocks
       JPanel wrapper = new JPanel(new BorderLayout()) {
       @Override
         public Dimension getPreferredSize() {
           Dimension pref = super.getPreferredSize();
-          // Limit to 85% of parent width but be responsive (AI needs more space for code)
-          Container parent = getParent();
-          if (parent != null) {
-            int parentWidth = parent.getWidth();
-            // Use a minimum width threshold to avoid calculation issues during initial layout
-            if (parentWidth > 100) {
-              int maxWidth = (int) (parentWidth);
-              if (pref.width > maxWidth) {
-                pref.width = maxWidth;
-              }
-            } else {
-              // During initial layout or when parent is too small, use a reasonable default
-              int maxWidth = Math.max(300, pref.width);
-              pref.width = Math.min(pref.width, maxWidth);
-            }
-          }
+          // For code blocks, let them use their natural width - don't constrain!
           return pref;
         }
         
         @Override
         public Dimension getMaximumSize() {
-          return getPreferredSize();
+          // Allow unlimited width for code blocks
+          return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
         }
       };
       wrapper.setOpaque(false);
@@ -815,9 +830,8 @@ public class AIChatPanel extends JPanel {
           Container parent = getParent();
           if (parent != null) {
             int parentWidth = parent.getWidth();
-            // Use a minimum width threshold to avoid calculation issues during initial layout
             if (parentWidth > 100) {
-              int maxWidth = (int) (parentWidth * 0.85);
+              int maxWidth = parentWidth * 85 / 100;
               if (pref.width > maxWidth) {
                 pref.width = maxWidth;
               }
