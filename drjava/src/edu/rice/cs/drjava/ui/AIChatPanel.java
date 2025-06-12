@@ -270,7 +270,41 @@ public class AIChatPanel extends JPanel {
     }
     
     // Wrap in a scroll pane for horizontal scrolling only
-    JScrollPane codeScrollPane = new JScrollPane(codePane);
+    JScrollPane codeScrollPane = new JScrollPane(codePane) {
+      @Override
+      protected void processMouseWheelEvent(MouseWheelEvent e) {
+        // Only process horizontal scrolling (Shift+scroll wheel)
+        if (e.isShiftDown()) {
+          // Handle horizontal scrolling internally - don't forward to parent
+          super.processMouseWheelEvent(e);
+          return; // Important: don't continue to parent forwarding
+        }
+        
+        // For vertical scrolling, forward to parent without processing
+        Container parent = getParent();
+        while (parent != null && !(parent instanceof JScrollPane)) {
+          parent = parent.getParent();
+        }
+        if (parent instanceof JScrollPane) {
+          JScrollPane parentScroll = (JScrollPane) parent;
+          // Create a new event targeted at the parent scroll pane
+          MouseWheelEvent parentEvent = new MouseWheelEvent(
+            parentScroll,
+            e.getID(),
+            e.getWhen(),
+            e.getModifiers(),
+            e.getX(),
+            e.getY(),
+            e.getClickCount(),
+            e.isPopupTrigger(),
+            e.getScrollType(),
+            e.getScrollAmount(),
+            e.getWheelRotation()
+          );
+          parentScroll.dispatchEvent(parentEvent);
+        }
+      }
+    };
     codeScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
     codeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER); // No vertical scrolling
     codeScrollPane.setBorder(null);
@@ -279,33 +313,6 @@ public class AIChatPanel extends JPanel {
     
     // Set scroll increments for smooth horizontal scrolling
     codeScrollPane.getHorizontalScrollBar().setUnitIncrement(16);
-    
-    // Forward vertical mouse wheel events to parent scroll pane
-    codeScrollPane.addMouseWheelListener(e -> {
-      // Since we have no vertical scrolling, forward all wheel events to parent
-      Container parent = codeScrollPane.getParent();
-      while (parent != null && !(parent instanceof JScrollPane)) {
-        parent = parent.getParent();
-      }
-      if (parent instanceof JScrollPane) {
-        JScrollPane parentScroll = (JScrollPane) parent;
-        // Create a new event targeted at the parent scroll pane
-        MouseWheelEvent parentEvent = new MouseWheelEvent(
-          parentScroll,
-          e.getID(),
-          e.getWhen(),
-          e.getModifiers(),
-          e.getX(),
-          e.getY(),
-          e.getClickCount(),
-          e.isPopupTrigger(),
-          e.getScrollType(),
-          e.getScrollAmount(),
-          e.getWheelRotation()
-        );
-        parentScroll.dispatchEvent(parentEvent);
-      }
-    });
     
     // Calculate full height based on number of lines - no height limit
     FontMetrics fm = codePane.getFontMetrics(new Font(mainFont.getFamily(), Font.PLAIN, 13));
