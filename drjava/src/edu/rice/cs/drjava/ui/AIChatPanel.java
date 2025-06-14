@@ -377,7 +377,33 @@ public class AIChatPanel extends JPanel {
       // Add text before code block
       String beforeText = message.substring(lastEnd, matcher.start());
       if (!beforeText.trim().isEmpty()) {
-        JEditorPane textPane = new JEditorPane();
+        JEditorPane textPane = new JEditorPane() {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            // Limit to 85% of parent width for text wrapping
+            Container parent = getParent();
+            if (parent != null) {
+              int parentWidth = parent.getWidth();
+              if (parentWidth > 100) {
+                int maxWidth = parentWidth * 85 / 100;
+                if (pref.width > maxWidth) {
+                  pref.width = maxWidth;
+                }
+              } else {
+                // During initial layout, use a reasonable default
+                int maxWidth = Math.max(300, pref.width);
+                pref.width = Math.min(pref.width, maxWidth);
+              }
+            }
+            return pref;
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            return getPreferredSize();
+          }
+        };
         textPane.setContentType("text/html");
         textPane.setEditable(false);
         textPane.setOpaque(false);
@@ -409,7 +435,33 @@ public class AIChatPanel extends JPanel {
     if (lastEnd < message.length()) {
       String remainingText = message.substring(lastEnd);
       if (!remainingText.trim().isEmpty()) {
-        JEditorPane textPane = new JEditorPane();
+        JEditorPane textPane = new JEditorPane() {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            // Limit to 85% of parent width for text wrapping
+            Container parent = getParent();
+            if (parent != null) {
+              int parentWidth = parent.getWidth();
+              if (parentWidth > 100) {
+                int maxWidth = parentWidth * 85 / 100;
+                if (pref.width > maxWidth) {
+                  pref.width = maxWidth;
+                }
+              } else {
+                // During initial layout, use a reasonable default
+                int maxWidth = Math.max(300, pref.width);
+                pref.width = Math.min(pref.width, maxWidth);
+              }
+            }
+            return pref;
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            return getPreferredSize();
+          }
+        };
         textPane.setContentType("text/html");
         textPane.setEditable(false);
         textPane.setOpaque(false);
@@ -756,9 +808,15 @@ public class AIChatPanel extends JPanel {
   }
   
   private JPanel _createLoadingMessage() {
-    JPanel messagePanel = new JPanel(new BorderLayout());
+    JPanel messagePanel = new JPanel(new BorderLayout()) {
+      @Override
+      public Dimension getMaximumSize() {
+        Dimension pref = getPreferredSize();
+        // Allow full width but constrain height to preferred size
+        return new Dimension(Integer.MAX_VALUE, pref.height);
+      }
+    };
     messagePanel.setOpaque(false);
-    messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
     JLabel loadingLabel = new JLabel("Thinking...");
     loadingLabel.setFont(new Font("Segoe UI", Font.ITALIC, 13));
@@ -865,9 +923,15 @@ public class AIChatPanel extends JPanel {
   }
   
   private JPanel _createUserMessagePanel(String message) {
-    JPanel messagePanel = new JPanel(new BorderLayout());
+    JPanel messagePanel = new JPanel(new BorderLayout()) {
+      @Override
+      public Dimension getMaximumSize() {
+        Dimension pref = getPreferredSize();
+        // Allow full width but constrain height to preferred size
+        return new Dimension(Integer.MAX_VALUE, pref.height);
+      }
+    };
     messagePanel.setOpaque(false);
-    messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
     // Create rounded chat bubble for user message
     JPanel bubblePanel = new JPanel(new BorderLayout()) {
@@ -931,9 +995,15 @@ public class AIChatPanel extends JPanel {
   }
   
   private JPanel _createAIMessagePanel(String message) {
-    JPanel messagePanel = new JPanel(new BorderLayout());
+    JPanel messagePanel = new JPanel(new BorderLayout()) {
+      @Override
+      public Dimension getMaximumSize() {
+        Dimension pref = getPreferredSize();
+        // Allow full width but constrain height to preferred size
+        return new Dimension(Integer.MAX_VALUE, pref.height);
+      }
+    };
     messagePanel.setOpaque(false);
-    messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
     
     // Check if message contains code blocks
     boolean hasCodeBlocks = message.contains("```");
