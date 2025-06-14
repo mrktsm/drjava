@@ -21,6 +21,12 @@ import edu.rice.cs.drjava.DrJava;
 import edu.rice.cs.drjava.config.OptionConstants;
 import edu.rice.cs.util.swing.Utilities;
 import java.util.stream.Collectors;
+// HTTP client imports for MCP server communication
+import java.net.HttpURLConnection;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A modern AI chat panel for DrJava with Cursor-inspired clean design.
@@ -48,6 +54,9 @@ public class AIChatPanel extends JPanel {
   
   // Color for the custom send button
   private Color _sendButtonColor = new Color(148, 163, 184); // Light blue-grey
+  
+  // HTTP client for MCP server communication
+  private static final String MCP_SERVER_URL = "http://localhost:8080/chat";
   
   public AIChatPanel() {
     super(new BorderLayout());
@@ -731,18 +740,112 @@ public class AIChatPanel extends JPanel {
     String message = _inputField.getText().trim();
     if (!message.isEmpty()) {
       _addUserMessage(message);
-      _addAIMessage("Here's a simple Java example:\n\n" +
-        "```java\n" +
-        "public class Hello {\n" +
-        "    public static void main(String[] args) {\n" +
-        "        System.out.println(\"Hello, World!\");\n" +
-        "    }\n" +
-        "}\n" +
-        "```\n\n" +
-        "The code block should now have proper rounded corners!");
       _inputField.setText("");
+      
+      // Show loading message
+      JPanel loadingPanel = _createLoadingMessage();
+      _messagesPanel.add(loadingPanel);
+      _messagesPanel.add(Box.createVerticalStrut(16));
+      _messagesPanel.revalidate();
+      _messagesPanel.repaint();
       _scrollToBottom();
+      
+      // Call MCP server asynchronously
+      _callMCPServerAsync(message, loadingPanel);
     }
+  }
+  
+  private JPanel _createLoadingMessage() {
+    JPanel messagePanel = new JPanel(new BorderLayout());
+    messagePanel.setOpaque(false);
+    messagePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+    
+    JLabel loadingLabel = new JLabel("Thinking...");
+    loadingLabel.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+    loadingLabel.setForeground(SECONDARY_TEXT_COLOR);
+    loadingLabel.setBorder(new EmptyBorder(8, 0, 8, 0));
+    
+    messagePanel.add(loadingLabel, BorderLayout.CENTER);
+    return messagePanel;
+  }
+  
+  private void _callMCPServerAsync(String message, JPanel loadingPanel) {
+    CompletableFuture.supplyAsync(() -> {
+      try {
+        // Create request JSON
+        String escapedMessage = message.replace("\"", "\\\"").replace("\n", "\\n");
+        String requestJson = "{\"message\": \"" + escapedMessage + "\"}";
+        
+        // Build HTTP request
+        HttpURLConnection httpClient = (HttpURLConnection) new URL(MCP_SERVER_URL).openConnection();
+        httpClient.setRequestMethod("POST");
+        httpClient.setDoOutput(true);
+        httpClient.setRequestProperty("Content-Type", "application/json");
+        httpClient.setRequestProperty("Accept", "application/json");
+        
+        try (OutputStreamWriter out = new OutputStreamWriter(httpClient.getOutputStream())) {
+          out.write(requestJson);
+        }
+        
+        // Send request
+        int responseCode = httpClient.getResponseCode();
+        if (responseCode == 200) {
+          try (BufferedReader in = new BufferedReader(new InputStreamReader(httpClient.getInputStream()))) {
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = in.readLine()) != null) {
+              response.append(line);
+            }
+            String responseBody = response.toString();
+            // Simple JSON parsing to extract "response" field
+            String aiResponse = _extractJsonField(responseBody, "response");
+            if (aiResponse != null && !aiResponse.isEmpty()) {
+              return aiResponse;
+            } else {
+              return "Sorry, I couldn't understand the response from the AI server.";
+            }
+          }
+        } else {
+          return "Sorry, there was an error connecting to the AI server (HTTP " + responseCode + ").";
+        }
+        
+      } catch (Exception e) {
+        e.printStackTrace();
+        return "Sorry, I encountered an error: " + e.getMessage() + 
+               "\n\nMake sure the MCP server is running on localhost:8080.";
+      }
+    }).thenAccept(aiResponse -> {
+      // Update UI on EDT
+      SwingUtilities.invokeLater(() -> {
+        // Remove loading message
+        _messagesPanel.remove(loadingPanel);
+        if (_messagesPanel.getComponentCount() > 0) {
+          Component lastStrut = _messagesPanel.getComponent(_messagesPanel.getComponentCount() - 1);
+          if (lastStrut instanceof Box.Filler) {
+            _messagesPanel.remove(lastStrut);
+          }
+        }
+        
+        // Add AI response
+        _addAIMessage(aiResponse);
+        _scrollToBottom();
+      });
+    }).exceptionally(throwable -> {
+      // Handle any unexpected errors
+      SwingUtilities.invokeLater(() -> {
+        _messagesPanel.remove(loadingPanel);
+        if (_messagesPanel.getComponentCount() > 0) {
+          Component lastStrut = _messagesPanel.getComponent(_messagesPanel.getComponentCount() - 1);
+          if (lastStrut instanceof Box.Filler) {
+            _messagesPanel.remove(lastStrut);
+          }
+        }
+        
+        _addAIMessage("Sorry, an unexpected error occurred: " + throwable.getMessage());
+        _scrollToBottom();
+      });
+      return null;
+    });
   }
   
   private void _addUserMessage(String message) {
@@ -889,15 +992,15 @@ public class AIChatPanel extends JPanel {
         }
       };
       messageText.setContentType("text/html");
-    messageText.setEditable(false);
-    messageText.setOpaque(false);
+      messageText.setEditable(false);
+      messageText.setOpaque(false);
       messageText.setText(_convertMarkdownToHTML(message));
       messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
       
       // Don't honor display properties to ensure HTML uses our CSS sizes
       messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
       
-    messagePanel.add(messageText, BorderLayout.CENTER);
+      messagePanel.add(messageText, BorderLayout.CENTER);
     }
     
     return messagePanel;
@@ -998,5 +1101,131 @@ public class AIChatPanel extends JPanel {
     _addWelcomeMessage();
     _messagesPanel.revalidate();
     _messagesPanel.repaint();
+  }
+  
+  /**
+   * Simple JSON field extractor - extracts value of a field from JSON string
+   */
+  private String _extractJsonField(String json, String fieldName) {
+    if (json == null || fieldName == null) return null;
+    
+    // Debug: print the raw JSON response
+    System.out.println("DEBUG: Raw JSON response: " + json);
+    
+    String searchPattern = "\"" + fieldName + "\"";
+    int fieldIndex = json.indexOf(searchPattern);
+    if (fieldIndex == -1) return null;
+    
+    int colonIndex = json.indexOf(":", fieldIndex);
+    if (colonIndex == -1) return null;
+    
+    // Skip whitespace and find opening quote
+    int startIndex = colonIndex + 1;
+    while (startIndex < json.length() && Character.isWhitespace(json.charAt(startIndex))) {
+      startIndex++;
+    }
+    
+    if (startIndex >= json.length() || json.charAt(startIndex) != '"') return null;
+    startIndex++; // Skip opening quote
+    
+    // Find closing quote, handling escaped quotes
+    int endIndex = startIndex;
+    while (endIndex < json.length()) {
+      if (json.charAt(endIndex) == '"' && (endIndex == startIndex || json.charAt(endIndex - 1) != '\\')) {
+        break;
+      }
+      endIndex++;
+    }
+    
+    if (endIndex >= json.length()) return null;
+    
+    String rawValue = json.substring(startIndex, endIndex);
+    
+    // Debug: print the extracted raw value
+    System.out.println("DEBUG: Extracted raw value: " + rawValue);
+    
+    // Handle Unicode escapes and other JSON escapes
+    String decodedValue = _decodeJsonString(rawValue);
+    
+    // Debug: print the decoded value
+    System.out.println("DEBUG: Decoded value: " + decodedValue);
+    
+    return decodedValue;
+  }
+  
+  /**
+   * Decode JSON string escapes including Unicode escapes
+   */
+  private String _decodeJsonString(String jsonString) {
+    if (jsonString == null) return null;
+    
+    StringBuilder result = new StringBuilder();
+    int i = 0;
+    while (i < jsonString.length()) {
+      char c = jsonString.charAt(i);
+      if (c == '\\' && i + 1 < jsonString.length()) {
+        char next = jsonString.charAt(i + 1);
+        switch (next) {
+          case '"':
+            result.append('"');
+            i += 2;
+            break;
+          case '\\':
+            result.append('\\');
+            i += 2;
+            break;
+          case '/':
+            result.append('/');
+            i += 2;
+            break;
+          case 'b':
+            result.append('\b');
+            i += 2;
+            break;
+          case 'f':
+            result.append('\f');
+            i += 2;
+            break;
+          case 'n':
+            result.append('\n');
+            i += 2;
+            break;
+          case 'r':
+            result.append('\r');
+            i += 2;
+            break;
+          case 't':
+            result.append('\t');
+            i += 2;
+            break;
+          case 'u':
+            // Unicode escape sequence like u0027
+            if (i + 5 < jsonString.length()) {
+              try {
+                String hexCode = jsonString.substring(i + 2, i + 6);
+                int codePoint = Integer.parseInt(hexCode, 16);
+                result.append((char) codePoint);
+                i += 6;
+              } catch (NumberFormatException e) {
+                // Invalid unicode escape, just append as is
+                result.append(c);
+                i++;
+              }
+            } else {
+              result.append(c);
+              i++;
+            }
+            break;
+          default:
+            result.append(c);
+            i++;
+            break;
+        }
+      } else {
+        result.append(c);
+        i++;
+      }
+    }
+    return result.toString();
   }
 } 
