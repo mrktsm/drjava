@@ -372,7 +372,44 @@ public class AIChatPanel extends JPanel {
         textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
         textPane.setBorder(new EmptyBorder(0, 0, 8, 0)); // Standard 8px spacing before code blocks
         textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-        contentPanel.add(textPane);
+        
+        // Wrap text pane with responsive width constraint to match streaming behavior
+        JPanel textWrapper = new JPanel(new BorderLayout()) {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            int maxWidth = getResponsiveMaxWidth();
+            return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            Dimension pref = getPreferredSize();
+            int maxWidth = getResponsiveMaxWidth();
+            return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+          }
+          
+          private int getResponsiveMaxWidth() {
+            Container parent = getParent();
+            while (parent != null && !(parent instanceof JScrollPane)) {
+              parent = parent.getParent();
+            }
+            if (parent != null) {
+              JScrollPane scrollPane = (JScrollPane) parent;
+              int availableWidth = scrollPane.getViewport().getWidth();
+              if (availableWidth > 100) {
+                // Use 95% of available width, with reasonable minimum but no restrictive maximum
+                return Math.max(300, (int)(availableWidth * 0.95));
+              }
+            }
+            return 400; // Fallback to fixed width
+          }
+        };
+        textWrapper.setOpaque(false);
+        textWrapper.add(textPane, BorderLayout.CENTER);
+        textWrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        contentPanel.add(textWrapper);
       }
       
       // Add syntax-highlighted code block
@@ -404,7 +441,44 @@ public class AIChatPanel extends JPanel {
         textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
         textPane.setBorder(new EmptyBorder(8, 0, 0, 0)); // Standard 8px spacing after code blocks
         textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-        contentPanel.add(textPane);
+        
+        // Wrap text pane with responsive width constraint to match streaming behavior
+        JPanel textWrapper = new JPanel(new BorderLayout()) {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            int maxWidth = getResponsiveMaxWidth();
+            return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            Dimension pref = getPreferredSize();
+            int maxWidth = getResponsiveMaxWidth();
+            return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+          }
+          
+          private int getResponsiveMaxWidth() {
+            Container parent = getParent();
+            while (parent != null && !(parent instanceof JScrollPane)) {
+              parent = parent.getParent();
+            }
+            if (parent != null) {
+              JScrollPane scrollPane = (JScrollPane) parent;
+              int availableWidth = scrollPane.getViewport().getWidth();
+              if (availableWidth > 100) {
+                // Use 95% of available width, with reasonable minimum but no restrictive maximum
+                return Math.max(300, (int)(availableWidth * 0.95));
+              }
+            }
+            return 400; // Fallback to fixed width
+          }
+        };
+        textWrapper.setOpaque(false);
+        textWrapper.add(textPane, BorderLayout.CENTER);
+        textWrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        contentPanel.add(textWrapper);
       }
     }
     
