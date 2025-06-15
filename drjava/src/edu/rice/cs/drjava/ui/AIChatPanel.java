@@ -1253,69 +1253,129 @@ public class AIChatPanel extends JPanel {
    * Creates a syntax-highlighted code pane for streaming (with cursor)
    */
   private JComponent _createStreamingSyntaxHighlightedCodePane(String code) {
-    // This is similar to _createSyntaxHighlightedCodePane but optimized for streaming
+    return _createStreamingSyntaxHighlightedCodePane(code, null);
+  }
+  
+  /**
+   * Creates or updates a syntax-highlighted code pane for streaming (with cursor)
+   */
+  private JComponent _createStreamingSyntaxHighlightedCodePane(String code, JComponent existingComponent) {
+    // If we have an existing component, try to update it efficiently
+    if (existingComponent != null && existingComponent instanceof JPanel) {
+      JPanel container = (JPanel) existingComponent;
+      Component[] components = container.getComponents();
+      if (components.length > 0 && components[0] instanceof JScrollPane) {
+        JScrollPane scrollPane = (JScrollPane) components[0];
+        JViewport viewport = scrollPane.getViewport();
+        if (viewport.getView() instanceof JTextPane) {
+          JTextPane existingPane = (JTextPane) viewport.getView();
+          _updateStreamingCodePane(existingPane, code);
+          
+          // Recalculate height
+          Font mainFont = DrJava.getConfig().getSetting(OptionConstants.FONT_MAIN);
+          FontMetrics fm = existingPane.getFontMetrics(new Font(mainFont.getFamily(), Font.PLAIN, 13));
+          int lineHeight = fm.getHeight();
+          String[] lines = code.split("\n");
+          int numLines = Math.max(1, lines.length);
+          int fullHeight = (numLines * lineHeight) + 24;
+          scrollPane.setPreferredSize(new Dimension(0, fullHeight));
+          
+          container.revalidate();
+          container.repaint();
+          return container;
+        }
+      }
+    }
+    
+    // Create new component if we can't update existing one
+    // Create JTextPane with syntax highlighting and no word wrapping
     JTextPane codePane = new JTextPane() {
       @Override
       public boolean getScrollableTracksViewportWidth() {
-        return false;
+        return false; // Critical: Allow horizontal scrolling
       }
       
       @Override
       public boolean getScrollableTracksViewportHeight() {
-        return false;
+        return false; // Allow vertical scrolling when needed
       }
     };
     
     codePane.setEditable(false);
     codePane.setOpaque(true);
     codePane.setBackground(Color.WHITE);
-    codePane.setBorder(null);
+    codePane.setBorder(null); // Remove padding from text area
     
-    StyledDocument doc = codePane.getStyledDocument();
+    _updateStreamingCodePane(codePane, code);
     
-    // Define styles
-    Style defaultStyle = StyleContext.getDefaultStyleContext().getStyle(StyleContext.DEFAULT_STYLE);
-    Style normalStyle = doc.addStyle("normal", defaultStyle);
-    
-    Font mainFont = DrJava.getConfig().getSetting(OptionConstants.FONT_MAIN);
-    StyleConstants.setFontFamily(normalStyle, mainFont.getFamily());
-    StyleConstants.setFontSize(normalStyle, 13);
-    StyleConstants.setForeground(normalStyle, new Color(51, 51, 51));
-    
-    // For streaming, just use normal style to avoid complex highlighting that might be slow
-    try {
-      doc.insertString(0, code, normalStyle);
-    } catch (BadLocationException e) {
-      // Fallback
-    }
-    
-    // Wrap in scroll pane
-    JScrollPane codeScrollPane = new JScrollPane(codePane);
+    // Wrap in a scroll pane for horizontal scrolling only
+    JScrollPane codeScrollPane = new JScrollPane(codePane) {
+      @Override
+      protected void processMouseWheelEvent(MouseWheelEvent e) {
+        // Only process horizontal scrolling (Shift+scroll wheel)
+        if (e.isShiftDown()) {
+          // Handle horizontal scrolling internally - don't forward to parent
+          super.processMouseWheelEvent(e);
+          return; // Important: don't continue to parent forwarding
+        }
+        
+        // For vertical scrolling, forward to parent without processing
+        Container parent = getParent();
+        while (parent != null && !(parent instanceof JScrollPane)) {
+          parent = parent.getParent();
+        }
+        if (parent instanceof JScrollPane) {
+          JScrollPane parentScroll = (JScrollPane) parent;
+          // Create a new event targeted at the parent scroll pane
+          MouseWheelEvent parentEvent = new MouseWheelEvent(
+            parentScroll,
+            e.getID(),
+            e.getWhen(),
+            e.getModifiers(),
+            e.getX(),
+            e.getY(),
+            e.getClickCount(),
+            e.isPopupTrigger(),
+            e.getScrollType(),
+            e.getScrollAmount(),
+            e.getWheelRotation()
+          );
+          parentScroll.dispatchEvent(parentEvent);
+        }
+      }
+    };
     codeScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-    codeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+    codeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER); // No vertical scrolling
     codeScrollPane.setBorder(null);
     codeScrollPane.setOpaque(false);
     codeScrollPane.getViewport().setOpaque(false);
     
-    // Calculate height
+    // Set scroll increments for smooth horizontal scrolling
+    codeScrollPane.getHorizontalScrollBar().setUnitIncrement(16);
+    
+    // Calculate full height based on number of lines - no height limit
+    Font mainFont = DrJava.getConfig().getSetting(OptionConstants.FONT_MAIN);
     FontMetrics fm = codePane.getFontMetrics(new Font(mainFont.getFamily(), Font.PLAIN, 13));
     int lineHeight = fm.getHeight();
     String[] lines = code.split("\n");
     int numLines = Math.max(1, lines.length);
-    int fullHeight = (numLines * lineHeight) + 24;
+    int fullHeight = (numLines * lineHeight) + 24; // Add padding
     
+    // Set the scroll pane to show full content height
     codeScrollPane.setPreferredSize(new Dimension(0, fullHeight));
     
-    // Wrap in container with border
+    // Wrap in a panel with grey border around white background
     JPanel codeContainer = new JPanel(new BorderLayout()) {
       @Override
       protected void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
+        // Draw grey border with rounded corners
         g2d.setColor(new Color(208, 215, 222));
         g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
         
+        // Draw white inner area with rounded corners
         g2d.setColor(Color.WHITE);
         g2d.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 10, 10);
         
@@ -1323,10 +1383,151 @@ public class AIChatPanel extends JPanel {
       }
     };
     codeContainer.setBackground(Color.WHITE);
-    codeContainer.setBorder(new EmptyBorder(12, 12, 12, 12));
+    codeContainer.setBorder(new EmptyBorder(12, 12, 12, 12)); // Add padding to container instead
     codeContainer.add(codeScrollPane, BorderLayout.CENTER);
     
     return codeContainer;
+  }
+  
+  /**
+   * Updates the content of a streaming code pane with syntax highlighting
+   */
+  private void _updateStreamingCodePane(JTextPane codePane, String code) {
+    StyledDocument doc = codePane.getStyledDocument();
+    
+    // Clear existing content
+    try {
+      doc.remove(0, doc.getLength());
+    } catch (BadLocationException e) {
+      // Continue with empty document
+    }
+    
+    // Define styles based on DrJava's color scheme
+    Style defaultStyle = StyleContext.getDefaultStyleContext().getStyle(StyleContext.DEFAULT_STYLE);
+    Style normalStyle = doc.addStyle("normal", defaultStyle);
+    
+    // Use DrJava's main font family but with chat text size (13)
+    Font mainFont = DrJava.getConfig().getSetting(OptionConstants.FONT_MAIN);
+    StyleConstants.setFontFamily(normalStyle, mainFont.getFamily());
+    StyleConstants.setFontSize(normalStyle, 13);
+    StyleConstants.setForeground(normalStyle, new Color(51, 51, 51));
+    
+    Style keywordStyle = doc.addStyle("keyword", normalStyle);
+    StyleConstants.setForeground(keywordStyle, new Color(0, 0, 255)); // Blue for keywords
+    
+    Style typeStyle = doc.addStyle("type", normalStyle);
+    StyleConstants.setForeground(typeStyle, new Color(0, 0, 139)); // Dark blue for types
+    
+    Style stringStyle = doc.addStyle("string", normalStyle);
+    StyleConstants.setForeground(stringStyle, new Color(139, 0, 0)); // Dark red for strings
+    
+    Style commentStyle = doc.addStyle("comment", normalStyle);
+    StyleConstants.setForeground(commentStyle, new Color(0, 128, 0)); // Green for comments
+    StyleConstants.setItalic(commentStyle, true);
+    
+    Style numberStyle = doc.addStyle("number", normalStyle);
+    StyleConstants.setForeground(numberStyle, new Color(0, 139, 139)); // Cyan for numbers
+    
+    Style cursorStyle = doc.addStyle("cursor", normalStyle);
+    StyleConstants.setForeground(cursorStyle, new Color(51, 51, 51)); // Same as normal text
+    
+    // Java keywords
+    String[] keywords = {
+      "abstract", "assert", "break", "case", "catch", "class", "const",
+      "continue", "default", "do", "else", "enum", "extends", "final", "finally",
+      "for", "goto", "if", "implements", "import", "instanceof", "interface", "native",
+      "new", "package", "private", "protected", "public", "return", "static", "strictfp",
+      "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void",
+      "volatile", "while", "true", "false", "null"
+    };
+    
+    // Java types
+    String[] types = {
+      "boolean", "byte", "char", "double", "float", "int", "long", "short",
+      "String", "Object", "Integer", "Boolean", "Character", "Double", "Float", "Long", "Short",
+      "BigInteger", "BigDecimal", "StringBuilder", "StringBuffer", "ArrayList", "HashMap", "List",
+      "Map", "Set", "Collection", "Iterator", "Exception", "RuntimeException", "Thread", "System"
+    };
+    
+    try {
+      String[] lines = code.split("\n");
+      for (int i = 0; i < lines.length; i++) {
+        String line = lines[i];
+        if (i > 0) {
+          doc.insertString(doc.getLength(), "\n", normalStyle);
+        }
+        
+        // Check for comments first
+        if (line.trim().startsWith("//")) {
+          doc.insertString(doc.getLength(), line, commentStyle);
+          continue;
+        }
+        
+        if (line.trim().startsWith("/*") || line.trim().startsWith("*")) {
+          doc.insertString(doc.getLength(), line, commentStyle);
+          continue;
+        }
+        
+        // Tokenize and highlight
+        Pattern tokenPattern = Pattern.compile("(\"[^\"]*\"|'[^']*'|\\w+|\\s+|[^\\w\\s])");
+        Matcher tokenMatcher = tokenPattern.matcher(line);
+        
+        while (tokenMatcher.find()) {
+          String token = tokenMatcher.group();
+          Style styleToUse = normalStyle;
+          
+          if (token.matches("\\s+")) {
+            doc.insertString(doc.getLength(), token, normalStyle);
+            continue;
+          }
+          
+          // Special handling for cursor character
+          if (token.equals("▊")) {
+            doc.insertString(doc.getLength(), token, cursorStyle);
+            continue;
+          }
+          
+          // Check if it's a string literal
+          if ((token.startsWith("\"") && token.endsWith("\"")) || 
+              (token.startsWith("'") && token.endsWith("'"))) {
+            styleToUse = stringStyle;
+          }
+          // Check if it's a keyword
+          else if (token.matches("\\w+")) {
+            for (String keyword : keywords) {
+              if (token.equals(keyword)) {
+                styleToUse = keywordStyle;
+                break;
+              }
+            }
+            
+            // Check if it's a type
+            if (styleToUse == normalStyle) {
+              for (String type : types) {
+                if (token.equals(type)) {
+                  styleToUse = typeStyle;
+                  break;
+                }
+              }
+            }
+            
+            // Check if it's a number
+            if (styleToUse == normalStyle && token.matches("\\d+(\\.\\d+)?[fFdDlL]?")) {
+              styleToUse = numberStyle;
+            }
+          }
+          
+          doc.insertString(doc.getLength(), token, styleToUse);
+        }
+      }
+    } catch (BadLocationException e) {
+      // Fallback: just insert as plain text
+      try {
+        doc.insertString(0, code, normalStyle);
+      } catch (BadLocationException ex) {
+        // This shouldn't happen
+      }
+    }
   }
   
   private void _addUserMessage(String message) {
