@@ -809,6 +809,8 @@ public class AIChatPanel extends JPanel {
         httpClient.setRequestProperty("Content-Type", "application/json");
         httpClient.setRequestProperty("Accept", "text/event-stream");
         httpClient.setRequestProperty("Cache-Control", "no-cache");
+        httpClient.setConnectTimeout(10000); // 10 second connection timeout
+        httpClient.setReadTimeout(60000); // 60 second read timeout
         
         try (OutputStreamWriter out = new OutputStreamWriter(httpClient.getOutputStream())) {
           out.write(requestJson);
@@ -821,11 +823,25 @@ public class AIChatPanel extends JPanel {
             String line;
             StringBuilder fullContent = new StringBuilder();
             long lastUpdateTime = 0;
+            long lastDataTime = System.currentTimeMillis();
             final long UPDATE_INTERVAL_MS = 350; // Reduced back to 200ms for better streaming word effect
+            final long COMPLETION_TIMEOUT_MS = 5000; // 5 seconds without data = auto-complete
+            boolean streamCompleted = false;
             
             while ((line = reader.readLine()) != null) {
               if (line.startsWith("data: ")) {
                 String jsonData = line.substring(6); // Remove "data: " prefix
+                lastDataTime = System.currentTimeMillis(); // Reset timeout
+                
+                // Handle special case for connection close
+                if (jsonData.trim().equals("[DONE]")) {
+                  streamCompleted = true;
+                  SwingUtilities.invokeLater(() -> {
+                    _updateStreamingMessage(streamingPanel, fullContent.toString(), true);
+                  });
+                  break;
+                }
+                
                 try {
                   // Simple JSON parsing for chunk
                   String chunk = _extractJsonField(jsonData, "chunk");
@@ -847,6 +863,7 @@ public class AIChatPanel extends JPanel {
                   }
                   
                   if (isDone) {
+                    streamCompleted = true;
                     SwingUtilities.invokeLater(() -> {
                       _updateStreamingMessage(streamingPanel, fullContent.toString(), true);
                     });
@@ -857,6 +874,24 @@ public class AIChatPanel extends JPanel {
                   e.printStackTrace();
                 }
               }
+              
+              // Check for timeout - if no data received for too long, auto-complete
+              if (System.currentTimeMillis() - lastDataTime > COMPLETION_TIMEOUT_MS) {
+                System.err.println("Streaming timeout reached, finalizing message");
+                streamCompleted = true;
+                SwingUtilities.invokeLater(() -> {
+                  _updateStreamingMessage(streamingPanel, fullContent.toString(), true);
+                });
+                break;
+              }
+            }
+            
+            // If we reach here without explicit completion signal, treat as complete
+            if (!streamCompleted) {
+              System.err.println("Stream ended without completion signal, finalizing message");
+              SwingUtilities.invokeLater(() -> {
+                _updateStreamingMessage(streamingPanel, fullContent.toString(), true);
+              });
             }
           }
         } else {
@@ -885,11 +920,12 @@ public class AIChatPanel extends JPanel {
     streamingPanel.removeAll();
     
     if (isComplete) {
-      // Final message - use full AI message panel
-      boolean hasCodeBlocks = content.contains("```");
+      // Final message - remove any cursor characters and use full AI message panel
+      String finalContent = content.replaceAll("▊", ""); // Remove cursor characters
+      boolean hasCodeBlocks = finalContent.contains("```");
       
       if (hasCodeBlocks) {
-        JComponent contentComponent = _createMixedContentPanel(content);
+        JComponent contentComponent = _createMixedContentPanel(finalContent);
         contentComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
         
         JPanel wrapper = new JPanel(new BorderLayout()) {
@@ -909,7 +945,7 @@ public class AIChatPanel extends JPanel {
         
         streamingPanel.add(wrapper, BorderLayout.CENTER);
       } else {
-        JEditorPane messageText = new JEditorPane("text/html", _convertMarkdownToHTML(content));
+        JEditorPane messageText = new JEditorPane("text/html", _convertMarkdownToHTML(finalContent));
         messageText.setContentType("text/html");
         messageText.setEditable(false);
         messageText.setOpaque(false);
@@ -1048,7 +1084,9 @@ public class AIChatPanel extends JPanel {
       // Add text before this complete code block
       String beforeText = message.substring(lastProcessedIndex, completeMatcher.start());
       if (!beforeText.trim().isEmpty()) {
-        JComponent textComponent = _createStableStreamingTextPane(beforeText, true); // Enable markdown for complete text
+        // Remove cursor from completed text sections
+        String cleanBeforeText = beforeText.replaceAll("▊", "");
+        JComponent textComponent = _createStableStreamingTextPane(cleanBeforeText, true); // Enable markdown for complete text
         textComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
         contentPanel.add(textComponent);
       }
@@ -1060,6 +1098,9 @@ public class AIChatPanel extends JPanel {
       } else if (codeContent.startsWith("java ")) {
         codeContent = codeContent.substring(5);
       }
+      
+      // Remove cursor from completed code blocks
+      codeContent = codeContent.replaceAll("▊", "");
       
       JComponent codePane = _createSyntaxHighlightedCodePane(codeContent);
       codePane.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1083,7 +1124,9 @@ public class AIChatPanel extends JPanel {
         
         // Add text before the incomplete code block
         if (!textBeforeIncomplete.trim().isEmpty()) {
-          JComponent textComponent = _createStableStreamingTextPane(textBeforeIncomplete, true); // Enable markdown for complete text
+          // Remove cursor from completed text sections
+          String cleanTextBefore = textBeforeIncomplete.replaceAll("▊", "");
+          JComponent textComponent = _createStableStreamingTextPane(cleanTextBefore, true); // Enable markdown for complete text
           textComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
           contentPanel.add(textComponent);
         }
