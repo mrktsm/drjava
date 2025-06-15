@@ -91,58 +91,35 @@ public class AIChatPanel extends JPanel {
    * Simple markdown to HTML converter for basic formatting
    */
   private String _convertMarkdownToHTML(String markdown) {
-    if (markdown == null || markdown.trim().isEmpty()) {
-      return "";
-    }
+    // Convert markdown to HTML with proper styling
+    String html = markdown
+      // Handle inline code first (before other formatting)
+      .replaceAll("`([^`]+)`", "<code style=\"background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 10px;\">$1</code>")
+      // Bold text
+      .replaceAll("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>")
+      // Italic text  
+      .replaceAll("\\*([^*]+)\\*", "<em>$1</em>");
     
-    String html = markdown;
-    
-    // Don't process code blocks here - they should be handled by _createMixedContentPanel
-    // Convert headers (### ## #)
+    // Headers (using Pattern for multiline)
     html = html.replaceAll("(?m)^### (.+)$", "<h3>$1</h3>");
     html = html.replaceAll("(?m)^## (.+)$", "<h2>$1</h2>");
     html = html.replaceAll("(?m)^# (.+)$", "<h1>$1</h1>");
     
-    // Convert inline code (`...`) only
-    Pattern inlineCodePattern = Pattern.compile("`([^`]+)`");
-    Matcher inlineCodeMatcher = inlineCodePattern.matcher(html);
-    html = inlineCodeMatcher.replaceAll("<code style='background-color: #f6f8fa; padding: 1px 3px; border-radius: 2px; font-family: Consolas, Monaco, monospace; font-size: 12px;'>$1</code>");
+    // Line breaks
+    html = html.replaceAll("\n", "<br>");
     
-    // Convert bold (**text**)
-    Pattern boldPattern = Pattern.compile("\\*\\*([^*]+)\\*\\*");
-    Matcher boldMatcher = boldPattern.matcher(html);
-    html = boldMatcher.replaceAll("<strong>$1</strong>");
-    
-    // Convert italic (*text*)
-    Pattern italicPattern = Pattern.compile("\\*([^*]+)\\*");
-    Matcher italicMatcher = italicPattern.matcher(html);
-    html = italicMatcher.replaceAll("<em>$1</em>");
-    
-    // Convert bullet points (• or - at start of line)
-    html = html.replaceAll("(?m)^[•-]\\s+(.*)$", "<li>$1</li>");
-    
-    // Convert numbered lists (1. 2. etc)
-    html = html.replaceAll("(?m)^\\d+\\.\\s+(.*)$", "<li>$1</li>");
-    
-    // Wrap consecutive <li> elements in <ul>
-    html = html.replaceAll("(<li>.*?</li>)(?:\\s*<li>.*?</li>)*", "<ul>$0</ul>");
-    
-    // Convert line breaks but preserve paragraph breaks
-    html = html.replaceAll("\\n\\n", "<br><br>");
-    html = html.replaceAll("\\n", "<br>");
-    
-    // Wrap in basic HTML structure with NO margins - let component borders handle all spacing
+    // Wrap in HTML structure with comprehensive styling
     return "<html><head><style>" +
-           "body { font-family: 'Segoe UI', sans-serif; font-size: 11px; line-height: 1.4; margin: 0; padding: 0; }" +
-           "h1 { font-size: 14px; font-weight: bold; margin: 0; padding: 0; color: #1f2328; }" +
-           "h2 { font-size: 13px; font-weight: bold; margin: 0; padding: 0; color: #1f2328; }" +
-           "h3 { font-size: 12px; font-weight: bold; margin: 0; padding: 0; color: #1f2328; }" +
-           "code { background-color: #f6f8fa; padding: 1px 3px; border-radius: 2px; font-family: Consolas, Monaco, monospace; font-size: 11px; }" +
-           "pre { background-color: #f6f8fa; padding: 6px; border-radius: 3px; font-family: Consolas, Monaco, monospace; font-size: 11px; margin: 0; overflow-x: auto; line-height: 1.3; }" +
-           "ul { margin: 0; padding-left: 18px; }" +
-           "li { margin: 1px 0; }" +
-           "p { margin: 0; padding: 0; }" +
-           "strong { font-weight: bold; }" +
+           "body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 10px; line-height: 1.4; margin: 0; padding: 0; color: #24292f; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; }" +
+           "h1 { font-size: 13px; font-weight: 600; margin: 8px 0 4px 0; color: #1f2328; }" +
+           "h2 { font-size: 12px; font-weight: 600; margin: 6px 0 3px 0; color: #1f2328; }" +
+           "h3 { font-size: 11px; font-weight: 600; margin: 4px 0 2px 0; color: #1f2328; }" +
+           "code { background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 10px; word-break: break-all; }" +
+           "pre { background-color: #f6f8fa; padding: 8px; border-radius: 6px; overflow-x: auto; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 10px; line-height: 1.45; }" +
+           "ul { margin: 4px 0; padding-left: 20px; }" +
+           "li { margin: 2px 0; }" +
+           "p { margin: 4px 0; word-wrap: break-word; }" +
+           "strong { font-weight: 600; }" +
            "em { font-style: italic; }" +
            "</style></head><body>" + html + "</body></html>";
   }
@@ -844,7 +821,7 @@ public class AIChatPanel extends JPanel {
             String line;
             StringBuilder fullContent = new StringBuilder();
             long lastUpdateTime = 0;
-            final long UPDATE_INTERVAL_MS = 150; // Increased from 100ms to 150ms to reduce jitter
+            final long UPDATE_INTERVAL_MS = 250; // Increased from 150ms to 250ms to reduce jitter
             
             while ((line = reader.readLine()) != null) {
               if (line.startsWith("data: ")) {
@@ -1108,53 +1085,31 @@ public class AIChatPanel extends JPanel {
    */
   private JComponent _createStableStreamingTextPane(String text, boolean enableMarkdown) {
     if (enableMarkdown) {
-      JEditorPane textPane = new JEditorPane("text/html", _convertMarkdownToHTML(text));
-      textPane.setEditable(false);
-      textPane.setOpaque(false);
-      textPane.setBorder(new EmptyBorder(0, 0, 8, 0)); // Consistent 8px bottom spacing
-      textPane.setFont(new Font("Segoe UI", Font.PLAIN, 11)); // Match HTML font size
-      textPane.setBackground(Color.WHITE);
+      // Use JEditorPane for markdown-enabled text
+      JEditorPane editorPane = new JEditorPane("text/html", _convertMarkdownToHTML(text));
+      editorPane.setContentType("text/html");
+      editorPane.setEditable(false);
+      editorPane.setOpaque(false);
+      editorPane.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+      editorPane.setBorder(new EmptyBorder(0, 0, 8, 0));
+      editorPane.setBackground(Color.WHITE);
       
-      // Use consistent sizing approach - let the component calculate its own preferred size
-      textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+      // Don't honor display properties to ensure HTML uses our CSS sizes
+      editorPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
       
-      return textPane;
+      return editorPane;
     } else {
-      // Use JEditorPane with simple HTML instead of JTextArea for consistent rendering
-      String simpleHtml = "<html><head><style>" +
-                         "body { font-family: 'Segoe UI', sans-serif; font-size: 11px; line-height: 1.4; margin: 0; padding: 0; word-wrap: break-word; white-space: normal; }" +
-                         "</style></head><body>" + 
-                         text.replace("\n", "<br>").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + 
-                         "</body></html>";
+      // Use JTextArea for plain text
+      JTextArea textArea = new JTextArea(text);
+      textArea.setEditable(false);
+      textArea.setOpaque(false);
+      textArea.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+      textArea.setBorder(new EmptyBorder(0, 0, 8, 0));
+      textArea.setBackground(Color.WHITE);
+      textArea.setLineWrap(true);
+      textArea.setWrapStyleWord(true);
       
-      JEditorPane textPane = new JEditorPane("text/html", simpleHtml) {
-        @Override
-        public Dimension getPreferredSize() {
-          // Force the JEditorPane to calculate size based on available width
-          Dimension pref = super.getPreferredSize();
-          Container parent = getParent();
-          if (parent != null && parent.getWidth() > 0) {
-            // Use parent width minus some padding for wrapping calculation
-            int availableWidth = parent.getWidth() - 20; // Account for padding
-            if (availableWidth > 100) { // Minimum reasonable width
-              // Set a temporary size to force text wrapping calculation
-              setSize(availableWidth, Integer.MAX_VALUE);
-              pref = super.getPreferredSize();
-              pref.width = availableWidth;
-            }
-          }
-          return pref;
-        }
-      };
-      textPane.setEditable(false);
-      textPane.setOpaque(false);
-      textPane.setBorder(new EmptyBorder(0, 0, 8, 0)); // Consistent 8px bottom spacing
-      textPane.setBackground(Color.WHITE);
-      
-      // Use consistent sizing approach - let the component calculate its own preferred size
-      textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
-      
-      return textPane;
+      return textArea;
     }
   }
   
