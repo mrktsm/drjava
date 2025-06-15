@@ -200,7 +200,7 @@ public class AIChatPanel extends JPanel {
           doc.insertString(doc.getLength(), "\n", normalStyle);
         }
         
-        // Check for comments first
+        // Check for comments first - handle both line comments and inline comments
         if (line.trim().startsWith("//")) {
           doc.insertString(doc.getLength(), line, commentStyle);
           continue;
@@ -211,15 +211,26 @@ public class AIChatPanel extends JPanel {
           continue;
         }
         
-        // Tokenize and highlight
+        // Check for inline comments - split line at "//" if present
+        int commentIndex = line.indexOf("//");
+        String codePartOfLine = (commentIndex != -1) ? line.substring(0, commentIndex) : line;
+        String commentPartOfLine = (commentIndex != -1) ? line.substring(commentIndex) : null;
+        
+        // Tokenize and highlight the code part
         Pattern tokenPattern = Pattern.compile("(\"[^\"]*\"|'[^']*'|\\w+|\\s+|[^\\w\\s])");
-        Matcher tokenMatcher = tokenPattern.matcher(line);
+        Matcher tokenMatcher = tokenPattern.matcher(codePartOfLine);
         
         while (tokenMatcher.find()) {
           String token = tokenMatcher.group();
           Style styleToUse = normalStyle;
           
           if (token.matches("\\s+")) {
+            doc.insertString(doc.getLength(), token, normalStyle);
+            continue;
+          }
+          
+          // Special handling for cursor character
+          if (token.equals("▊")) {
             doc.insertString(doc.getLength(), token, normalStyle);
             continue;
           }
@@ -255,6 +266,11 @@ public class AIChatPanel extends JPanel {
           }
           
           doc.insertString(doc.getLength(), token, styleToUse);
+        }
+        
+        // Add the comment part if it exists
+        if (commentPartOfLine != null) {
+          doc.insertString(doc.getLength(), commentPartOfLine, commentStyle);
         }
       }
     } catch (BadLocationException e) {
@@ -1608,7 +1624,7 @@ public class AIChatPanel extends JPanel {
           doc.insertString(doc.getLength(), "\n", normalStyle);
         }
         
-        // Check for comments first
+        // Check for comments first - handle both line comments and inline comments
         if (line.trim().startsWith("//")) {
           doc.insertString(doc.getLength(), line, commentStyle);
           continue;
@@ -1619,9 +1635,14 @@ public class AIChatPanel extends JPanel {
           continue;
         }
         
-        // Tokenize and highlight
+        // Check for inline comments - split line at "//" if present
+        int commentIndex = line.indexOf("//");
+        String codePartOfLine = (commentIndex != -1) ? line.substring(0, commentIndex) : line;
+        String commentPartOfLine = (commentIndex != -1) ? line.substring(commentIndex) : null;
+        
+        // Tokenize and highlight the code part
         Pattern tokenPattern = Pattern.compile("(\"[^\"]*\"|'[^']*'|\\w+|\\s+|[^\\w\\s])");
-        Matcher tokenMatcher = tokenPattern.matcher(line);
+        Matcher tokenMatcher = tokenPattern.matcher(codePartOfLine);
         
         while (tokenMatcher.find()) {
           String token = tokenMatcher.group();
@@ -1634,7 +1655,7 @@ public class AIChatPanel extends JPanel {
           
           // Special handling for cursor character
           if (token.equals("▊")) {
-            doc.insertString(doc.getLength(), token, cursorStyle);
+            doc.insertString(doc.getLength(), token, normalStyle);
             continue;
           }
           
@@ -1669,6 +1690,11 @@ public class AIChatPanel extends JPanel {
           }
           
           doc.insertString(doc.getLength(), token, styleToUse);
+        }
+        
+        // Add the comment part if it exists
+        if (commentPartOfLine != null) {
+          doc.insertString(doc.getLength(), commentPartOfLine, commentStyle);
         }
       }
     } catch (BadLocationException e) {
