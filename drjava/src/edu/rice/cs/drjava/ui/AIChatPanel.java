@@ -821,7 +821,7 @@ public class AIChatPanel extends JPanel {
             String line;
             StringBuilder fullContent = new StringBuilder();
             long lastUpdateTime = 0;
-            final long UPDATE_INTERVAL_MS = 250; // Increased from 150ms to 250ms to reduce jitter
+            final long UPDATE_INTERVAL_MS = 350; // Reduced back to 200ms for better streaming word effect
             
             while ((line = reader.readLine()) != null) {
               if (line.startsWith("data: ")) {
@@ -877,6 +877,9 @@ public class AIChatPanel extends JPanel {
   
   private void _updateStreamingMessage(JPanel streamingPanel, String content, boolean isComplete) {
     if (streamingPanel == null) return;
+    
+    // Check if user is currently scrolled near the bottom before updating
+    boolean shouldAutoScroll = _isScrolledNearBottom();
     
     // Remove existing content
     streamingPanel.removeAll();
@@ -992,31 +995,23 @@ public class AIChatPanel extends JPanel {
     streamingPanel.revalidate();
     streamingPanel.repaint();
     
-    // Improved autoscroll strategy
-    if (isComplete) {
-      // For complete messages, do a proper scroll after a brief delay to ensure layout is complete
-      SwingUtilities.invokeLater(() -> {
-        _messagesPanel.revalidate();
-        _messagesPanel.repaint();
-        
-        // Second delay to ensure revalidation is complete
+    // Improved autoscroll strategy - only scroll if user was already near bottom
+    if (shouldAutoScroll) {
+      if (isComplete) {
+        // For complete messages, do a proper scroll after layout is complete
         SwingUtilities.invokeLater(() -> {
-          _scrollToBottom();
+          _messagesPanel.revalidate();
+          _messagesPanel.repaint();
+          
+          // Second delay to ensure revalidation is complete
+          SwingUtilities.invokeLater(() -> {
+            _scrollToBottomSmooth();
+          });
         });
-      });
-    } else {
-      // For streaming updates, use a gentler approach that checks if we're already at bottom
-      SwingUtilities.invokeLater(() -> {
-        JScrollBar verticalBar = _chatScroll.getVerticalScrollBar();
-        int maxValue = verticalBar.getMaximum() - verticalBar.getVisibleAmount();
-        int currentValue = verticalBar.getValue();
-        
-        // Only scroll if we're within a reasonable distance of the bottom (within 50 pixels)
-        // This prevents aggressive scrolling when user has scrolled up intentionally
-        if (maxValue - currentValue <= 50) {
-          verticalBar.setValue(maxValue);
-        }
-      });
+      } else {
+        // For streaming updates, use a gentler approach with less frequent updates
+        _scrollToBottomSmooth();
+      }
     }
   }
   
@@ -1497,6 +1492,37 @@ public class AIChatPanel extends JPanel {
         
         // Also ensure the viewport is properly positioned
         _chatScroll.getViewport().revalidate();
+      }
+    });
+  }
+  
+  /**
+   * Check if the user is currently scrolled near the bottom of the chat
+   */
+  private boolean _isScrolledNearBottom() {
+    JScrollBar verticalBar = _chatScroll.getVerticalScrollBar();
+    int maxValue = verticalBar.getMaximum() - verticalBar.getVisibleAmount();
+    int currentValue = verticalBar.getValue();
+    
+    // Consider "near bottom" if within 50 pixels of the bottom
+    // This gives users some leeway while still auto-scrolling when they're following the conversation
+    return (maxValue - currentValue) <= 150;
+  }
+  
+  /**
+   * Smooth scroll to bottom with reduced jitter
+   */
+  private void _scrollToBottomSmooth() {
+    SwingUtilities.invokeLater(new Runnable() {
+      public void run() {
+        JScrollBar verticalBar = _chatScroll.getVerticalScrollBar();
+        int maxValue = verticalBar.getMaximum() - verticalBar.getVisibleAmount();
+        int currentValue = verticalBar.getValue();
+        
+        // Only scroll if we're not already at the bottom (reduces unnecessary updates)
+        if (currentValue < maxValue) {
+          verticalBar.setValue(maxValue);
+        }
       }
     });
   }
