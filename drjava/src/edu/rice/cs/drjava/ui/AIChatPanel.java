@@ -98,10 +98,15 @@ public class AIChatPanel extends JPanel {
     String html = markdown;
     
     // Don't process code blocks here - they should be handled by _createMixedContentPanel
+    // Convert headers (### ## #)
+    html = html.replaceAll("(?m)^### (.+)$", "<h3>$1</h3>");
+    html = html.replaceAll("(?m)^## (.+)$", "<h2>$1</h2>");
+    html = html.replaceAll("(?m)^# (.+)$", "<h1>$1</h1>");
+    
     // Convert inline code (`...`) only
     Pattern inlineCodePattern = Pattern.compile("`([^`]+)`");
     Matcher inlineCodeMatcher = inlineCodePattern.matcher(html);
-    html = inlineCodeMatcher.replaceAll("<code style='background-color: #f6f8fa; padding: 1px 3px; border-radius: 2px; font-family: Consolas, Monaco, monospace; font-size: 11px;'>$1</code>");
+    html = inlineCodeMatcher.replaceAll("<code style='background-color: #f6f8fa; padding: 1px 3px; border-radius: 2px; font-family: Consolas, Monaco, monospace; font-size: 12px;'>$1</code>");
     
     // Convert bold (**text**)
     Pattern boldPattern = Pattern.compile("\\*\\*([^*]+)\\*\\*");
@@ -113,23 +118,32 @@ public class AIChatPanel extends JPanel {
     Matcher italicMatcher = italicPattern.matcher(html);
     html = italicMatcher.replaceAll("<em>$1</em>");
     
-    // Convert bullet points (• or -)
-    html = html.replaceAll("^[•-]\\s+(.*)$", "<li>$1</li>");
+    // Convert bullet points (• or - at start of line)
+    html = html.replaceAll("(?m)^[•-]\\s+(.*)$", "<li>$1</li>");
+    
+    // Convert numbered lists (1. 2. etc)
+    html = html.replaceAll("(?m)^\\d+\\.\\s+(.*)$", "<li>$1</li>");
     
     // Wrap consecutive <li> elements in <ul>
     html = html.replaceAll("(<li>.*?</li>)(?:\\s*<li>.*?</li>)*", "<ul>$0</ul>");
     
-    // Convert line breaks
-    html = html.replaceAll("\n", "<br>");
+    // Convert line breaks but preserve paragraph breaks
+    html = html.replaceAll("\\n\\n", "<br><br>");
+    html = html.replaceAll("\\n", "<br>");
     
-    // Wrap in basic HTML structure with consistent styling
+    // Wrap in basic HTML structure with NO margins - let component borders handle all spacing
     return "<html><head><style>" +
-           "body { font-family: 'Segoe UI', sans-serif; font-size: 10px; line-height: 1.4; margin: 0; padding: 0; }" +
+           "body { font-family: 'Segoe UI', sans-serif; font-size: 11px; line-height: 1.4; margin: 0; padding: 0; }" +
+           "h1 { font-size: 14px; font-weight: bold; margin: 0; padding: 0; color: #1f2328; }" +
+           "h2 { font-size: 13px; font-weight: bold; margin: 0; padding: 0; color: #1f2328; }" +
+           "h3 { font-size: 12px; font-weight: bold; margin: 0; padding: 0; color: #1f2328; }" +
            "code { background-color: #f6f8fa; padding: 1px 3px; border-radius: 2px; font-family: Consolas, Monaco, monospace; font-size: 11px; }" +
-           "pre { background-color: #f6f8fa; padding: 6px; border-radius: 3px; font-family: Consolas, Monaco, monospace; font-size: 11px; margin: 6px 0; overflow-x: auto; line-height: 1.3; }" +
-           "ul { margin: 6px 0; padding-left: 18px; }" +
+           "pre { background-color: #f6f8fa; padding: 6px; border-radius: 3px; font-family: Consolas, Monaco, monospace; font-size: 11px; margin: 0; overflow-x: auto; line-height: 1.3; }" +
+           "ul { margin: 0; padding-left: 18px; }" +
            "li { margin: 1px 0; }" +
            "p { margin: 0; padding: 0; }" +
+           "strong { font-weight: bold; }" +
+           "em { font-style: italic; }" +
            "</style></head><body>" + html + "</body></html>";
   }
   
@@ -374,39 +388,12 @@ public class AIChatPanel extends JPanel {
       // Add text before code block
       String beforeText = message.substring(lastEnd, matcher.start());
       if (!beforeText.trim().isEmpty()) {
-        JEditorPane textPane = new JEditorPane() {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            // Limit to 85% of parent width for text wrapping
-            Container parent = getParent();
-            if (parent != null) {
-              int parentWidth = parent.getWidth();
-              if (parentWidth > 100) {
-                int maxWidth = parentWidth * 85 / 100;
-                if (pref.width > maxWidth) {
-                  pref.width = maxWidth;
-                }
-              } else {
-                // During initial layout, use a reasonable default
-                int maxWidth = Math.max(300, pref.width);
-                pref.width = Math.min(pref.width, maxWidth);
-              }
-            }
-            return pref;
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            return getPreferredSize();
-          }
-        };
+        JEditorPane textPane = new JEditorPane("text/html", _convertMarkdownToHTML(beforeText));
         textPane.setContentType("text/html");
         textPane.setEditable(false);
         textPane.setOpaque(false);
-        textPane.setText(_convertMarkdownToHTML(beforeText));
         textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
-        textPane.setBorder(new EmptyBorder(0, 0, 4, 0)); // Reduced bottom spacing
+        textPane.setBorder(new EmptyBorder(0, 0, 8, 0)); // Standard 8px spacing before code blocks
         textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
         contentPanel.add(textPane);
       }
@@ -424,7 +411,7 @@ public class AIChatPanel extends JPanel {
       JComponent codePane = _createSyntaxHighlightedCodePane(codeContent);
       codePane.setAlignmentX(Component.LEFT_ALIGNMENT);
       contentPanel.add(codePane);
-      contentPanel.add(Box.createVerticalStrut(4)); // Reduced spacing
+      // Remove box strut - code blocks will handle their own spacing via borders
       
       lastEnd = matcher.end();
     }
@@ -433,39 +420,12 @@ public class AIChatPanel extends JPanel {
     if (lastEnd < message.length()) {
       String remainingText = message.substring(lastEnd);
       if (!remainingText.trim().isEmpty()) {
-        JEditorPane textPane = new JEditorPane() {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            // Limit to 85% of parent width for text wrapping
-            Container parent = getParent();
-            if (parent != null) {
-              int parentWidth = parent.getWidth();
-              if (parentWidth > 100) {
-                int maxWidth = parentWidth * 85 / 100;
-                if (pref.width > maxWidth) {
-                  pref.width = maxWidth;
-                }
-              } else {
-                // During initial layout, use a reasonable default
-                int maxWidth = Math.max(300, pref.width);
-                pref.width = Math.min(pref.width, maxWidth);
-              }
-            }
-            return pref;
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            return getPreferredSize();
-          }
-        };
+        JEditorPane textPane = new JEditorPane("text/html", _convertMarkdownToHTML(remainingText));
         textPane.setContentType("text/html");
         textPane.setEditable(false);
         textPane.setOpaque(false);
-        textPane.setText(_convertMarkdownToHTML(remainingText));
         textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
-        textPane.setBorder(null); // No border for final text
+        textPane.setBorder(new EmptyBorder(8, 0, 0, 0)); // Standard 8px spacing after code blocks
         textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
         contentPanel.add(textPane);
       }
@@ -480,6 +440,15 @@ public class AIChatPanel extends JPanel {
     _messagesPanel.setLayout(new BoxLayout(_messagesPanel, BoxLayout.Y_AXIS));
     _messagesPanel.setBackground(CHAT_BACKGROUND);
     _messagesPanel.setBorder(new EmptyBorder(16, 8, 16, 8)); // Reduced side padding from 20 to 8
+    
+    // Add component listener to automatically scroll when content changes
+    _messagesPanel.addComponentListener(new ComponentAdapter() {
+      @Override
+      public void componentResized(ComponentEvent e) {
+        // When messages panel size changes, scroll to bottom
+        _scrollToBottom();
+      }
+    });
     
     // Modern scroll pane
     _chatScroll = new JScrollPane(_messagesPanel);
@@ -874,6 +843,8 @@ public class AIChatPanel extends JPanel {
           try (BufferedReader reader = new BufferedReader(new InputStreamReader(httpClient.getInputStream()))) {
             String line;
             StringBuilder fullContent = new StringBuilder();
+            long lastUpdateTime = 0;
+            final long UPDATE_INTERVAL_MS = 150; // Increased from 100ms to 150ms to reduce jitter
             
             while ((line = reader.readLine()) != null) {
               if (line.startsWith("data: ")) {
@@ -888,9 +859,14 @@ public class AIChatPanel extends JPanel {
                     fullContent.append(chunk);
                     final String currentContent = fullContent.toString();
                     
-                    SwingUtilities.invokeLater(() -> {
-                      _updateStreamingMessage(streamingPanel, currentContent, false);
-                    });
+                    // Batch updates to reduce jitter
+                    long currentTime = System.currentTimeMillis();
+                    if (isDone || currentTime - lastUpdateTime >= UPDATE_INTERVAL_MS) {
+                      lastUpdateTime = currentTime;
+                      SwingUtilities.invokeLater(() -> {
+                        _updateStreamingMessage(streamingPanel, currentContent, false);
+                      });
+                    }
                   }
                   
                   if (isDone) {
@@ -953,36 +929,13 @@ public class AIChatPanel extends JPanel {
         
         streamingPanel.add(wrapper, BorderLayout.CENTER);
       } else {
-        JEditorPane messageText = new JEditorPane() {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            Container parent = getParent();
-            if (parent != null) {
-              int parentWidth = parent.getWidth();
-              if (parentWidth > 100) {
-                int maxWidth = parentWidth * 85 / 100;
-                if (pref.width > maxWidth) {
-                  pref.width = maxWidth;
-                }
-              } else {
-                int maxWidth = Math.max(300, pref.width);
-                pref.width = Math.min(pref.width, maxWidth);
-              }
-            }
-            return pref;
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            return getPreferredSize();
-          }
-        };
+        JEditorPane messageText = new JEditorPane("text/html", _convertMarkdownToHTML(content));
         messageText.setContentType("text/html");
         messageText.setEditable(false);
         messageText.setOpaque(false);
-        messageText.setText(_convertMarkdownToHTML(content));
         messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
+        
+        // Don't honor display properties to ensure HTML uses our CSS sizes
         messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
         
         streamingPanel.add(messageText, BorderLayout.CENTER);
@@ -1017,43 +970,42 @@ public class AIChatPanel extends JPanel {
         streamingPanel.add(wrapper, BorderLayout.CENTER);
       } else {
         // No code blocks at all - show as regular streaming text
-        JTextArea streamingText = new JTextArea(content + "▊") {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            Container parent = getParent();
-            if (parent != null) {
-              int parentWidth = parent.getWidth();
-              if (parentWidth > 100) {
-                int maxWidth = parentWidth * 85 / 100;
-                if (pref.width > maxWidth) {
-                  pref.width = maxWidth;
-                }
-              }
-            }
-            return pref;
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            return getPreferredSize();
-          }
-        };
-        streamingText.setEditable(false);
-        streamingText.setOpaque(false);
-        streamingText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        streamingText.setForeground(AI_TEXT_COLOR);
-        streamingText.setLineWrap(true);
-        streamingText.setWrapStyleWord(true);
-        streamingText.setBorder(new EmptyBorder(0, 0, 0, 0));
+        JComponent streamingTextComponent = _createStableStreamingTextPane(content + "▊", true); // Enable markdown for streaming text
+        streamingTextComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
         
-        streamingPanel.add(streamingText, BorderLayout.CENTER);
+        streamingPanel.add(streamingTextComponent, BorderLayout.CENTER);
       }
     }
     
     streamingPanel.revalidate();
     streamingPanel.repaint();
-    _scrollToBottom();
+    
+    // Improved autoscroll strategy
+    if (isComplete) {
+      // For complete messages, do a proper scroll after a brief delay to ensure layout is complete
+      SwingUtilities.invokeLater(() -> {
+        _messagesPanel.revalidate();
+        _messagesPanel.repaint();
+        
+        // Second delay to ensure revalidation is complete
+        SwingUtilities.invokeLater(() -> {
+          _scrollToBottom();
+        });
+      });
+    } else {
+      // For streaming updates, use a gentler approach that checks if we're already at bottom
+      SwingUtilities.invokeLater(() -> {
+        JScrollBar verticalBar = _chatScroll.getVerticalScrollBar();
+        int maxValue = verticalBar.getMaximum() - verticalBar.getVisibleAmount();
+        int currentValue = verticalBar.getValue();
+        
+        // Only scroll if we're within a reasonable distance of the bottom (within 50 pixels)
+        // This prevents aggressive scrolling when user has scrolled up intentionally
+        if (maxValue - currentValue <= 50) {
+          verticalBar.setValue(maxValue);
+        }
+      });
+    }
   }
   
   /**
@@ -1089,39 +1041,9 @@ public class AIChatPanel extends JPanel {
       // Add text before this complete code block
       String beforeText = message.substring(lastProcessedIndex, completeMatcher.start());
       if (!beforeText.trim().isEmpty()) {
-        JEditorPane textPane = new JEditorPane() {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            Container parent = getParent();
-            if (parent != null) {
-              int parentWidth = parent.getWidth();
-              if (parentWidth > 100) {
-                int maxWidth = parentWidth * 85 / 100;
-                if (pref.width > maxWidth) {
-                  pref.width = maxWidth;
-                }
-              } else {
-                int maxWidth = Math.max(300, pref.width);
-                pref.width = Math.min(pref.width, maxWidth);
-              }
-            }
-            return pref;
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            return getPreferredSize();
-          }
-        };
-        textPane.setContentType("text/html");
-        textPane.setEditable(false);
-        textPane.setOpaque(false);
-        textPane.setText(_convertMarkdownToHTML(beforeText));
-        textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
-        textPane.setBorder(new EmptyBorder(0, 0, 4, 0));
-        textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-        contentPanel.add(textPane);
+        JComponent textComponent = _createStableStreamingTextPane(beforeText, true); // Enable markdown for complete text
+        textComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(textComponent);
       }
       
       // Add the complete code block with full syntax highlighting
@@ -1135,7 +1057,7 @@ public class AIChatPanel extends JPanel {
       JComponent codePane = _createSyntaxHighlightedCodePane(codeContent);
       codePane.setAlignmentX(Component.LEFT_ALIGNMENT);
       contentPanel.add(codePane);
-      contentPanel.add(Box.createVerticalStrut(4));
+      // Remove box strut - code blocks will handle their own spacing via borders
       
       lastProcessedIndex = completeMatcher.end();
     }
@@ -1154,39 +1076,9 @@ public class AIChatPanel extends JPanel {
         
         // Add text before the incomplete code block
         if (!textBeforeIncomplete.trim().isEmpty()) {
-          JEditorPane textPane = new JEditorPane() {
-            @Override
-            public Dimension getPreferredSize() {
-              Dimension pref = super.getPreferredSize();
-              Container parent = getParent();
-              if (parent != null) {
-                int parentWidth = parent.getWidth();
-                if (parentWidth > 100) {
-                  int maxWidth = parentWidth * 85 / 100;
-                  if (pref.width > maxWidth) {
-                    pref.width = maxWidth;
-                  }
-                } else {
-                  int maxWidth = Math.max(300, pref.width);
-                  pref.width = Math.min(pref.width, maxWidth);
-                }
-              }
-              return pref;
-            }
-            
-            @Override
-            public Dimension getMaximumSize() {
-              return getPreferredSize();
-            }
-          };
-          textPane.setContentType("text/html");
-          textPane.setEditable(false);
-          textPane.setOpaque(false);
-          textPane.setText(_convertMarkdownToHTML(textBeforeIncomplete));
-          textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
-          textPane.setBorder(new EmptyBorder(0, 0, 4, 0));
-          textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-          contentPanel.add(textPane);
+          JComponent textComponent = _createStableStreamingTextPane(textBeforeIncomplete, true); // Enable markdown for complete text
+          textComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
+          contentPanel.add(textComponent);
         }
         
         // Add the incomplete code block with streaming cursor
@@ -1202,43 +1094,68 @@ public class AIChatPanel extends JPanel {
         contentPanel.add(streamingCodePane);
       } else {
         // No incomplete code block, just regular text with cursor
-        JEditorPane textPane = new JEditorPane() {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            Container parent = getParent();
-            if (parent != null) {
-              int parentWidth = parent.getWidth();
-              if (parentWidth > 100) {
-                int maxWidth = parentWidth * 85 / 100;
-                if (pref.width > maxWidth) {
-                  pref.width = maxWidth;
-                }
-              } else {
-                int maxWidth = Math.max(300, pref.width);
-                pref.width = Math.min(pref.width, maxWidth);
-              }
-            }
-            return pref;
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            return getPreferredSize();
-          }
-        };
-        textPane.setContentType("text/html");
-        textPane.setEditable(false);
-        textPane.setOpaque(false);
-        textPane.setText(_convertMarkdownToHTML(remainingContent + "▊"));
-        textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
-        textPane.setBorder(new EmptyBorder(0, 0, 4, 0));
-        textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
-        contentPanel.add(textPane);
+        JComponent textComponent = _createStableStreamingTextPane(remainingContent + "▊", true); // Enable markdown for streaming text
+        textComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(textComponent);
       }
     }
     
     return contentPanel;
+  }
+  
+  /**
+   * Creates a stable text pane for streaming with optional markdown support
+   */
+  private JComponent _createStableStreamingTextPane(String text, boolean enableMarkdown) {
+    if (enableMarkdown) {
+      JEditorPane textPane = new JEditorPane("text/html", _convertMarkdownToHTML(text));
+      textPane.setEditable(false);
+      textPane.setOpaque(false);
+      textPane.setBorder(new EmptyBorder(0, 0, 8, 0)); // Consistent 8px bottom spacing
+      textPane.setFont(new Font("Segoe UI", Font.PLAIN, 11)); // Match HTML font size
+      textPane.setBackground(Color.WHITE);
+      
+      // Use consistent sizing approach - let the component calculate its own preferred size
+      textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+      
+      return textPane;
+    } else {
+      // Use JEditorPane with simple HTML instead of JTextArea for consistent rendering
+      String simpleHtml = "<html><head><style>" +
+                         "body { font-family: 'Segoe UI', sans-serif; font-size: 11px; line-height: 1.4; margin: 0; padding: 0; word-wrap: break-word; white-space: normal; }" +
+                         "</style></head><body>" + 
+                         text.replace("\n", "<br>").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") + 
+                         "</body></html>";
+      
+      JEditorPane textPane = new JEditorPane("text/html", simpleHtml) {
+        @Override
+        public Dimension getPreferredSize() {
+          // Force the JEditorPane to calculate size based on available width
+          Dimension pref = super.getPreferredSize();
+          Container parent = getParent();
+          if (parent != null && parent.getWidth() > 0) {
+            // Use parent width minus some padding for wrapping calculation
+            int availableWidth = parent.getWidth() - 20; // Account for padding
+            if (availableWidth > 100) { // Minimum reasonable width
+              // Set a temporary size to force text wrapping calculation
+              setSize(availableWidth, Integer.MAX_VALUE);
+              pref = super.getPreferredSize();
+              pref.width = availableWidth;
+            }
+          }
+          return pref;
+        }
+      };
+      textPane.setEditable(false);
+      textPane.setOpaque(false);
+      textPane.setBorder(new EmptyBorder(0, 0, 8, 0)); // Consistent 8px bottom spacing
+      textPane.setBackground(Color.WHITE);
+      
+      // Use consistent sizing approach - let the component calculate its own preferred size
+      textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+      
+      return textPane;
+    }
   }
   
   /**
@@ -1449,37 +1366,10 @@ public class AIChatPanel extends JPanel {
       messagePanel.add(wrapper, BorderLayout.CENTER);
     } else {
       // Use simple HTML for text-only messages
-      JEditorPane messageText = new JEditorPane() {
-        @Override
-        public Dimension getPreferredSize() {
-          Dimension pref = super.getPreferredSize();
-          // Limit to 85% of parent width but be responsive (AI text messages)
-          Container parent = getParent();
-          if (parent != null) {
-            int parentWidth = parent.getWidth();
-            if (parentWidth > 100) {
-              int maxWidth = parentWidth * 85 / 100;
-              if (pref.width > maxWidth) {
-                pref.width = maxWidth;
-              }
-            } else {
-              // During initial layout or when parent is too small, use a reasonable default
-              int maxWidth = Math.max(150, pref.width);
-              pref.width = Math.min(pref.width, maxWidth);
-            }
-          }
-          return pref;
-        }
-        
-        @Override
-        public Dimension getMaximumSize() {
-          return getPreferredSize();
-        }
-      };
+      JEditorPane messageText = new JEditorPane("text/html", _convertMarkdownToHTML(message));
       messageText.setContentType("text/html");
       messageText.setEditable(false);
       messageText.setOpaque(false);
-      messageText.setText(_convertMarkdownToHTML(message));
       messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
       
       // Don't honor display properties to ensure HTML uses our CSS sizes
@@ -1523,7 +1413,15 @@ public class AIChatPanel extends JPanel {
     SwingUtilities.invokeLater(new Runnable() {
       public void run() {
         JScrollBar verticalBar = _chatScroll.getVerticalScrollBar();
-        verticalBar.setValue(verticalBar.getMaximum());
+        
+        // Ensure we have the latest maximum value
+        int maxValue = verticalBar.getMaximum() - verticalBar.getVisibleAmount();
+        
+        // Use smooth scrolling by setting value directly
+        verticalBar.setValue(maxValue);
+        
+        // Also ensure the viewport is properly positioned
+        _chatScroll.getViewport().revalidate();
       }
     });
   }
