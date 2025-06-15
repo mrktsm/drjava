@@ -108,17 +108,17 @@ public class AIChatPanel extends JPanel {
     // Line breaks
     html = html.replaceAll("\n", "<br>");
     
-    // Wrap in HTML structure with comprehensive styling
+    // Wrap in HTML structure with comprehensive styling and CSS-based width control
     return "<html><head><style>" +
-           "body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 10px; line-height: 1.4; margin: 0; padding: 0; color: #24292f; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; }" +
-           "h1 { font-size: 13px; font-weight: 600; margin: 8px 0 4px 0; color: #1f2328; }" +
-           "h2 { font-size: 12px; font-weight: 600; margin: 6px 0 3px 0; color: #1f2328; }" +
-           "h3 { font-size: 11px; font-weight: 600; margin: 4px 0 2px 0; color: #1f2328; }" +
-           "code { background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 10px; word-break: break-all; }" +
-           "pre { background-color: #f6f8fa; padding: 8px; border-radius: 6px; overflow-x: auto; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 10px; line-height: 1.45; }" +
+           "body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; font-size: 10px; line-height: 1.4; margin: 0; padding: 0; color: #24292f; word-wrap: break-word; overflow-wrap: break-word; max-width: 100%; hyphens: auto; word-break: break-word; white-space: pre-wrap; }" +
+           "h1 { font-size: 13px; font-weight: 600; margin: 8px 0 4px 0; color: #1f2328; word-wrap: break-word; }" +
+           "h2 { font-size: 12px; font-weight: 600; margin: 6px 0 3px 0; color: #1f2328; word-wrap: break-word; }" +
+           "h3 { font-size: 11px; font-weight: 600; margin: 4px 0 2px 0; color: #1f2328; word-wrap: break-word; }" +
+           "code { background-color: #f6f8fa; padding: 2px 4px; border-radius: 3px; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 10px; word-break: break-all; white-space: pre-wrap; }" +
+           "pre { background-color: #f6f8fa; padding: 8px; border-radius: 6px; overflow-x: auto; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 10px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }" +
            "ul { margin: 4px 0; padding-left: 20px; }" +
-           "li { margin: 2px 0; }" +
-           "p { margin: 4px 0; word-wrap: break-word; }" +
+           "li { margin: 2px 0; word-wrap: break-word; }" +
+           "p { margin: 4px 0; word-wrap: break-word; hyphens: auto; word-break: break-word; white-space: pre-wrap; }" +
            "strong { font-weight: 600; }" +
            "em { font-style: italic; }" +
            "</style></head><body>" + html + "</body></html>";
@@ -915,7 +915,42 @@ public class AIChatPanel extends JPanel {
         // Don't honor display properties to ensure HTML uses our CSS sizes
         messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
         
-        streamingPanel.add(messageText, BorderLayout.CENTER);
+        // Wrap in a panel with responsive width constraint to force CSS wrapping
+        JPanel textWrapper = new JPanel(new BorderLayout()) {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            int maxWidth = getResponsiveMaxWidth();
+            return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            Dimension pref = getPreferredSize();
+            int maxWidth = getResponsiveMaxWidth();
+            return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+          }
+          
+          private int getResponsiveMaxWidth() {
+            Container parent = getParent();
+            while (parent != null && !(parent instanceof JScrollPane)) {
+              parent = parent.getParent();
+            }
+            if (parent != null) {
+              JScrollPane scrollPane = (JScrollPane) parent;
+              int availableWidth = scrollPane.getViewport().getWidth();
+              if (availableWidth > 100) {
+                // Use 95% of available width, with reasonable minimum but no restrictive maximum
+                return Math.max(300, (int)(availableWidth * 0.95));
+              }
+            }
+            return 400; // Fallback to fixed width
+          }
+        };
+        textWrapper.setOpaque(false);
+        textWrapper.add(messageText, BorderLayout.CENTER);
+        
+        streamingPanel.add(textWrapper, BorderLayout.CENTER);
       }
       
       streamingPanel.putClientProperty("isStreaming", false);
@@ -1097,9 +1132,44 @@ public class AIChatPanel extends JPanel {
       // Don't honor display properties to ensure HTML uses our CSS sizes
       editorPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
       
-      return editorPane;
+      // Wrap in a panel with responsive width constraint to force CSS wrapping
+      JPanel wrapper = new JPanel(new BorderLayout()) {
+        @Override
+        public Dimension getPreferredSize() {
+          Dimension pref = super.getPreferredSize();
+          int maxWidth = getResponsiveMaxWidth();
+          return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+        }
+        
+        @Override
+        public Dimension getMaximumSize() {
+          Dimension pref = getPreferredSize();
+          int maxWidth = getResponsiveMaxWidth();
+          return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+        }
+        
+        private int getResponsiveMaxWidth() {
+          Container parent = getParent();
+          while (parent != null && !(parent instanceof JScrollPane)) {
+            parent = parent.getParent();
+          }
+          if (parent != null) {
+            JScrollPane scrollPane = (JScrollPane) parent;
+            int availableWidth = scrollPane.getViewport().getWidth();
+            if (availableWidth > 100) {
+              // Use 95% of available width, with reasonable minimum but no restrictive maximum
+              return Math.max(300, (int)(availableWidth * 0.95));
+            }
+          }
+          return 400; // Fallback to fixed width
+        }
+      };
+      wrapper.setOpaque(false);
+      wrapper.add(editorPane, BorderLayout.CENTER);
+      
+      return wrapper;
     } else {
-      // Use JTextArea for plain text
+      // Use JTextArea for plain text with responsive wrapper for width control
       JTextArea textArea = new JTextArea(text);
       textArea.setEditable(false);
       textArea.setOpaque(false);
@@ -1109,7 +1179,35 @@ public class AIChatPanel extends JPanel {
       textArea.setLineWrap(true);
       textArea.setWrapStyleWord(true);
       
-      return textArea;
+      // Wrap in a panel with responsive width constraint
+      JPanel wrapper = new JPanel(new BorderLayout()) {
+        @Override
+        public Dimension getMaximumSize() {
+          Dimension pref = getPreferredSize();
+          int maxWidth = getResponsiveMaxWidth();
+          return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+        }
+        
+        private int getResponsiveMaxWidth() {
+          Container parent = getParent();
+          while (parent != null && !(parent instanceof JScrollPane)) {
+            parent = parent.getParent();
+          }
+          if (parent != null) {
+            JScrollPane scrollPane = (JScrollPane) parent;
+            int availableWidth = scrollPane.getViewport().getWidth();
+            if (availableWidth > 100) {
+              // Use 95% of available width, with reasonable minimum but no restrictive maximum
+              return Math.max(300, (int)(availableWidth * 0.95));
+            }
+          }
+          return 400; // Fallback to fixed width
+        }
+      };
+      wrapper.setOpaque(false);
+      wrapper.add(textArea, BorderLayout.CENTER);
+      
+      return wrapper;
     }
   }
   
@@ -1300,21 +1398,8 @@ public class AIChatPanel extends JPanel {
       JComponent contentComponent = _createMixedContentPanel(message);
       contentComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
       
-      // Override preferred size for responsiveness - DON'T CONSTRAIN WIDTH for code blocks
-      JPanel wrapper = new JPanel(new BorderLayout()) {
-      @Override
-        public Dimension getPreferredSize() {
-          Dimension pref = super.getPreferredSize();
-          // For code blocks, let them use their natural width - don't constrain!
-          return pref;
-        }
-        
-        @Override
-        public Dimension getMaximumSize() {
-          // Allow unlimited width for code blocks
-          return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
-        }
-      };
+      // Simple wrapper without size constraints to avoid jitter
+      JPanel wrapper = new JPanel(new BorderLayout());
       wrapper.setOpaque(false);
       wrapper.add(contentComponent, BorderLayout.CENTER);
       
@@ -1330,7 +1415,42 @@ public class AIChatPanel extends JPanel {
       // Don't honor display properties to ensure HTML uses our CSS sizes
       messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
       
-      messagePanel.add(messageText, BorderLayout.CENTER);
+      // Wrap in a panel with responsive width constraint to force CSS wrapping
+      JPanel textWrapper = new JPanel(new BorderLayout()) {
+        @Override
+        public Dimension getPreferredSize() {
+          Dimension pref = super.getPreferredSize();
+          int maxWidth = getResponsiveMaxWidth();
+          return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+        }
+        
+        @Override
+        public Dimension getMaximumSize() {
+          Dimension pref = getPreferredSize();
+          int maxWidth = getResponsiveMaxWidth();
+          return new Dimension(Math.min(maxWidth, pref.width), pref.height);
+        }
+        
+        private int getResponsiveMaxWidth() {
+          Container parent = getParent();
+          while (parent != null && !(parent instanceof JScrollPane)) {
+            parent = parent.getParent();
+          }
+          if (parent != null) {
+            JScrollPane scrollPane = (JScrollPane) parent;
+            int availableWidth = scrollPane.getViewport().getWidth();
+            if (availableWidth > 100) {
+              // Use 95% of available width, with reasonable minimum but no restrictive maximum
+              return Math.max(300, (int)(availableWidth * 0.95));
+            }
+          }
+          return 400; // Fallback to fixed width
+        }
+      };
+      textWrapper.setOpaque(false);
+      textWrapper.add(messageText, BorderLayout.CENTER);
+      
+      messagePanel.add(textWrapper, BorderLayout.CENTER);
     }
     
     return messagePanel;
