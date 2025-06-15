@@ -97,12 +97,8 @@ public class AIChatPanel extends JPanel {
     
     String html = markdown;
     
-    // Convert code blocks (```...```) - we'll handle these specially now
-    Pattern codeBlockPattern = Pattern.compile("```(.*?)```", Pattern.DOTALL);
-    Matcher codeBlockMatcher = codeBlockPattern.matcher(html);
-    html = codeBlockMatcher.replaceAll("__CODE_BLOCK__$1__CODE_BLOCK_END__");
-    
-    // Convert inline code (`...`)
+    // Don't process code blocks here - they should be handled by _createMixedContentPanel
+    // Convert inline code (`...`) only
     Pattern inlineCodePattern = Pattern.compile("`([^`]+)`");
     Matcher inlineCodeMatcher = inlineCodePattern.matcher(html);
     html = inlineCodeMatcher.replaceAll("<code style='background-color: #f6f8fa; padding: 1px 3px; border-radius: 2px; font-family: Consolas, Monaco, monospace; font-size: 11px;'>$1</code>");
@@ -417,6 +413,7 @@ public class AIChatPanel extends JPanel {
       
       // Add syntax-highlighted code block
       String codeContent = matcher.group(1).trim();
+      
       // Remove language identifier if present (e.g., "java\n" -> "")
       if (codeContent.startsWith("java\n")) {
         codeContent = codeContent.substring(5);
@@ -993,43 +990,335 @@ public class AIChatPanel extends JPanel {
       
       streamingPanel.putClientProperty("isStreaming", false);
     } else {
-      // Streaming in progress - show partial content with cursor
-      JTextArea streamingText = new JTextArea(content + "▊") {
-        @Override
-        public Dimension getPreferredSize() {
-          Dimension pref = super.getPreferredSize();
-          Container parent = getParent();
-          if (parent != null) {
-            int parentWidth = parent.getWidth();
-            if (parentWidth > 100) {
-              int maxWidth = parentWidth * 85 / 100;
-              if (pref.width > maxWidth) {
-                pref.width = maxWidth;
+      // Streaming in progress - check if we have any code blocks (complete or incomplete)
+      boolean hasAnyCodeBlocks = content.contains("```");
+      
+      if (hasAnyCodeBlocks) {
+        // We have code blocks - use mixed content panel to show what we have so far
+        // This handles both incomplete code blocks and newly completed ones
+        JComponent contentComponent = _createStreamingMixedContentPanel(content);
+        contentComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JPanel wrapper = new JPanel(new BorderLayout()) {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            return pref;
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+          }
+        };
+        wrapper.setOpaque(false);
+        wrapper.add(contentComponent, BorderLayout.CENTER);
+        
+        streamingPanel.add(wrapper, BorderLayout.CENTER);
+      } else {
+        // No code blocks at all - show as regular streaming text
+        JTextArea streamingText = new JTextArea(content + "▊") {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            Container parent = getParent();
+            if (parent != null) {
+              int parentWidth = parent.getWidth();
+              if (parentWidth > 100) {
+                int maxWidth = parentWidth * 85 / 100;
+                if (pref.width > maxWidth) {
+                  pref.width = maxWidth;
+                }
               }
             }
+            return pref;
           }
-          return pref;
-        }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            return getPreferredSize();
+          }
+        };
+        streamingText.setEditable(false);
+        streamingText.setOpaque(false);
+        streamingText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        streamingText.setForeground(AI_TEXT_COLOR);
+        streamingText.setLineWrap(true);
+        streamingText.setWrapStyleWord(true);
+        streamingText.setBorder(new EmptyBorder(0, 0, 0, 0));
         
-        @Override
-        public Dimension getMaximumSize() {
-          return getPreferredSize();
-        }
-      };
-      streamingText.setEditable(false);
-      streamingText.setOpaque(false);
-      streamingText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-      streamingText.setForeground(AI_TEXT_COLOR);
-      streamingText.setLineWrap(true);
-      streamingText.setWrapStyleWord(true);
-      streamingText.setBorder(new EmptyBorder(0, 0, 0, 0));
-      
-      streamingPanel.add(streamingText, BorderLayout.CENTER);
+        streamingPanel.add(streamingText, BorderLayout.CENTER);
+      }
     }
     
     streamingPanel.revalidate();
     streamingPanel.repaint();
     _scrollToBottom();
+  }
+  
+  /**
+   * Count occurrences of a substring in a string
+   */
+  private int _countOccurrences(String text, String substring) {
+    int count = 0;
+    int index = 0;
+    while ((index = text.indexOf(substring, index)) != -1) {
+      count++;
+      index += substring.length();
+    }
+    return count;
+  }
+  
+  /**
+   * Creates a mixed content panel for streaming that handles incomplete code blocks
+   */
+  private JComponent _createStreamingMixedContentPanel(String message) {
+    JPanel contentPanel = new JPanel();
+    contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+    contentPanel.setOpaque(false);
+    contentPanel.setBorder(null);
+    
+    // First, handle any complete code blocks
+    Pattern completeCodeBlockPattern = Pattern.compile("```(.*?)```", Pattern.DOTALL);
+    Matcher completeMatcher = completeCodeBlockPattern.matcher(message);
+    
+    int lastProcessedIndex = 0;
+    
+    // Process all complete code blocks first
+    while (completeMatcher.find()) {
+      // Add text before this complete code block
+      String beforeText = message.substring(lastProcessedIndex, completeMatcher.start());
+      if (!beforeText.trim().isEmpty()) {
+        JEditorPane textPane = new JEditorPane() {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            Container parent = getParent();
+            if (parent != null) {
+              int parentWidth = parent.getWidth();
+              if (parentWidth > 100) {
+                int maxWidth = parentWidth * 85 / 100;
+                if (pref.width > maxWidth) {
+                  pref.width = maxWidth;
+                }
+              } else {
+                int maxWidth = Math.max(300, pref.width);
+                pref.width = Math.min(pref.width, maxWidth);
+              }
+            }
+            return pref;
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            return getPreferredSize();
+          }
+        };
+        textPane.setContentType("text/html");
+        textPane.setEditable(false);
+        textPane.setOpaque(false);
+        textPane.setText(_convertMarkdownToHTML(beforeText));
+        textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+        textPane.setBorder(new EmptyBorder(0, 0, 4, 0));
+        textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(textPane);
+      }
+      
+      // Add the complete code block with full syntax highlighting
+      String codeContent = completeMatcher.group(1).trim();
+      if (codeContent.startsWith("java\n")) {
+        codeContent = codeContent.substring(5);
+      } else if (codeContent.startsWith("java ")) {
+        codeContent = codeContent.substring(5);
+      }
+      
+      JComponent codePane = _createSyntaxHighlightedCodePane(codeContent);
+      codePane.setAlignmentX(Component.LEFT_ALIGNMENT);
+      contentPanel.add(codePane);
+      contentPanel.add(Box.createVerticalStrut(4));
+      
+      lastProcessedIndex = completeMatcher.end();
+    }
+    
+    // Now handle remaining content after the last complete code block
+    String remainingContent = message.substring(lastProcessedIndex);
+    
+    if (!remainingContent.trim().isEmpty()) {
+      // Check if there's an incomplete code block in the remaining content
+      int incompleteTripleIndex = remainingContent.indexOf("```");
+      
+      if (incompleteTripleIndex != -1) {
+        // There's an incomplete code block
+        String textBeforeIncomplete = remainingContent.substring(0, incompleteTripleIndex);
+        String incompleteCodeContent = remainingContent.substring(incompleteTripleIndex + 3);
+        
+        // Add text before the incomplete code block
+        if (!textBeforeIncomplete.trim().isEmpty()) {
+          JEditorPane textPane = new JEditorPane() {
+            @Override
+            public Dimension getPreferredSize() {
+              Dimension pref = super.getPreferredSize();
+              Container parent = getParent();
+              if (parent != null) {
+                int parentWidth = parent.getWidth();
+                if (parentWidth > 100) {
+                  int maxWidth = parentWidth * 85 / 100;
+                  if (pref.width > maxWidth) {
+                    pref.width = maxWidth;
+                  }
+                } else {
+                  int maxWidth = Math.max(300, pref.width);
+                  pref.width = Math.min(pref.width, maxWidth);
+                }
+              }
+              return pref;
+            }
+            
+            @Override
+            public Dimension getMaximumSize() {
+              return getPreferredSize();
+            }
+          };
+          textPane.setContentType("text/html");
+          textPane.setEditable(false);
+          textPane.setOpaque(false);
+          textPane.setText(_convertMarkdownToHTML(textBeforeIncomplete));
+          textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+          textPane.setBorder(new EmptyBorder(0, 0, 4, 0));
+          textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+          contentPanel.add(textPane);
+        }
+        
+        // Add the incomplete code block with streaming cursor
+        String codeContent = incompleteCodeContent;
+        if (codeContent.startsWith("java\n")) {
+          codeContent = codeContent.substring(5);
+        } else if (codeContent.startsWith("java ")) {
+          codeContent = codeContent.substring(5);
+        }
+        
+        JComponent streamingCodePane = _createStreamingSyntaxHighlightedCodePane(codeContent + "▊");
+        streamingCodePane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(streamingCodePane);
+      } else {
+        // No incomplete code block, just regular text with cursor
+        JEditorPane textPane = new JEditorPane() {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            Container parent = getParent();
+            if (parent != null) {
+              int parentWidth = parent.getWidth();
+              if (parentWidth > 100) {
+                int maxWidth = parentWidth * 85 / 100;
+                if (pref.width > maxWidth) {
+                  pref.width = maxWidth;
+                }
+              } else {
+                int maxWidth = Math.max(300, pref.width);
+                pref.width = Math.min(pref.width, maxWidth);
+              }
+            }
+            return pref;
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            return getPreferredSize();
+          }
+        };
+        textPane.setContentType("text/html");
+        textPane.setEditable(false);
+        textPane.setOpaque(false);
+        textPane.setText(_convertMarkdownToHTML(remainingContent + "▊"));
+        textPane.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+        textPane.setBorder(new EmptyBorder(0, 0, 4, 0));
+        textPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(textPane);
+      }
+    }
+    
+    return contentPanel;
+  }
+  
+  /**
+   * Creates a syntax-highlighted code pane for streaming (with cursor)
+   */
+  private JComponent _createStreamingSyntaxHighlightedCodePane(String code) {
+    // This is similar to _createSyntaxHighlightedCodePane but optimized for streaming
+    JTextPane codePane = new JTextPane() {
+      @Override
+      public boolean getScrollableTracksViewportWidth() {
+        return false;
+      }
+      
+      @Override
+      public boolean getScrollableTracksViewportHeight() {
+        return false;
+      }
+    };
+    
+    codePane.setEditable(false);
+    codePane.setOpaque(true);
+    codePane.setBackground(Color.WHITE);
+    codePane.setBorder(null);
+    
+    StyledDocument doc = codePane.getStyledDocument();
+    
+    // Define styles
+    Style defaultStyle = StyleContext.getDefaultStyleContext().getStyle(StyleContext.DEFAULT_STYLE);
+    Style normalStyle = doc.addStyle("normal", defaultStyle);
+    
+    Font mainFont = DrJava.getConfig().getSetting(OptionConstants.FONT_MAIN);
+    StyleConstants.setFontFamily(normalStyle, mainFont.getFamily());
+    StyleConstants.setFontSize(normalStyle, 13);
+    StyleConstants.setForeground(normalStyle, new Color(51, 51, 51));
+    
+    // For streaming, just use normal style to avoid complex highlighting that might be slow
+    try {
+      doc.insertString(0, code, normalStyle);
+    } catch (BadLocationException e) {
+      // Fallback
+    }
+    
+    // Wrap in scroll pane
+    JScrollPane codeScrollPane = new JScrollPane(codePane);
+    codeScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+    codeScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+    codeScrollPane.setBorder(null);
+    codeScrollPane.setOpaque(false);
+    codeScrollPane.getViewport().setOpaque(false);
+    
+    // Calculate height
+    FontMetrics fm = codePane.getFontMetrics(new Font(mainFont.getFamily(), Font.PLAIN, 13));
+    int lineHeight = fm.getHeight();
+    String[] lines = code.split("\n");
+    int numLines = Math.max(1, lines.length);
+    int fullHeight = (numLines * lineHeight) + 24;
+    
+    codeScrollPane.setPreferredSize(new Dimension(0, fullHeight));
+    
+    // Wrap in container with border
+    JPanel codeContainer = new JPanel(new BorderLayout()) {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        g2d.setColor(new Color(208, 215, 222));
+        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+        
+        g2d.setColor(Color.WHITE);
+        g2d.fillRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 10, 10);
+        
+        g2d.dispose();
+      }
+    };
+    codeContainer.setBackground(Color.WHITE);
+    codeContainer.setBorder(new EmptyBorder(12, 12, 12, 12));
+    codeContainer.add(codeScrollPane, BorderLayout.CENTER);
+    
+    return codeContainer;
   }
   
   private void _addUserMessage(String message) {
@@ -1303,50 +1592,41 @@ public class AIChatPanel extends JPanel {
    * Simple JSON field extractor - extracts value of a field from JSON string
    */
   private String _extractJsonField(String json, String fieldName) {
-    if (json == null || fieldName == null) return null;
-    
-    // Debug: print the raw JSON response
-    System.out.println("DEBUG: Raw JSON response: " + json);
-    
-    String searchPattern = "\"" + fieldName + "\"";
-    int fieldIndex = json.indexOf(searchPattern);
-    if (fieldIndex == -1) return null;
-    
-    int colonIndex = json.indexOf(":", fieldIndex);
-    if (colonIndex == -1) return null;
-    
-    // Skip whitespace and find opening quote
-    int startIndex = colonIndex + 1;
-    while (startIndex < json.length() && Character.isWhitespace(json.charAt(startIndex))) {
-      startIndex++;
-    }
-    
-    if (startIndex >= json.length() || json.charAt(startIndex) != '"') return null;
-    startIndex++; // Skip opening quote
-    
-    // Find closing quote, handling escaped quotes
-    int endIndex = startIndex;
-    while (endIndex < json.length()) {
-      if (json.charAt(endIndex) == '"' && (endIndex == startIndex || json.charAt(endIndex - 1) != '\\')) {
-        break;
+    try {
+      String searchPattern = "\"" + fieldName + "\":";
+      int startIndex = json.indexOf(searchPattern);
+      if (startIndex == -1) {
+        return null;
       }
-      endIndex++;
+      
+      startIndex += searchPattern.length();
+      
+      // Skip whitespace
+      while (startIndex < json.length() && Character.isWhitespace(json.charAt(startIndex))) {
+        startIndex++;
+      }
+      
+      if (startIndex >= json.length() || json.charAt(startIndex) != '"') {
+        return null;
+      }
+      
+      startIndex++; // Skip opening quote
+      
+      StringBuilder result = new StringBuilder();
+      for (int i = startIndex; i < json.length(); i++) {
+        char ch = json.charAt(i);
+        if (ch == '"' && (i == startIndex || json.charAt(i-1) != '\\')) {
+          String rawValue = result.toString();
+          String decodedValue = _decodeJsonString(rawValue);
+          return decodedValue;
+        }
+        result.append(ch);
+      }
+      
+      return null;
+    } catch (Exception e) {
+      return null;
     }
-    
-    if (endIndex >= json.length()) return null;
-    
-    String rawValue = json.substring(startIndex, endIndex);
-    
-    // Debug: print the extracted raw value
-    System.out.println("DEBUG: Extracted raw value: " + rawValue);
-    
-    // Handle Unicode escapes and other JSON escapes
-    String decodedValue = _decodeJsonString(rawValue);
-    
-    // Debug: print the decoded value
-    System.out.println("DEBUG: Decoded value: " + decodedValue);
-    
-    return decodedValue;
   }
   
   /**
