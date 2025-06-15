@@ -14,8 +14,10 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +42,7 @@ public class MCPServer {
         
         // Add CORS headers for all responses
         server.createContext("/chat", new ChatHandler());
+        server.createContext("/chat/stream", new StreamChatHandler());
         server.createContext("/health", new HealthHandler());
         
         server.setExecutor(null); // Use default executor
@@ -48,6 +51,7 @@ public class MCPServer {
         System.out.println("MCP Server started on http://localhost:" + PORT);
         System.out.println("Endpoints:");
         System.out.println("  POST /chat - Send chat message");
+        System.out.println("  POST /chat/stream - Stream chat response");
         System.out.println("  GET /health - Health check");
     }
     
@@ -95,6 +99,58 @@ public class MCPServer {
         }
     }
     
+    private class StreamChatHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            // Add CORS headers for SSE
+            exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+            exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "POST, OPTIONS");
+            exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type");
+            exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
+            exchange.getResponseHeaders().add("Cache-Control", "no-cache");
+            exchange.getResponseHeaders().add("Connection", "keep-alive");
+            
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(200, 0);
+                exchange.close();
+                return;
+            }
+            
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendError(exchange, 405, "Method not allowed");
+                return;
+            }
+            
+            try {
+                // Read request body
+                String requestBody = readRequestBody(exchange.getRequestBody());
+                JsonObject request = gson.fromJson(requestBody, JsonObject.class);
+                
+                String message = request.get("message").getAsString();
+                System.out.println("Received streaming message: " + message);
+                
+                // Start streaming response
+                exchange.sendResponseHeaders(200, 0);
+                OutputStream os = exchange.getResponseBody();
+                
+                // Stream AI response
+                streamOllamaResponse(message, os);
+                
+                os.close();
+                
+            } catch (Exception e) {
+                e.printStackTrace();
+                try {
+                    if (!exchange.getResponseHeaders().containsKey("Content-Type")) {
+                        sendError(exchange, 500, "Internal server error: " + e.getMessage());
+                    }
+                } catch (Exception ignored) {
+                    // Response already started, can't send error
+                }
+            }
+        }
+    }
+    
     private class HealthHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -126,6 +182,71 @@ public class MCPServer {
             } else {
                 return "Sorry, I couldn't generate a response.";
             }
+        }
+    }
+    
+    private void streamOllamaResponse(String message, OutputStream outputStream) throws IOException {
+        // Create Ollama streaming request
+        JsonObject ollamaRequest = new JsonObject();
+        ollamaRequest.addProperty("model", MODEL);
+        ollamaRequest.addProperty("prompt", "You are a helpful Java programming tutor. Answer this question concisely: " + message);
+        ollamaRequest.addProperty("stream", true);
+        
+        // Send to Ollama
+        HttpPost post = new HttpPost(OLLAMA_URL);
+        post.setEntity(new StringEntity(gson.toJson(ollamaRequest), ContentType.APPLICATION_JSON));
+        
+        try (CloseableHttpResponse response = httpClient.execute(post)) {
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+                
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.trim().isEmpty()) {
+                        try {
+                            JsonObject chunk = gson.fromJson(line, JsonObject.class);
+                            
+                            if (chunk.has("response")) {
+                                String textChunk = chunk.get("response").getAsString();
+                                
+                                // Send SSE event
+                                JsonObject sseData = new JsonObject();
+                                sseData.addProperty("chunk", textChunk);
+                                sseData.addProperty("done", chunk.has("done") && chunk.get("done").getAsBoolean());
+                                
+                                String sseEvent = "data: " + gson.toJson(sseData) + "\n\n";
+                                outputStream.write(sseEvent.getBytes(StandardCharsets.UTF_8));
+                                outputStream.flush();
+                                
+                                // If this is the last chunk, break
+                                if (chunk.has("done") && chunk.get("done").getAsBoolean()) {
+                                    break;
+                                }
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Error parsing chunk: " + line);
+                            e.printStackTrace();
+                        }
+                    }
+                }
+                
+                // Send completion event
+                JsonObject completionData = new JsonObject();
+                completionData.addProperty("chunk", "");
+                completionData.addProperty("done", true);
+                String completionEvent = "data: " + gson.toJson(completionData) + "\n\n";
+                outputStream.write(completionEvent.getBytes(StandardCharsets.UTF_8));
+                outputStream.flush();
+                
+            }
+        } catch (Exception e) {
+            // Send error event
+            JsonObject errorData = new JsonObject();
+            errorData.addProperty("error", "Error streaming response: " + e.getMessage());
+            errorData.addProperty("done", true);
+            String errorEvent = "data: " + gson.toJson(errorData) + "\n\n";
+            outputStream.write(errorEvent.getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
         }
     }
     

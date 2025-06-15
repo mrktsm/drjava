@@ -57,6 +57,7 @@ public class AIChatPanel extends JPanel {
   
   // HTTP client for MCP server communication
   private static final String MCP_SERVER_URL = "http://localhost:8080/chat";
+  private static final String MCP_STREAM_URL = "http://localhost:8080/chat/stream";
   
   public AIChatPanel() {
     super(new BorderLayout());
@@ -794,16 +795,16 @@ public class AIChatPanel extends JPanel {
       _addUserMessage(message);
       _inputField.setText("");
       
-      // Show loading message
-      JPanel loadingPanel = _createLoadingMessage();
-      _messagesPanel.add(loadingPanel);
+      // Create an AI message panel that will be updated as text streams in
+      JPanel streamingMessagePanel = _createStreamingAIMessagePanel();
+      _messagesPanel.add(streamingMessagePanel);
       _messagesPanel.add(Box.createVerticalStrut(16));
       _messagesPanel.revalidate();
       _messagesPanel.repaint();
       _scrollToBottom();
       
-      // Call MCP server asynchronously
-      _callMCPServerAsync(message, loadingPanel);
+      // Call MCP server with streaming
+      _callMCPServerStreamAsync(message, streamingMessagePanel);
     }
   }
   
@@ -827,83 +828,208 @@ public class AIChatPanel extends JPanel {
     return messagePanel;
   }
   
-  private void _callMCPServerAsync(String message, JPanel loadingPanel) {
-    CompletableFuture.supplyAsync(() -> {
+  private JPanel _createStreamingAIMessagePanel() {
+    JPanel messagePanel = new JPanel(new BorderLayout()) {
+      @Override
+      public Dimension getMaximumSize() {
+        Dimension pref = getPreferredSize();
+        // Allow full width but constrain height to preferred size
+        return new Dimension(Integer.MAX_VALUE, pref.height);
+      }
+    };
+    messagePanel.setOpaque(false);
+    
+    // Start with typing indicator
+    JLabel typingLabel = new JLabel("Thinking...");
+    typingLabel.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+    typingLabel.setForeground(SECONDARY_TEXT_COLOR);
+    typingLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
+    
+    messagePanel.add(typingLabel, BorderLayout.CENTER);
+    messagePanel.putClientProperty("isStreaming", true);
+    messagePanel.putClientProperty("streamContent", new StringBuilder());
+    
+    return messagePanel;
+  }
+  
+  private void _callMCPServerStreamAsync(String message, JPanel streamingPanel) {
+    CompletableFuture.runAsync(() -> {
       try {
         // Create request JSON
         String escapedMessage = message.replace("\"", "\\\"").replace("\n", "\\n");
         String requestJson = "{\"message\": \"" + escapedMessage + "\"}";
         
-        // Build HTTP request
-        HttpURLConnection httpClient = (HttpURLConnection) new URL(MCP_SERVER_URL).openConnection();
+        // Build HTTP request for streaming
+        HttpURLConnection httpClient = (HttpURLConnection) new URL(MCP_STREAM_URL).openConnection();
         httpClient.setRequestMethod("POST");
         httpClient.setDoOutput(true);
         httpClient.setRequestProperty("Content-Type", "application/json");
-        httpClient.setRequestProperty("Accept", "application/json");
+        httpClient.setRequestProperty("Accept", "text/event-stream");
+        httpClient.setRequestProperty("Cache-Control", "no-cache");
         
         try (OutputStreamWriter out = new OutputStreamWriter(httpClient.getOutputStream())) {
           out.write(requestJson);
         }
         
-        // Send request
+        // Read streaming response
         int responseCode = httpClient.getResponseCode();
         if (responseCode == 200) {
-          try (BufferedReader in = new BufferedReader(new InputStreamReader(httpClient.getInputStream()))) {
-            StringBuilder response = new StringBuilder();
+          try (BufferedReader reader = new BufferedReader(new InputStreamReader(httpClient.getInputStream()))) {
             String line;
-            while ((line = in.readLine()) != null) {
-              response.append(line);
-            }
-            String responseBody = response.toString();
-            // Simple JSON parsing to extract "response" field
-            String aiResponse = _extractJsonField(responseBody, "response");
-            if (aiResponse != null && !aiResponse.isEmpty()) {
-              return aiResponse;
-            } else {
-              return "Sorry, I couldn't understand the response from the AI server.";
+            StringBuilder fullContent = new StringBuilder();
+            
+            while ((line = reader.readLine()) != null) {
+              if (line.startsWith("data: ")) {
+                String jsonData = line.substring(6); // Remove "data: " prefix
+                try {
+                  // Simple JSON parsing for chunk
+                  String chunk = _extractJsonField(jsonData, "chunk");
+                  boolean isDone = _extractJsonField(jsonData, "done") != null && 
+                                   _extractJsonField(jsonData, "done").equals("true");
+                  
+                  if (chunk != null && !chunk.isEmpty()) {
+                    fullContent.append(chunk);
+                    final String currentContent = fullContent.toString();
+                    
+                    SwingUtilities.invokeLater(() -> {
+                      _updateStreamingMessage(streamingPanel, currentContent, false);
+                    });
+                  }
+                  
+                  if (isDone) {
+                    SwingUtilities.invokeLater(() -> {
+                      _updateStreamingMessage(streamingPanel, fullContent.toString(), true);
+                    });
+                    break;
+                  }
+                } catch (Exception e) {
+                  System.err.println("Error parsing SSE data: " + jsonData);
+                  e.printStackTrace();
+                }
+              }
             }
           }
         } else {
-          return "Sorry, there was an error connecting to the AI server (HTTP " + responseCode + ").";
+          SwingUtilities.invokeLater(() -> {
+            _updateStreamingMessage(streamingPanel, "Sorry, there was an error connecting to the AI server (HTTP " + responseCode + ").", true);
+          });
         }
         
       } catch (Exception e) {
         e.printStackTrace();
-        return "Sorry, I encountered an error: " + e.getMessage() + 
-               "\n\nMake sure the MCP server is running on localhost:8080.";
+        SwingUtilities.invokeLater(() -> {
+          _updateStreamingMessage(streamingPanel, "Sorry, I encountered an error: " + e.getMessage() + 
+                                   "\n\nMake sure the MCP server is running on localhost:8080.", true);
+        });
       }
-    }).thenAccept(aiResponse -> {
-      // Update UI on EDT
-      SwingUtilities.invokeLater(() -> {
-        // Remove loading message
-        _messagesPanel.remove(loadingPanel);
-        if (_messagesPanel.getComponentCount() > 0) {
-          Component lastStrut = _messagesPanel.getComponent(_messagesPanel.getComponentCount() - 1);
-          if (lastStrut instanceof Box.Filler) {
-            _messagesPanel.remove(lastStrut);
-          }
-        }
-        
-        // Add AI response
-        _addAIMessage(aiResponse);
-        _scrollToBottom();
-      });
-    }).exceptionally(throwable -> {
-      // Handle any unexpected errors
-      SwingUtilities.invokeLater(() -> {
-        _messagesPanel.remove(loadingPanel);
-        if (_messagesPanel.getComponentCount() > 0) {
-          Component lastStrut = _messagesPanel.getComponent(_messagesPanel.getComponentCount() - 1);
-          if (lastStrut instanceof Box.Filler) {
-            _messagesPanel.remove(lastStrut);
-          }
-        }
-        
-        _addAIMessage("Sorry, an unexpected error occurred: " + throwable.getMessage());
-        _scrollToBottom();
-      });
-      return null;
     });
+  }
+  
+  private void _updateStreamingMessage(JPanel streamingPanel, String content, boolean isComplete) {
+    if (streamingPanel == null) return;
+    
+    // Remove existing content
+    streamingPanel.removeAll();
+    
+    if (isComplete) {
+      // Final message - use full AI message panel
+      boolean hasCodeBlocks = content.contains("```");
+      
+      if (hasCodeBlocks) {
+        JComponent contentComponent = _createMixedContentPanel(content);
+        contentComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        JPanel wrapper = new JPanel(new BorderLayout()) {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            return pref;
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+          }
+        };
+        wrapper.setOpaque(false);
+        wrapper.add(contentComponent, BorderLayout.CENTER);
+        
+        streamingPanel.add(wrapper, BorderLayout.CENTER);
+      } else {
+        JEditorPane messageText = new JEditorPane() {
+          @Override
+          public Dimension getPreferredSize() {
+            Dimension pref = super.getPreferredSize();
+            Container parent = getParent();
+            if (parent != null) {
+              int parentWidth = parent.getWidth();
+              if (parentWidth > 100) {
+                int maxWidth = parentWidth * 85 / 100;
+                if (pref.width > maxWidth) {
+                  pref.width = maxWidth;
+                }
+              } else {
+                int maxWidth = Math.max(300, pref.width);
+                pref.width = Math.min(pref.width, maxWidth);
+              }
+            }
+            return pref;
+          }
+          
+          @Override
+          public Dimension getMaximumSize() {
+            return getPreferredSize();
+          }
+        };
+        messageText.setContentType("text/html");
+        messageText.setEditable(false);
+        messageText.setOpaque(false);
+        messageText.setText(_convertMarkdownToHTML(content));
+        messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
+        messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
+        
+        streamingPanel.add(messageText, BorderLayout.CENTER);
+      }
+      
+      streamingPanel.putClientProperty("isStreaming", false);
+    } else {
+      // Streaming in progress - show partial content with cursor
+      JTextArea streamingText = new JTextArea(content + "▊") {
+        @Override
+        public Dimension getPreferredSize() {
+          Dimension pref = super.getPreferredSize();
+          Container parent = getParent();
+          if (parent != null) {
+            int parentWidth = parent.getWidth();
+            if (parentWidth > 100) {
+              int maxWidth = parentWidth * 85 / 100;
+              if (pref.width > maxWidth) {
+                pref.width = maxWidth;
+              }
+            }
+          }
+          return pref;
+        }
+        
+        @Override
+        public Dimension getMaximumSize() {
+          return getPreferredSize();
+        }
+      };
+      streamingText.setEditable(false);
+      streamingText.setOpaque(false);
+      streamingText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+      streamingText.setForeground(AI_TEXT_COLOR);
+      streamingText.setLineWrap(true);
+      streamingText.setWrapStyleWord(true);
+      streamingText.setBorder(new EmptyBorder(0, 0, 0, 0));
+      
+      streamingPanel.add(streamingText, BorderLayout.CENTER);
+    }
+    
+    streamingPanel.revalidate();
+    streamingPanel.repaint();
+    _scrollToBottom();
   }
   
   private void _addUserMessage(String message) {
