@@ -856,17 +856,87 @@ public class AIChatPanel extends JPanel {
     };
     messagePanel.setOpaque(false);
     
-    // Start with typing indicator
-    JLabel typingLabel = new JLabel("Thinking...");
-    typingLabel.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+    // Start with animated typing indicator
+    JLabel typingLabel = new JLabel(".");
+    typingLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
     typingLabel.setForeground(SECONDARY_TEXT_COLOR);
     typingLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
     
     messagePanel.add(typingLabel, BorderLayout.CENTER);
     messagePanel.putClientProperty("isStreaming", true);
     messagePanel.putClientProperty("streamContent", new StringBuilder());
+    messagePanel.putClientProperty("typingLabel", typingLabel);
+    
+    // Start the animation timer
+    _startTypingAnimation(typingLabel);
     
     return messagePanel;
+  }
+  
+  /**
+   * Starts the animated typing indicator with cycling dots
+   */
+  private void _startTypingAnimation(JLabel typingLabel) {
+    // Create a timer that updates the dots every 500ms
+    javax.swing.Timer animationTimer = new javax.swing.Timer(500, null);
+    
+    // Store the current dot count (1, 2, or 3)
+    final int[] dotCount = {1};
+    
+    animationTimer.addActionListener(e -> {
+      // Only animate if the label is still visible and part of a streaming message
+      if (typingLabel.isDisplayable() && typingLabel.getParent() != null) {
+        Container parent = typingLabel.getParent();
+        Boolean isStreaming = (Boolean) ((JComponent) parent).getClientProperty("isStreaming");
+        
+        if (isStreaming != null && isStreaming) {
+          // Update the dots
+          String dots;
+          switch (dotCount[0]) {
+            case 1:
+              dots = ".";
+              break;
+            case 2:
+              dots = "..";
+              break;
+            case 3:
+              dots = "...";
+              break;
+            default:
+              dots = ".";
+              dotCount[0] = 0; // Will be incremented to 1 below
+          }
+          
+          typingLabel.setText(dots);
+          
+          // Cycle to next dot count
+          dotCount[0] = (dotCount[0] % 3) + 1;
+        } else {
+          // Stop animation if no longer streaming
+          animationTimer.stop();
+        }
+      } else {
+        // Stop animation if component is no longer displayable
+        animationTimer.stop();
+      }
+    });
+    
+    // Store timer reference so we can stop it later if needed
+    typingLabel.putClientProperty("animationTimer", animationTimer);
+    
+    animationTimer.start();
+  }
+  
+  /**
+   * Stops the typing animation for a given label
+   */
+  private void _stopTypingAnimation(JLabel typingLabel) {
+    if (typingLabel != null) {
+      javax.swing.Timer timer = (javax.swing.Timer) typingLabel.getClientProperty("animationTimer");
+      if (timer != null) {
+        timer.stop();
+      }
+    }
   }
   
   private void _callMCPServerStreamAsync(String message, JPanel streamingPanel) {
@@ -989,6 +1059,13 @@ public class AIChatPanel extends JPanel {
     
     // Check if user is currently scrolled near the bottom before updating
     boolean shouldAutoScroll = _isScrolledNearBottom();
+    
+    // Stop typing animation if this is the first content update
+    JLabel typingLabel = (JLabel) streamingPanel.getClientProperty("typingLabel");
+    if (typingLabel != null && !content.trim().isEmpty()) {
+      _stopTypingAnimation(typingLabel);
+      streamingPanel.putClientProperty("typingLabel", null); // Clear reference
+    }
     
     // Remove existing content
     streamingPanel.removeAll();
