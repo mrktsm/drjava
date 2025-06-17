@@ -29,6 +29,8 @@
 
 package edu.rice.cs.drjava.ui;
 
+import edu.rice.cs.drjava.DrJava;
+
 import javax.swing.*;
 import javax.swing.text.DefaultCaret;
 import java.awt.*;
@@ -93,10 +95,10 @@ public class TerminalPanel extends TabbedPanel {
     _mainPanel.setLayout(new BorderLayout());
     
     _terminalArea = new JTextArea();
-    _terminalArea.setBackground(Color.BLACK);
-    _terminalArea.setForeground(Color.WHITE);
-    _terminalArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-    _terminalArea.setCaretColor(Color.WHITE);
+    _terminalArea.setBackground(Color.WHITE);
+    _terminalArea.setForeground(Color.BLACK);
+    _terminalArea.setFont(DrJava.getConfig().getSetting(edu.rice.cs.drjava.config.OptionConstants.FONT_MAIN));
+    _terminalArea.setCaretColor(Color.BLACK);
     _terminalArea.setCaret(new DefaultCaret() {
       public void setSelectionVisible(boolean visible) {
         super.setSelectionVisible(true);
@@ -105,14 +107,6 @@ public class TerminalPanel extends TabbedPanel {
     
     _scrollPane = new BorderlessScrollPane(_terminalArea);
     _mainPanel.add(_scrollPane, BorderLayout.CENTER);
-    
-    // Create button panel for terminal controls
-    JPanel buttonPanel = new JPanel(new FlowLayout());
-    JButton clearButton = new JButton("Clear");
-    clearButton.addActionListener(e -> _clearTerminal());
-    buttonPanel.add(clearButton);
-    
-    _mainPanel.add(buttonPanel, BorderLayout.SOUTH);
   }
   
   /** Sets up key handling for terminal input. */
