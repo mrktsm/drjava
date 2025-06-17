@@ -33,6 +33,7 @@ import edu.rice.cs.drjava.DrJava;
 
 import javax.swing.*;
 import javax.swing.text.DefaultCaret;
+import javax.swing.text.JTextComponent;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -99,14 +100,114 @@ public class TerminalPanel extends TabbedPanel {
     _terminalArea.setForeground(Color.BLACK);
     _terminalArea.setFont(DrJava.getConfig().getSetting(edu.rice.cs.drjava.config.OptionConstants.FONT_MAIN));
     _terminalArea.setCaretColor(Color.BLACK);
-    _terminalArea.setCaret(new DefaultCaret() {
-      public void setSelectionVisible(boolean visible) {
-        super.setSelectionVisible(true);
-      }
-    });
+    _terminalArea.setCaret(new BlockCaret());
     
     _scrollPane = new BorderlessScrollPane(_terminalArea);
     _mainPanel.add(_scrollPane, BorderLayout.CENTER);
+  }
+  
+  /** Custom caret that draws as a filled block instead of a thin line. */
+  private static class BlockCaret extends DefaultCaret {
+    
+    public BlockCaret() {
+      // Don't call setSelectionVisible here - component is not attached yet
+    }
+    
+    @Override
+    public void install(JTextComponent c) {
+      super.install(c);
+      setSelectionVisible(false); // Don't show selection highlighting
+      setBlinkRate(0); // Disable blinking so it stays visible
+    }
+    
+    @Override
+    public boolean isVisible() {
+      // Always visible, regardless of focus
+      return true;
+    }
+    
+    @Override
+    public void setVisible(boolean e) {
+      // Override to always stay visible
+      super.setVisible(true);
+    }
+    
+    @Override
+    protected synchronized void damage(Rectangle r) {
+      if (r != null) {
+        JTextComponent comp = getComponent();
+        FontMetrics fm = comp.getFontMetrics(comp.getFont());
+        x = r.x;
+        y = r.y;
+        width = fm.charWidth('w');
+        height = fm.getHeight();
+        repaint();
+      }
+    }
+    
+    @Override
+    public void paint(Graphics g) {
+      JTextComponent comp = getComponent();
+      if (comp == null) return;
+      
+      int dot = getDot();
+      Rectangle r = null;
+      try {
+        r = comp.modelToView(dot);
+      } catch (Exception e) {
+        return;
+      }
+      
+      if (r == null) return;
+      
+      // Always paint the caret since we override isVisible() to return true
+      FontMetrics fm = comp.getFontMetrics(comp.getFont());
+      g.setColor(comp.getCaretColor());
+      
+      if (comp.hasFocus()) {
+        // When focused: show filled rectangle (ready to type)
+        g.fillRect(r.x, r.y, fm.charWidth('w'), fm.getHeight());
+        
+        // Draw the character in inverted color if there's text at cursor position
+        try {
+          if (dot < comp.getDocument().getLength()) {
+            String ch = comp.getDocument().getText(dot, 1);
+            g.setColor(comp.getBackground());
+            g.drawString(ch, r.x, r.y + fm.getAscent());
+          }
+        } catch (Exception e) {
+          // Ignore and just show block
+        }
+      } else {
+        // When not focused: show empty square
+        g.drawRect(r.x, r.y, fm.charWidth('w') - 1, fm.getHeight() - 1);
+        
+        // Still draw the character normally if there's text at cursor position
+        try {
+          if (dot < comp.getDocument().getLength()) {
+            String ch = comp.getDocument().getText(dot, 1);
+            g.setColor(comp.getForeground());
+            g.drawString(ch, r.x, r.y + fm.getAscent());
+          }
+        } catch (Exception e) {
+          // Ignore
+        }
+      }
+    }
+    
+    @Override
+    public void moveDot(int dot) {
+      // Only move dot if not making a selection
+      if (getDot() == getMark()) {
+        super.moveDot(dot);
+      }
+    }
+    
+    @Override
+    public void setDot(int dot) {
+      super.setDot(dot);
+      super.moveDot(dot); // Ensure mark follows dot to prevent selection
+    }
   }
   
   /** Sets up key handling for terminal input. */
