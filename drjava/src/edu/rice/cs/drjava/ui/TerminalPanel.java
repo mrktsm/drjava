@@ -78,7 +78,7 @@ public class TerminalPanel extends TabbedPanel {
     * @param frame the main frame that contains this panel
     */
   public TerminalPanel(MainFrame frame) {
-    super(frame, "Terminal");
+    super(frame, "Terminal", false);
     _mainFrame = frame;
     _workingDirectory = new File(System.getProperty("user.home"));
     _executorService = Executors.newSingleThreadExecutor();

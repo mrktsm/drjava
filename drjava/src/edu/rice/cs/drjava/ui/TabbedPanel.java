@@ -68,18 +68,38 @@ public abstract class TabbedPanel extends JPanel implements DropTargetListener {
     _displayed = false;
   }
 
+  /** Constructor.
+    * @param frame MainFrame displaying the tab
+    * @param name Name to display for the tab
+    * @param showClose whether to show a close button
+    */
+  public TabbedPanel(MainFrame frame, String name, boolean showClose) {
+    _frame = frame;
+    _name = name;
+    _setUpPanes(showClose);
+    _displayed = false;
+  }
+
   /** Puts the close panel in the east of this panel and puts the main panel in the
     * center. Also adds the action to the close button.
     */
-  private void _setUpPanes() {
+  private void _setUpPanes() { _setUpPanes(true); }
+  
+  /** Puts the close panel in the east of this panel and puts the main panel in the
+    * center. Also adds the action to the close button.
+    * @param showClose whether to show a close button
+    */
+  private void _setUpPanes(boolean showClose) {
     this.setFocusCycleRoot(true);
     this.setLayout(new BorderLayout());
 
     _mainPanel = new JPanel();
-    _closePanel = new JPanel(new BorderLayout());
-    _closeButton = new CommonCloseButton(_closeListener);
-    _closePanel.add(_closeButton, BorderLayout.NORTH);
-    add(_closePanel, BorderLayout.EAST);
+    if (showClose) {
+      _closePanel = new JPanel(new BorderLayout());
+      _closeButton = new CommonCloseButton(_closeListener);
+      _closePanel.add(_closeButton, BorderLayout.NORTH);
+      add(_closePanel, BorderLayout.EAST);
+    }
     add(_mainPanel, BorderLayout.CENTER);
   }
 
