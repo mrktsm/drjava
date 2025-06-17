@@ -123,6 +123,8 @@ public class TerminalPanel extends TabbedPanel {
           // Prevent backspace beyond command start
           if (_terminalArea.getCaretPosition() <= _commandStartPos) {
             e.consume();
+          } else if (_currentCommand.length() > 0) {
+            _currentCommand.setLength(_currentCommand.length() - 1);
           }
         } else if (keyCode == KeyEvent.VK_LEFT || keyCode == KeyEvent.VK_UP || 
                    keyCode == KeyEvent.VK_HOME) {
