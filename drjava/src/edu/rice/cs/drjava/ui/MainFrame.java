@@ -131,6 +131,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   
   private static final int INTERACTIONS_TAB = 0;
   private static final int CONSOLE_TAB = 1;
+  private static final int TERMINAL_TAB = 2;
   private static final String ICON_PATH = "/edu/rice/cs/drjava/ui/icons/";
   private static final String DEBUGGER_OUT_OF_SYNC =
     " Current document is out of sync with the debugger and should be recompiled!";
@@ -179,6 +180,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   private volatile BookmarksPanel _bookmarksPanel;
   private volatile DebugPanel _debugPanel;
   private volatile AIChatPanel _aiChatPanel;
+  private volatile TerminalPanel _terminalPanel;
   
   private volatile InteractionsPane _consolePane;
   private volatile JScrollPane _consoleScroll;            // redirects focus to embedded _consolePane
@@ -191,7 +193,6 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   private volatile InteractionsScriptPane _interactionsScriptPane;
   
   private volatile boolean _showDebugger;  // whether the supporting context is debugger capable
-  
   
   private volatile DetachedFrame _debugFrame;
   
@@ -3351,6 +3352,9 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
       
       _bookmarksPanel = new BookmarksPanel(MainFrame.this, _model.getBookmarkManager());
       
+      // Initialize terminal panel
+      _terminalPanel = new TerminalPanel(MainFrame.this);
+      
       // Initialize the status bar
       _setUpStatusBar();
       
@@ -5473,8 +5477,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
           !fileName.endsWith(PROJECT_FILE_EXTENSION2) &&
           !fileName.endsWith(OLD_PROJECT_FILE_EXTENSION)) {
         // doesn't end in .drjava or .xml or .pjt
-        String text = "The file name does not end with a DrJava project file "+
-          "extension ("+PROJECT_FILE_EXTENSION+" or "+PROJECT_FILE_EXTENSION2+" or "+OLD_PROJECT_FILE_EXTENSION+"):\n"+
+        String text = "The file name does not end with a DrJava project file extension ("+PROJECT_FILE_EXTENSION+" or "+PROJECT_FILE_EXTENSION2+" or "+OLD_PROJECT_FILE_EXTENSION+"):\n"+
           file.getName()+"\n"+
           "Do you want to append "+PROJECT_FILE_EXTENSION+" at the end?";
         
@@ -7826,7 +7829,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     
     _tabbedPane.add("Interactions", _interactionsContainer);
     _tabbedPane.add("Console", _consoleScroll);
-    
+    _tabbedPane.add("Terminal", _terminalPanel);
     _interactionsPane.addKeyListener(_historyListener);
     _interactionsPane.addFocusListener(_focusListenerForRecentDocs);
     _interactionsController.addFocusListener(new FocusAdapter() {
@@ -7846,6 +7849,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     _tabs.addLast(_findReplace);
     if (_showDebugger) { _tabs.addLast(_breakpointsPanel); }
     _tabs.addLast(_bookmarksPanel);
+    _tabs.addLast(_terminalPanel);
     
     _interactionsContainer.addFocusListener(new FocusAdapter() {
       public void focusGained(FocusEvent e) { 
@@ -7883,6 +7887,9 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     }
     _bookmarksPanel.getMainPanel().addFocusListener(new FocusAdapter() { 
       public void focusGained(FocusEvent e) { _lastFocusOwner = _bookmarksPanel; }
+    });
+    _terminalPanel.addFocusListener(new FocusAdapter() {
+      public void focusGained(FocusEvent e) { _lastFocusOwner = _terminalPanel; }
     });
   }
   
@@ -8117,38 +8124,6 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
         }
       }
     });
-//    _model.getDocCollectionWidget().addMouseListener(new RightClickMouseAdapter() {
-//      protected void _popupAction(MouseEvent e) {
-//        if (_model.getDocumentNavigator().selectDocumentAt(e.getX(), e.getY())) {
-//          if (_model.getDocumentNavigator().isGroupSelected())
-//            _navPaneFolderPopupMenu.show(e.getComponent(), e.getX(), e.getY());
-//          
-//          else {
-//            try {
-//              String groupName = _model.getDocumentNavigator().getNameOfSelectedTopLevelGroup();
-//              if (groupName.equals(_model.getSourceBinTitle()))
-//                _navPanePopupMenu.show(e.getComponent(), e.getX(), e.getY());
-//              else if (groupName.equals(_model.getExternalBinTitle())) {
-//                INavigatorItem n = _model.getDocumentNavigator().getCurrent();
-//                if (n != null) {
-//                  OpenDefinitionsDocument d = (OpenDefinitionsDocument) n;
-//                  if (d.isUntitled()) { _navPanePopupMenu.show(e.getComponent(), e.getX(), e.getY()); }
-//                  else _navPanePopupMenuForExternal.show(e.getComponent(), e.getX(), e.getY());
-//                }
-//              }
-//              else if (groupName.equals(_model.getAuxiliaryBinTitle()))
-//                _navPanePopupMenuForAuxiliary.show(e.getComponent(), e.getX(), e.getY());
-//            }
-//            catch(GroupNotSelectedException ex) {
-//              // we're looking at the root of the tree, or we're in list view...
-//              if (_model.isProjectActive())
-//                _navPanePopupMenuForRoot.show(e.getComponent(), e.getX(), e.getY());
-//              else  _navPanePopupMenu.show(e.getComponent(), e.getX(), e.getY());
-//            }
-//          }
-//        }
-//      }
-//    });
     
     // Interactions pane menu
     _interactionsPanePopupMenu = new JPopupMenu();
