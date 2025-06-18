@@ -7656,9 +7656,8 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     _statusBar.add( fileNameAndMessagePanel, BorderLayout.CENTER );
 //    _statusBar.add( sbMessagePanel, BorderLayout.CENTER );
     _statusBar.add( _currLocationField, BorderLayout.EAST );
-    _statusBar.
-      setBorder(new CompoundBorder(new EmptyBorder(2,2,2,2),
-                                   new CompoundBorder(new BevelBorder(BevelBorder.LOWERED), new EmptyBorder(2,2,2,2))));
+    _statusBar.setBorder(new CompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.LIGHT_GRAY),
+                                              new EmptyBorder(5, 6, 5, 6)));
     getContentPane().add(_statusBar, BorderLayout.SOUTH);
     
 //     //Adjust constraints for the fileName label so it's next to the left edge.
