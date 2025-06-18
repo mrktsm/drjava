@@ -4023,7 +4023,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   }
   
   /** This method sets up all the DrJava properties that can be used as variables
-    * in external process command lines. */
+   * in external process command lines. */
   public void setUpDrJavaProperties() {
     final String DEF_DIR = "${drjava.working.dir}";
     
@@ -10001,7 +10001,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     
     public void projectBuildDirChanged() {
       _guiAvailabilityNotifier.ensureAvailabilityIs(GUIAvailabilityListener.ComponentType.PROJECT_BUILD_DIR,
-                                                    isProjectActiveAndBuildDirSet());
+                                                      isProjectActiveAndBuildDirSet());
     }
     
     public void projectWorkDirChanged() { }
@@ -10306,6 +10306,12 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
    */
   public JMenu getEditMenu() { return _editMenu; }
   
+  /**
+   * Returns the AI chat panel
+   * @return The AI chat panel instance
+   */
+  public AIChatPanel getAIChatPanel() { return _aiChatPanel; }
+
   /** The OptionListener for FONT_MAIN */
   private class MainFontOptionListener implements OptionListener<Font> {
     public void optionChanged(OptionEvent<Font> oce) { _setMainFont(); }

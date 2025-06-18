@@ -2110,4 +2110,15 @@ public class AIChatPanel extends JPanel {
     }
     return result.toString();
   }
+
+  /**
+   * Send a message to the chat programmatically
+   * @param message The message to send
+   */
+  public void sendMessage(String message) {
+    if (message != null && !message.trim().isEmpty()) {
+      _inputField.setText(message.trim());
+      _sendMessage();
+    }
+  }
 } 

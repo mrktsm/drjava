@@ -792,6 +792,26 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
     _popMenu.add(_mainFrame.cutAction);
     _popMenu.add(_mainFrame.copyAction);
     _popMenu.add(_mainFrame.pasteAction);
+    
+    // Add "Ask in Chat" menu item
+    JMenuItem askInChatItem = new JMenuItem("Ask in Chat");
+    askInChatItem.addActionListener(new AbstractAction() {
+      public void actionPerformed(ActionEvent ae) {
+        String selectedText = getSelectedText();
+        if (selectedText != null && !selectedText.trim().isEmpty()) {
+          AIChatPanel chatPanel = _mainFrame.getAIChatPanel();
+          if (chatPanel != null) {
+            chatPanel.sendMessage(selectedText.trim());
+            // Optionally focus the chat panel or switch to its tab
+            chatPanel.requestFocusInWindow();
+          }
+        }
+      }
+    });
+    // Only enable the menu item when text is selected
+    askInChatItem.setEnabled(getSelectionStart() != getSelectionEnd());
+    _popMenu.add(askInChatItem);
+    
     _popMenu.addSeparator();
 
     JMenuItem indentItem = new JMenuItem("Indent Line(s)");
@@ -888,6 +908,20 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
 
     protected void _popupAction(MouseEvent e) {
       requestFocusInWindow();
+      
+      // Update the "Ask in Chat" menu item state based on text selection
+      boolean hasSelection = getSelectionStart() != getSelectionEnd();
+      for (int i = 0; i < _popMenu.getComponentCount(); i++) {
+        Component comp = _popMenu.getComponent(i);
+        if (comp instanceof JMenuItem) {
+          JMenuItem item = (JMenuItem) comp;
+          if ("Ask in Chat".equals(item.getText())) {
+            item.setEnabled(hasSelection);
+            break;
+          }
+        }
+      }
+      
       _popMenu.show(e.getComponent(), e.getX(), e.getY());
     }
 
@@ -1238,7 +1272,7 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
     */
   protected void indentLines(int selStart, int selEnd, Indenter.IndentReason reason, ProgressMonitor pm) {
     //_mainFrame.hourglassOn();
-    // final int key = _doc.getUndoManager().startCompoundEdit(); //Commented out in regards to French KeyBoard Fix
+    // final int key = _doc.getUndoManager().startCompoundEdit(); Commented out in regards to French KeyBoard Fix
     assert EventQueue.isDispatchThread();
     try {
       _doc.indentLines(selStart, selEnd, reason, pm);
