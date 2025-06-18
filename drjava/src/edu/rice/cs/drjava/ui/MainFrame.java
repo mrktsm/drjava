@@ -208,6 +208,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   // Split panes for layout
   private volatile JSplitPane _docSplitPane;
   private volatile JSplitPane _debugSplitPane;
+  private volatile JSplitPane _leftSplit;
   JSplitPane _mainSplit;
   
   // private Container _docCollectionWidget;
@@ -3385,14 +3386,14 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
       _aiChatPanel = new AIChatPanel();
       
       // Create left panel (navigator + editor)
-      JSplitPane leftSplit = new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
+      _leftSplit = new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
                                                      new JScrollPane(_model.getDocumentNavigator().asContainer()), defScroll);
-      leftSplit.setResizeWeight(0.0);  // Keep navigator at fixed size, resize only affects editor
-      leftSplit.setOneTouchExpandable(true);  // Enable collapse/expand arrows for navigator
+      _leftSplit.setResizeWeight(0.0);  // Keep navigator at fixed size, resize only affects editor
+      _leftSplit.setOneTouchExpandable(true);  // Enable collapse/expand arrows for navigator
       
       // Create main three-panel layout with AI chat on the right
       _docSplitPane = new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
-                                              leftSplit, _aiChatPanel);
+                                              _leftSplit, _aiChatPanel);
       _docSplitPane.setResizeWeight(0.8);  // Give most space to left side (navigator + editor)
       
       _debugSplitPane = new BorderlessSplitPane(JSplitPane.VERTICAL_SPLIT, true);
@@ -8450,9 +8451,9 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     
     _reenableScrollBar();
     
-    int oldLocation = _docSplitPane.getDividerLocation();
-    _docSplitPane.setRightComponent(scroll); //crazy line
-    _docSplitPane.setDividerLocation(oldLocation);
+    int oldLocation = _leftSplit.getDividerLocation();
+    _leftSplit.setRightComponent(scroll); //crazy line
+    _leftSplit.setDividerLocation(oldLocation);
     
     // if the current def pane is uneditable, that means we arrived here from a compile with errors.  We're
     // guaranteed to make it editable again when we return from the compilation, so we take the state
@@ -8495,9 +8496,9 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     
     _reenableScrollBar();
     
-    int oldLocation = _docSplitPane.getDividerLocation();
-    _docSplitPane.setRightComponent(scroll); //crazy line
-    _docSplitPane.setDividerLocation(oldLocation);
+    int oldLocation = _leftSplit.getDividerLocation();
+    _leftSplit.setRightComponent(scroll); //crazy line
+    _leftSplit.setDividerLocation(oldLocation);
     
 //// if the current def pane is uneditable, that means we arrived here from a compile with errors.  We're
 //// guaranteed to make it editable again when we return from the compilation, so we take the state
