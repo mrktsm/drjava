@@ -27,6 +27,9 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.concurrent.CompletableFuture;
+// Add imports for conversation history
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * A modern AI chat panel for DrJava with Cursor-inspired clean design.
@@ -59,8 +62,25 @@ public class AIChatPanel extends JPanel {
   private static final String MCP_SERVER_URL = "http://localhost:8080/chat";
   private static final String MCP_STREAM_URL = "http://localhost:8080/chat/stream";
   
+  // Conversation history storage
+  private List<ChatMessage> _conversationHistory;
+  
+  // Inner class to represent a chat message
+  public static class ChatMessage {
+    public final String role; // "user" or "assistant"
+    public final String content;
+    public final long timestamp;
+    
+    public ChatMessage(String role, String content) {
+      this.role = role;
+      this.content = content;
+      this.timestamp = System.currentTimeMillis();
+    }
+  }
+  
   public AIChatPanel() {
     super(new BorderLayout());
+    _conversationHistory = new ArrayList<>();
     _setUpComponents();
     _setUpLayout();
     _setUpEventListeners();
@@ -526,7 +546,7 @@ public class AIChatPanel extends JPanel {
     _chatScroll.getVerticalScrollBar().setUnitIncrement(16);
     
     // Create embedded input field with send button inside
-    _inputField = _createEmbeddedInputField();
+    _inputField = null; // Will be created in _createEmbeddedInputPanel
     _sendButton = _createSendButton();
   }
   
@@ -568,25 +588,6 @@ public class AIChatPanel extends JPanel {
     inputField.setForeground(TEXT_COLOR);
     inputField.setCaretColor(TEXT_COLOR);
     inputField.setBackground(new Color(0, 0, 0, 0)); // Completely transparent
-    inputField.addActionListener(e -> _sendMessage());
-    
-    // Add key listener to the new input field
-    inputField.addKeyListener(new KeyListener() {
-      public void keyPressed(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-          _sendMessage();
-        }
-      }
-      public void keyReleased(KeyEvent e) {
-        inputField.repaint();
-      }
-      public void keyTyped(KeyEvent e) {
-        SwingUtilities.invokeLater(() -> inputField.repaint());
-      }
-    });
-    
-    // Update the class field reference
-    _inputField = inputField;
     
     return inputField;
   }
@@ -696,29 +697,7 @@ public class AIChatPanel extends JPanel {
     roundedBackground.setBorder(new EmptyBorder(0, 16, 0, 50)); // Left padding + right space for button
     
     // Create a completely transparent input field
-    JTextField inputField = new JTextField();
-    inputField.setOpaque(false);
-    inputField.setBorder(null);
-    inputField.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 14));
-    inputField.setForeground(TEXT_COLOR);
-    inputField.setCaretColor(TEXT_COLOR);
-    inputField.setBackground(new Color(0, 0, 0, 0)); // Completely transparent
-    inputField.addActionListener(e -> _sendMessage());
-    
-    // Add key listener to the input field
-    inputField.addKeyListener(new KeyListener() {
-      public void keyPressed(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-          _sendMessage();
-        }
-      }
-      public void keyReleased(KeyEvent e) {
-        inputField.repaint();
-      }
-      public void keyTyped(KeyEvent e) {
-        SwingUtilities.invokeLater(() -> inputField.repaint());
-      }
-    });
+    JTextField inputField = _createEmbeddedInputField();
     
     // Update the class field reference
     _inputField = inputField;
@@ -783,26 +762,7 @@ public class AIChatPanel extends JPanel {
       }
     };
     _sendButton.addActionListener(sendAction);
-    
-    _inputField.addKeyListener(new KeyListener() {
-      public void keyPressed(KeyEvent e) {
-        if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-          _sendMessage();
-        }
-      }
-      public void keyReleased(KeyEvent e) {
-        // Force repaint to ensure text is visible
-        _inputField.repaint();
-      }
-      public void keyTyped(KeyEvent e) {
-        // Force repaint to ensure text is visible
-        SwingUtilities.invokeLater(new Runnable() {
-          public void run() {
-            _inputField.repaint();
-          }
-        });
-      }
-    });
+    _inputField.addActionListener(sendAction);
     
     // Ensure input field gets focus when panel is shown
     SwingUtilities.invokeLater(new Runnable() {
@@ -820,11 +780,15 @@ public class AIChatPanel extends JPanel {
       "• Code generation and suggestions\n" +
       "• Best practices and optimization\n\n" +
       "Type your question below to get started!");
+    // Don't add welcome message to conversation history
   }
   
   private void _sendMessage() {
     String message = _inputField.getText().trim();
     if (!message.isEmpty()) {
+      // Add user message to history first
+      _conversationHistory.add(new ChatMessage("user", message));
+      
       _addUserMessage(message);
       _inputField.setText("");
       
@@ -836,8 +800,8 @@ public class AIChatPanel extends JPanel {
       _messagesPanel.repaint();
       _scrollToBottom();
       
-      // Call MCP server with streaming
-      _callMCPServerStreamAsync(message, streamingMessagePanel);
+      // Call MCP server with streaming and full conversation history
+      _callMCPServerStreamAsync(_conversationHistory, streamingMessagePanel);
     }
   }
   
@@ -955,12 +919,27 @@ public class AIChatPanel extends JPanel {
     }
   }
   
-  private void _callMCPServerStreamAsync(String message, JPanel streamingPanel) {
+  private void _callMCPServerStreamAsync(List<ChatMessage> conversationHistory, JPanel streamingPanel) {
     CompletableFuture.runAsync(() -> {
       try {
-        // Create request JSON
-        String escapedMessage = message.replace("\"", "\\\"").replace("\n", "\\n");
-        String requestJson = "{\"message\": \"" + escapedMessage + "\"}";
+        // Create request JSON with conversation history
+        StringBuilder messagesJson = new StringBuilder();
+        messagesJson.append("[");
+        for (int i = 0; i < conversationHistory.size(); i++) {
+          ChatMessage msg = conversationHistory.get(i);
+          if (i > 0) {
+            messagesJson.append(", ");
+          }
+          messagesJson.append("{\"role\": \"")
+                     .append(msg.role)
+                     .append("\", \"content\": \"")
+                     .append(msg.content.replace("\"", "\\\"").replace("\n", "\\n"))
+                     .append("\"}");
+        }
+        messagesJson.append("]");
+        
+        String requestJson = "{\"messages\": " + messagesJson.toString() + "}";
+        System.out.println("Frontend sending JSON: " + requestJson);
         
         // Build HTTP request for streaming
         HttpURLConnection httpClient = (HttpURLConnection) new URL(MCP_STREAM_URL).openConnection();
@@ -1089,6 +1068,12 @@ public class AIChatPanel extends JPanel {
     if (isComplete) {
       // Final message - remove any cursor characters and use full AI message panel
       String finalContent = content.replaceAll("▊", ""); // Remove cursor characters
+      
+      // Add AI response to conversation history when complete
+      if (!finalContent.trim().isEmpty()) {
+        _conversationHistory.add(new ChatMessage("assistant", finalContent));
+      }
+      
       boolean hasCodeBlocks = finalContent.contains("```");
       
       if (hasCodeBlocks) {
@@ -2003,6 +1988,7 @@ public class AIChatPanel extends JPanel {
    */
   public void clearChat() {
     _messagesPanel.removeAll();
+    _conversationHistory.clear(); // Clear conversation history when chat is cleared
     _addWelcomeMessage();
     _messagesPanel.revalidate();
     _messagesPanel.repaint();

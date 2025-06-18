@@ -2,6 +2,8 @@ package com.drjava.mcp;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -23,7 +25,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Minimal MCP Server that bridges DrJava to Ollama
+ * Minimal MCP Server that bridges DrJava to Ollama with conversation history support
  */
 public class MCPServer {
     private static final int PORT = 8080;
@@ -77,13 +79,37 @@ public class MCPServer {
             try {
                 // Read request body
                 String requestBody = readRequestBody(exchange.getRequestBody());
+                System.out.println("Received request body: " + requestBody);
+                
+                if (requestBody == null || requestBody.trim().isEmpty()) {
+                    throw new IllegalArgumentException("Request body is empty");
+                }
+                
                 JsonObject request = gson.fromJson(requestBody, JsonObject.class);
                 
-                String message = request.get("message").getAsString();
-                System.out.println("Received message: " + message);
+                if (request == null) {
+                    throw new IllegalArgumentException("Invalid JSON format");
+                }
+                
+                // Check if we have messages array (new format) or single message (legacy format)
+                String conversationContext;
+                if (request.has("messages") && !request.get("messages").isJsonNull()) {
+                    JsonArray messages = request.getAsJsonArray("messages");
+                    conversationContext = buildConversationContext(messages);
+                    System.out.println("Using conversation context from messages array");
+                } else if (request.has("message") && !request.get("message").isJsonNull()) {
+                    // Legacy single message format
+                    String message = request.get("message").getAsString();
+                    conversationContext = "You are a helpful Java programming tutor. Answer this question concisely: " + message;
+                    System.out.println("Using legacy single message format");
+                } else {
+                    throw new IllegalArgumentException("Request must contain either 'messages' array or 'message' field");
+                }
+                
+                System.out.println("Received conversation context: " + conversationContext);
                 
                 // Call Ollama
-                String aiResponse = callOllama(message);
+                String aiResponse = callOllama(conversationContext);
                 
                 // Send response
                 JsonObject response = new JsonObject();
@@ -124,17 +150,41 @@ public class MCPServer {
             try {
                 // Read request body
                 String requestBody = readRequestBody(exchange.getRequestBody());
+                System.out.println("Received request body: " + requestBody);
+                
+                if (requestBody == null || requestBody.trim().isEmpty()) {
+                    throw new IllegalArgumentException("Request body is empty");
+                }
+                
                 JsonObject request = gson.fromJson(requestBody, JsonObject.class);
                 
-                String message = request.get("message").getAsString();
-                System.out.println("Received streaming message: " + message);
+                if (request == null) {
+                    throw new IllegalArgumentException("Invalid JSON format");
+                }
+                
+                // Check if we have messages array (new format) or single message (legacy format)
+                String conversationContext;
+                if (request.has("messages") && !request.get("messages").isJsonNull()) {
+                    JsonArray messages = request.getAsJsonArray("messages");
+                    conversationContext = buildConversationContext(messages);
+                    System.out.println("Using conversation context from messages array");
+                } else if (request.has("message") && !request.get("message").isJsonNull()) {
+                    // Legacy single message format
+                    String message = request.get("message").getAsString();
+                    conversationContext = "You are a helpful Java programming tutor. Answer this question concisely: " + message;
+                    System.out.println("Using legacy single message format");
+                } else {
+                    throw new IllegalArgumentException("Request must contain either 'messages' array or 'message' field");
+                }
+                
+                System.out.println("Received streaming conversation context: " + conversationContext);
                 
                 // Start streaming response
                 exchange.sendResponseHeaders(200, 0);
                 OutputStream os = exchange.getResponseBody();
                 
                 // Stream AI response
-                streamOllamaResponse(message, os);
+                streamOllamaResponse(conversationContext, os);
                 
                 os.close();
                 
@@ -162,11 +212,11 @@ public class MCPServer {
         }
     }
     
-    private String callOllama(String message) throws IOException, ParseException {
+    private String callOllama(String conversationContext) throws IOException, ParseException {
         // Create Ollama request
         JsonObject ollamaRequest = new JsonObject();
         ollamaRequest.addProperty("model", MODEL);
-        ollamaRequest.addProperty("prompt", "You are a helpful Java programming tutor. Answer this question concisely: " + message);
+        ollamaRequest.addProperty("prompt", conversationContext);
         ollamaRequest.addProperty("stream", false);
         
         // Send to Ollama
@@ -185,11 +235,11 @@ public class MCPServer {
         }
     }
     
-    private void streamOllamaResponse(String message, OutputStream outputStream) throws IOException {
+    private void streamOllamaResponse(String conversationContext, OutputStream outputStream) throws IOException {
         // Create Ollama streaming request
         JsonObject ollamaRequest = new JsonObject();
         ollamaRequest.addProperty("model", MODEL);
-        ollamaRequest.addProperty("prompt", "You are a helpful Java programming tutor. Answer this question concisely: " + message);
+        ollamaRequest.addProperty("prompt", conversationContext);
         ollamaRequest.addProperty("stream", true);
         
         // Send to Ollama
@@ -271,5 +321,28 @@ public class MCPServer {
         error.addProperty("success", false);
         
         sendJsonResponse(exchange, statusCode, error);
+    }
+    
+    /**
+     * Builds conversation context from messages array for Ollama
+     */
+    private String buildConversationContext(JsonArray messages) {
+        StringBuilder context = new StringBuilder();
+        context.append("You are a helpful Java programming tutor. Here is the conversation history:\n\n");
+        
+        for (JsonElement messageElement : messages) {
+            JsonObject message = messageElement.getAsJsonObject();
+            String role = message.get("role").getAsString();
+            String content = message.get("content").getAsString();
+            
+            if ("user".equals(role)) {
+                context.append("Human: ").append(content).append("\n\n");
+            } else if ("assistant".equals(role)) {
+                context.append("Assistant: ").append(content).append("\n\n");
+            }
+        }
+        
+        context.append("Please respond as the Assistant in this conversation. Be concise and helpful.");
+        return context.toString();
     }
 } 
