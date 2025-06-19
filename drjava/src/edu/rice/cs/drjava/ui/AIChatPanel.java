@@ -62,6 +62,11 @@ public class AIChatPanel extends JPanel {
   private String _contextText;
   private boolean _contextVisible = false;
   
+  // Store context info for the current message being sent
+  private String _currentContextFileName;
+  private int _currentContextStartLine;
+  private int _currentContextEndLine;
+  
   // Color for the custom send button
   private Color _sendButtonColor = new Color(148, 163, 184); // Light blue-grey
   
@@ -545,7 +550,12 @@ public class AIChatPanel extends JPanel {
     });
     
     // Modern scroll pane
-    _chatScroll = new JScrollPane(_messagesPanel);
+    // Create a wrapper panel to align messages to the top, preventing them from vertically centering in a tall viewport.
+    JPanel messagesWrapper = new JPanel(new BorderLayout());
+    messagesWrapper.setBackground(CHAT_BACKGROUND);
+    messagesWrapper.add(_messagesPanel, BorderLayout.NORTH);
+    
+    _chatScroll = new JScrollPane(messagesWrapper);
     _chatScroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
     _chatScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
     _chatScroll.setBorder(null);
@@ -809,6 +819,8 @@ public class AIChatPanel extends JPanel {
     _contextLabel = new JLabel();
     _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
     _contextLabel.setForeground(SECONDARY_TEXT_COLOR); // Grey text matching secondary text
+    _contextLabel.setHorizontalAlignment(JLabel.CENTER); // Center horizontally
+    _contextLabel.setVerticalAlignment(JLabel.CENTER); // Center vertically
     
     // Create close button
     _contextCloseButton = new JButton("×") {
@@ -880,38 +892,63 @@ public class AIChatPanel extends JPanel {
   
   private void _sendMessage() {
     String inputText = _inputField.getText().trim();
-    String message;
     
-    // If context is visible and there's context text, combine them
-    if (_contextVisible && _contextText != null && !_contextText.trim().isEmpty()) {
+    // Store context information if available
+    String contextFileName = null;
+    int contextStartLine = 0;
+    int contextEndLine = 0;
+    
+    if (_contextIndicator.isVisible() && _contextText != null && !_contextText.trim().isEmpty()) {
+      contextFileName = _currentContextFileName;
+      contextStartLine = _currentContextStartLine;
+      contextEndLine = _currentContextEndLine;
+    }
+    
+    // Hide context indicator after getting the information
+    _hideContextIndicator();
+    
+    // Prepare message for server - combine context and input if context exists
+    String messageForServer;
+    String messageForDisplay;
+    if (contextFileName != null) {
+      messageForDisplay = inputText;
       if (inputText.isEmpty()) {
-        message = _contextText; // Just send the context text
+        messageForServer = _contextText;
       } else {
-        message = inputText + "\n\nRegarding this code:\n" + _contextText; // Combine input with context
+        messageForServer = "Regarding this code:\n" + _contextText + "\n\n" + inputText;
       }
-      _hideContextIndicator(); // Hide context after sending
     } else {
-      message = inputText;
+      messageForServer = inputText;
+      messageForDisplay = inputText;
     }
     
-    if (!message.isEmpty()) {
-      // Add user message to history first
-      _conversationHistory.add(new ChatMessage("user", message));
-      
-      _addUserMessage(message);
-      _inputField.setText("");
-      
-      // Create an AI message panel that will be updated as text streams in
-      JPanel streamingMessagePanel = _createStreamingAIMessagePanel();
-      _messagesPanel.add(streamingMessagePanel);
-      _messagesPanel.add(Box.createVerticalStrut(16));
-      _messagesPanel.revalidate();
-      _messagesPanel.repaint();
-      _scrollToBottom();
-      
-      // Call MCP server with streaming and full conversation history
-      _callMCPServerStreamAsync(_conversationHistory, streamingMessagePanel);
+    if (messageForServer.trim().isEmpty()) {
+      return;
     }
+    
+    // Add user message to display with context if available
+    if (contextFileName != null) {
+      _addUserMessageWithContext(messageForDisplay, contextFileName, contextStartLine, contextEndLine);
+    } else {
+      _addUserMessage(messageForDisplay);
+    }
+    
+    // Clear input field
+    _inputField.setText("");
+    
+    // Add to conversation history
+    _conversationHistory.add(new ChatMessage("user", messageForServer));
+    
+    // Create streaming panel for AI response
+    JPanel streamingMessagePanel = _createStreamingAIMessagePanel();
+    _messagesPanel.add(streamingMessagePanel);
+    _messagesPanel.add(Box.createVerticalStrut(16));
+    _messagesPanel.revalidate();
+    _messagesPanel.repaint();
+    _scrollToBottom();
+    
+    // Call MCP server with streaming and full conversation history
+    _callMCPServerStreamAsync(_conversationHistory, streamingMessagePanel);
   }
   
   private JPanel _createLoadingMessage() {
@@ -1809,6 +1846,79 @@ public class AIChatPanel extends JPanel {
     _messagesPanel.repaint();
   }
   
+  private void _addUserMessageWithContext(String message, String fileName, int startLine, int endLine) {
+    // Add context bubble if context info is provided
+    if (fileName != null) {
+      JPanel contextBubble = _createChatContextBubble(fileName, startLine, endLine);
+      _messagesPanel.add(contextBubble);
+      _messagesPanel.add(Box.createVerticalStrut(8)); // Smaller gap between context and message
+    }
+    
+    // Add user message (can be empty if only context was sent)
+    if (message != null && !message.trim().isEmpty()) {
+      JPanel messagePanel = _createUserMessagePanel(message);
+      _messagesPanel.add(messagePanel);
+    }
+    
+    _messagesPanel.add(Box.createVerticalStrut(16));
+    _messagesPanel.revalidate();
+    _messagesPanel.repaint();
+  }
+  
+  private JPanel _createChatContextBubble(String fileName, int startLine, int endLine) {
+    JPanel contextPanel = new JPanel(new BorderLayout());
+    contextPanel.setOpaque(false);
+    
+    // Create the circular indicator with file info (same style as input context indicator)
+    JPanel indicatorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    indicatorPanel.setBackground(CHAT_BACKGROUND);
+    
+    // Create rounded pill-shaped indicator
+    JPanel pill = new JPanel(new BorderLayout()) {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        int height = getHeight();
+        int width = getWidth();
+        
+        // Paint background - using light grey similar to input field
+        g2d.setColor(new Color(248, 249, 250)); // Light grey background (matches BACKGROUND_COLOR)
+        g2d.fillRoundRect(0, 0, width, height, height, height);
+        
+        // Paint border - using border color from the design system
+        g2d.setColor(BORDER_COLOR); // Grey border color from constants
+        g2d.setStroke(new BasicStroke(1.0f));
+        g2d.drawRoundRect(0, 0, width - 1, height - 1, height, height);
+        
+        g2d.dispose();
+      }
+    };
+    pill.setOpaque(false);
+    pill.setBorder(new EmptyBorder(4, 8, 4, 8)); // Smaller padding for chat context
+    
+    // Create context label with file info
+    String contextInfo;
+    if (startLine == endLine) {
+      contextInfo = fileName + " (line " + startLine + ")";
+    } else {
+      contextInfo = fileName + " (" + startLine + "-" + endLine + ")";
+    }
+    
+    JLabel contextLabel = new JLabel(contextInfo);
+    contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11)); // Slightly smaller font for chat
+    contextLabel.setForeground(SECONDARY_TEXT_COLOR);
+    contextLabel.setHorizontalAlignment(JLabel.CENTER);
+    contextLabel.setVerticalAlignment(JLabel.CENTER);
+    
+    pill.add(contextLabel, BorderLayout.CENTER);
+    indicatorPanel.add(pill);
+    contextPanel.add(indicatorPanel, BorderLayout.CENTER);
+    
+    return contextPanel;
+  }
+  
   private void _addAIMessage(String message) {
     JPanel messagePanel = _createAIMessagePanel(message);
     _messagesPanel.add(messagePanel);
@@ -2233,11 +2343,15 @@ public class AIChatPanel extends JPanel {
   
   // New method to send message with file context
   public void sendMessageWithContext(String message, String fileName, int startLine, int endLine) {
-    if (message != null && !message.trim().isEmpty()) {
-      _showContextIndicator(fileName, startLine, endLine);
-      _contextText = message.trim();
-      // Don't put the text in the input field - it will be sent when user clicks send
-    }
+    // Store context info for the message
+    _currentContextFileName = fileName;
+    _currentContextStartLine = startLine;
+    _currentContextEndLine = endLine;
+    _contextText = message; // Store the selected text as context
+    
+    _showContextIndicator(fileName, startLine, endLine);
+    // Don't put the selected text in the input field - user can add their own question
+    requestFocusInWindow();
   }
   
   private void _showContextIndicator(String fileName, int startLine, int endLine) {
