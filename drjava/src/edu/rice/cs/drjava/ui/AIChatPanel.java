@@ -1949,6 +1949,11 @@ public class AIChatPanel extends JPanel {
         g2d.setColor(getBackground());
         g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
         
+        // Paint border
+        g2d.setColor(BORDER_COLOR);
+        g2d.setStroke(new BasicStroke(1.0f));
+        g2d.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+        
         g2d.dispose();
       }
       
