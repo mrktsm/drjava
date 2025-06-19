@@ -791,12 +791,12 @@ public class AIChatPanel extends JPanel {
         int height = getHeight();
         int width = getWidth();
         
-        // Paint background
-        g2d.setColor(new Color(240, 248, 255)); // Light blue background
+        // Paint background - using light grey similar to input field
+        g2d.setColor(new Color(248, 249, 250)); // Light grey background (matches BACKGROUND_COLOR)
         g2d.fillRoundRect(0, 0, width, height, height, height);
         
-        // Paint border
-        g2d.setColor(new Color(179, 205, 224)); // Light blue border
+        // Paint border - using border color from the design system
+        g2d.setColor(BORDER_COLOR); // Grey border color from constants
         g2d.setStroke(new BasicStroke(1.0f));
         g2d.drawRoundRect(0, 0, width - 1, height - 1, height, height);
         
@@ -808,7 +808,7 @@ public class AIChatPanel extends JPanel {
     
     _contextLabel = new JLabel();
     _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-    _contextLabel.setForeground(new Color(59, 130, 246)); // Blue text
+    _contextLabel.setForeground(SECONDARY_TEXT_COLOR); // Grey text matching secondary text
     
     // Create close button
     _contextCloseButton = new JButton("×") {
