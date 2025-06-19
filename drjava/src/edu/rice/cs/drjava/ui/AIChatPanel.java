@@ -784,7 +784,7 @@ public class AIChatPanel extends JPanel {
   private JPanel _createContextIndicator() {
     JPanel contextPanel = new JPanel(new BorderLayout());
     contextPanel.setBackground(CHAT_BACKGROUND);
-    contextPanel.setBorder(new EmptyBorder(8, 16, 4, 16));
+    contextPanel.setBorder(new EmptyBorder(4, 16, 4, 16));
     contextPanel.setVisible(false); // Hidden by default
     
     // Create the circular indicator with file info
@@ -814,10 +814,10 @@ public class AIChatPanel extends JPanel {
       }
     };
     pill.setOpaque(false);
-    pill.setBorder(new EmptyBorder(6, 12, 6, 6));
+    pill.setBorder(new EmptyBorder(4, 10, 4, 4));
     
     _contextLabel = new JLabel();
-    _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
     _contextLabel.setForeground(SECONDARY_TEXT_COLOR); // Grey text matching secondary text
     _contextLabel.setHorizontalAlignment(JLabel.CENTER); // Center horizontally
     _contextLabel.setVerticalAlignment(JLabel.CENTER); // Center vertically
@@ -846,7 +846,7 @@ public class AIChatPanel extends JPanel {
         g2d.dispose();
       }
     };
-    _contextCloseButton.setPreferredSize(new Dimension(20, 20));
+    _contextCloseButton.setPreferredSize(new Dimension(18, 18));
     _contextCloseButton.setBorder(null);
     _contextCloseButton.setContentAreaFilled(false);
     _contextCloseButton.setFocusPainted(false);
