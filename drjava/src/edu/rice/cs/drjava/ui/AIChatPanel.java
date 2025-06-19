@@ -55,6 +55,13 @@ public class AIChatPanel extends JPanel {
   private JButton _sendButton;
   private JScrollPane _chatScroll;
   
+  // Context indicator for selected text
+  private JPanel _contextIndicator;
+  private JLabel _contextLabel;
+  private JButton _contextCloseButton;
+  private String _contextText;
+  private boolean _contextVisible = false;
+  
   // Color for the custom send button
   private Color _sendButtonColor = new Color(148, 163, 184); // Light blue-grey
   
@@ -656,6 +663,15 @@ public class AIChatPanel extends JPanel {
     // Create the embedded input panel
     JPanel inputContainer = _createEmbeddedInputPanel();
     
+    // Create context indicator
+    _contextIndicator = _createContextIndicator();
+    
+    // Create bottom panel that includes context indicator and input
+    JPanel bottomPanel = new JPanel(new BorderLayout());
+    bottomPanel.setBackground(CHAT_BACKGROUND);
+    bottomPanel.add(_contextIndicator, BorderLayout.NORTH);
+    bottomPanel.add(inputContainer, BorderLayout.CENTER);
+    
     // Chat area
     JPanel chatPanel = new JPanel(new BorderLayout());
     chatPanel.setBackground(CHAT_BACKGROUND);
@@ -665,7 +681,7 @@ public class AIChatPanel extends JPanel {
     // Main layout
     setLayout(new BorderLayout());
     add(chatPanel, BorderLayout.CENTER);
-    add(inputContainer, BorderLayout.SOUTH);
+    add(bottomPanel, BorderLayout.SOUTH);
   }
   
   private JPanel _createEmbeddedInputPanel() {
@@ -755,6 +771,85 @@ public class AIChatPanel extends JPanel {
     return inputContainer;
   }
   
+  private JPanel _createContextIndicator() {
+    JPanel contextPanel = new JPanel(new BorderLayout());
+    contextPanel.setBackground(CHAT_BACKGROUND);
+    contextPanel.setBorder(new EmptyBorder(8, 16, 4, 16));
+    contextPanel.setVisible(false); // Hidden by default
+    
+    // Create the circular indicator with file info
+    JPanel indicatorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    indicatorPanel.setBackground(CHAT_BACKGROUND);
+    
+    // Create rounded pill-shaped indicator
+    JPanel pill = new JPanel(new BorderLayout()) {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        int height = getHeight();
+        int width = getWidth();
+        
+        // Paint background
+        g2d.setColor(new Color(240, 248, 255)); // Light blue background
+        g2d.fillRoundRect(0, 0, width, height, height, height);
+        
+        // Paint border
+        g2d.setColor(new Color(179, 205, 224)); // Light blue border
+        g2d.setStroke(new BasicStroke(1.0f));
+        g2d.drawRoundRect(0, 0, width - 1, height - 1, height, height);
+        
+        g2d.dispose();
+      }
+    };
+    pill.setOpaque(false);
+    pill.setBorder(new EmptyBorder(6, 12, 6, 6));
+    
+    _contextLabel = new JLabel();
+    _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+    _contextLabel.setForeground(new Color(59, 130, 246)); // Blue text
+    
+    // Create close button
+    _contextCloseButton = new JButton("×") {
+      @Override
+      protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Paint circular background on hover
+        if (getModel().isRollover()) {
+          g2d.setColor(new Color(239, 68, 68, 50)); // Light red on hover
+          g2d.fillOval(2, 2, getWidth() - 4, getHeight() - 4);
+        }
+        
+        // Paint text
+        g2d.setColor(new Color(107, 114, 128)); // Gray text
+        g2d.setFont(getFont());
+        FontMetrics fm = g2d.getFontMetrics();
+        int x = (getWidth() - fm.stringWidth("×")) / 2;
+        int y = ((getHeight() - fm.getHeight()) / 2) + fm.getAscent();
+        g2d.drawString("×", x, y);
+        
+        g2d.dispose();
+      }
+    };
+    _contextCloseButton.setPreferredSize(new Dimension(20, 20));
+    _contextCloseButton.setBorder(null);
+    _contextCloseButton.setContentAreaFilled(false);
+    _contextCloseButton.setFocusPainted(false);
+    _contextCloseButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    _contextCloseButton.addActionListener(e -> _hideContextIndicator());
+    
+    pill.add(_contextLabel, BorderLayout.CENTER);
+    pill.add(_contextCloseButton, BorderLayout.EAST);
+    
+    indicatorPanel.add(pill);
+    contextPanel.add(indicatorPanel, BorderLayout.CENTER);
+    
+    return contextPanel;
+  }
+  
   private void _setUpEventListeners() {
     ActionListener sendAction = new ActionListener() {
       public void actionPerformed(ActionEvent e) {
@@ -784,7 +879,21 @@ public class AIChatPanel extends JPanel {
   }
   
   private void _sendMessage() {
-    String message = _inputField.getText().trim();
+    String inputText = _inputField.getText().trim();
+    String message;
+    
+    // If context is visible and there's context text, combine them
+    if (_contextVisible && _contextText != null && !_contextText.trim().isEmpty()) {
+      if (inputText.isEmpty()) {
+        message = _contextText; // Just send the context text
+      } else {
+        message = inputText + "\n\nRegarding this code:\n" + _contextText; // Combine input with context
+      }
+      _hideContextIndicator(); // Hide context after sending
+    } else {
+      message = inputText;
+    }
+    
     if (!message.isEmpty()) {
       // Add user message to history first
       _conversationHistory.add(new ChatMessage("user", message));
@@ -2120,5 +2229,36 @@ public class AIChatPanel extends JPanel {
       _inputField.setText(message.trim());
       _sendMessage();
     }
+  }
+  
+  // New method to send message with file context
+  public void sendMessageWithContext(String message, String fileName, int startLine, int endLine) {
+    if (message != null && !message.trim().isEmpty()) {
+      _showContextIndicator(fileName, startLine, endLine);
+      _contextText = message.trim();
+      // Don't put the text in the input field - it will be sent when user clicks send
+    }
+  }
+  
+  private void _showContextIndicator(String fileName, int startLine, int endLine) {
+    String contextInfo;
+    if (startLine == endLine) {
+      contextInfo = fileName + " (line " + startLine + ")";
+    } else {
+      contextInfo = fileName + " (" + startLine + "-" + endLine + ")";
+    }
+    _contextLabel.setText(contextInfo);
+    _contextIndicator.setVisible(true);
+    _contextVisible = true;
+    revalidate();
+    repaint();
+  }
+  
+  private void _hideContextIndicator() {
+    _contextIndicator.setVisible(false);
+    _contextVisible = false;
+    _contextText = null;
+    revalidate();
+    repaint();
   }
 } 

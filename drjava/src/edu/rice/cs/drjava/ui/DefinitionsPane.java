@@ -801,7 +801,25 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
         if (selectedText != null && !selectedText.trim().isEmpty()) {
           AIChatPanel chatPanel = _mainFrame.getAIChatPanel();
           if (chatPanel != null) {
-            chatPanel.sendMessage(selectedText.trim());
+            // Get line numbers for the selection
+            int selectionStart = getSelectionStart();
+            int selectionEnd = getSelectionEnd();
+            int startLine = _doc.getLineOfOffset(selectionStart) + 1; // Convert to 1-based line numbers
+            int endLine = _doc.getLineOfOffset(selectionEnd) + 1;
+            
+            // Get the file name
+            String fileName = _doc.getCanonicalPath();
+            if (fileName != null) {
+              // Extract just the file name from the full path
+              int lastSeparator = Math.max(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\'));
+              if (lastSeparator >= 0) {
+                fileName = fileName.substring(lastSeparator + 1);
+              }
+            } else {
+              fileName = "Untitled"; // Default name for unsaved files
+            }
+            
+            chatPanel.sendMessageWithContext(selectedText.trim(), fileName, startLine, endLine);
             // Optionally focus the chat panel or switch to its tab
             chatPanel.requestFocusInWindow();
           }
