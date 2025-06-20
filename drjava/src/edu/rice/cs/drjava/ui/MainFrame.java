@@ -3383,7 +3383,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
       JScrollPane defScroll = _createDefScrollPane(_model.getActiveDocument());
       
       // Initialize AI Chat Panel
-      _aiChatPanel = new AIChatPanel();
+      _aiChatPanel = new AIChatPanel(_model);
       
       // Create left panel (navigator + editor)
       _leftSplit = new BorderlessSplitPane(JSplitPane.HORIZONTAL_SPLIT, true,
@@ -6449,8 +6449,8 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   }
   
   /** Initializes all action objects.  Adds icons and descriptions to several of the actions. Note: this 
-    * initialization will later be done in the constructor of each action, which will subclass AbstractAction.
-    */
+   * initialization will later be done in the constructor of each action, which will subclass AbstractAction.
+   */
   private void _setUpActions() {
     _setUpAction(_newAction, "New", "Create a new document");
     _setUpAction(_newClassAction, "New", "Create a new Java Class");

@@ -30,6 +30,8 @@ import java.util.concurrent.CompletableFuture;
 // Add imports for conversation history
 import java.util.List;
 import java.util.ArrayList;
+import edu.rice.cs.drjava.model.SingleDisplayModel;
+import edu.rice.cs.drjava.model.OpenDefinitionsDocument;
 
 /**
  * A modern AI chat panel for DrJava with Cursor-inspired clean design.
@@ -77,6 +79,9 @@ public class AIChatPanel extends JPanel {
   // Conversation history storage
   private List<ChatMessage> _conversationHistory;
   
+  // Reference to DrJava's model for accessing current document
+  private final SingleDisplayModel _model;
+  
   // Inner class to represent a chat message
   public static class ChatMessage {
     public final String role; // "user" or "assistant"
@@ -90,8 +95,9 @@ public class AIChatPanel extends JPanel {
     }
   }
   
-  public AIChatPanel() {
+  public AIChatPanel(SingleDisplayModel model) {
     super(new BorderLayout());
+    _model = model;
     _conversationHistory = new ArrayList<>();
     _setUpComponents();
     _setUpLayout();
@@ -117,6 +123,49 @@ public class AIChatPanel extends JPanel {
         });
       }
     });
+  }
+  
+  /**
+   * Gets context information about the currently active document
+   * @return A formatted string with current file info and content, or null if no document is active
+   */
+  private String _getCurrentDocumentContext() {
+    if (_model == null) return null;
+    
+    try {
+      OpenDefinitionsDocument activeDoc = _model.getActiveDocument();
+      if (activeDoc == null) return null;
+      
+      // Get file information
+      String fileName = "Untitled";
+      try {
+        java.io.File file = activeDoc.getFile();
+        if (file != null) {
+          fileName = file.getName();
+        }
+      } catch (Exception e) {
+        // File might not be saved yet, use default name
+      }
+      
+      // Get document text
+      String text = activeDoc.getText();
+      if (text == null || text.trim().isEmpty()) {
+        return null; // Don't include empty documents
+      }
+      
+      // Create formatted context
+      StringBuilder context = new StringBuilder();
+      context.append("Current file: ").append(fileName).append("\n");
+      context.append("Content:\n");
+      context.append("```java\n");
+      context.append(text);
+      context.append("\n```");
+      
+      return context.toString();
+    } catch (Exception e) {
+      // If there's any error getting document info, just return null
+      return null;
+    }
   }
   
   /**
@@ -907,19 +956,38 @@ public class AIChatPanel extends JPanel {
     // Hide context indicator after getting the information
     _hideContextIndicator();
     
-    // Prepare message for server - combine context and input if context exists
+    // Get automatic current document context
+    String currentDocContext = _getCurrentDocumentContext();
+    
+    // Prepare message for server - combine context, current document, and input
     String messageForServer;
     String messageForDisplay;
     if (contextFileName != null) {
       messageForDisplay = inputText;
       if (inputText.isEmpty()) {
         messageForServer = _contextText;
+        // Add current document context if different from selected context
+        if (currentDocContext != null) {
+          messageForServer += "\n\nCurrent open file:\n" + currentDocContext;
+        }
       } else {
         messageForServer = "Regarding this code:\n" + _contextText + "\n\n" + inputText;
+        // Add current document context if different from selected context
+        if (currentDocContext != null) {
+          messageForServer += "\n\nCurrent open file:\n" + currentDocContext;
+        }
       }
     } else {
       messageForServer = inputText;
       messageForDisplay = inputText;
+      // Add current document context automatically
+      if (currentDocContext != null) {
+        if (inputText.isEmpty()) {
+          messageForServer = "Current open file:\n" + currentDocContext;
+        } else {
+          messageForServer = inputText + "\n\nCurrent open file:\n" + currentDocContext;
+        }
+      }
     }
     
     if (messageForServer.trim().isEmpty()) {
@@ -1851,7 +1919,7 @@ public class AIChatPanel extends JPanel {
     if (fileName != null) {
       JPanel contextBubble = _createChatContextBubble(fileName, startLine, endLine);
       _messagesPanel.add(contextBubble);
-      _messagesPanel.add(Box.createVerticalStrut(8)); // Smaller gap between context and message
+      _messagesPanel.add(Box.createVerticalStrut(4)); // Smaller gap between context and message
     }
     
     // Add user message (can be empty if only context was sent)
