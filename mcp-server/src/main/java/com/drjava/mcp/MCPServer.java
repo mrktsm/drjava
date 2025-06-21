@@ -324,25 +324,88 @@ public class MCPServer {
     }
     
     /**
-     * Builds conversation context from messages array for Ollama
+     * Builds conversation context from messages array for Ollama with smart context management
      */
     private String buildConversationContext(JsonArray messages) {
         StringBuilder context = new StringBuilder();
-        context.append("You are a helpful Java programming tutor. Here is the conversation history:\n\n");
+        context.append("You are a helpful Java programming tutor.\n\n");
         
+        // Extract the current document context from the latest message
+        String currentDocumentContext = null;
+        if (messages.size() > 0) {
+            JsonObject latestMessage = messages.get(messages.size() - 1).getAsJsonObject();
+            String latestContent = latestMessage.get("content").getAsString();
+            
+            // Extract current document context (appears after "Current open file:")
+            int docContextStart = latestContent.indexOf("Current open file:");
+            if (docContextStart != -1) {
+                currentDocumentContext = latestContent.substring(docContextStart);
+                // Remove document context from the user's actual question
+                String userQuestion = latestContent.substring(0, docContextStart).trim();
+                // Update the latest message content to just the user's question
+                latestMessage.addProperty("content", userQuestion);
+            }
+        }
+        
+        // Add conversation history (without document contexts)
+        context.append("Conversation history:\n");
         for (JsonElement messageElement : messages) {
             JsonObject message = messageElement.getAsJsonObject();
             String role = message.get("role").getAsString();
             String content = message.get("content").getAsString();
             
+            // Skip empty messages or messages that are just document context
+            if (content.trim().isEmpty() || content.startsWith("Current open file:")) {
+                continue;
+            }
+            
+            // Clean up content - remove any embedded document contexts from historical messages
+            String cleanContent = _removeDocumentContext(content);
+            if (cleanContent.trim().isEmpty()) {
+                continue;
+            }
+            
             if ("user".equals(role)) {
-                context.append("Human: ").append(content).append("\n\n");
+                context.append("Human: ").append(cleanContent).append("\n");
             } else if ("assistant".equals(role)) {
-                context.append("Assistant: ").append(content).append("\n\n");
+                context.append("Assistant: ").append(cleanContent).append("\n");
             }
         }
         
-        context.append("Please respond as the Assistant in this conversation. Be concise and helpful.");
+        // Add current document context at the end (only the latest one)
+        if (currentDocumentContext != null) {
+            context.append("\n").append(currentDocumentContext).append("\n");
+        }
+        
+        context.append("\nPlease respond as the Assistant. Focus on the current question and the current document context. Be concise and helpful.");
         return context.toString();
+    }
+    
+    /**
+     * Removes document context from message content to prevent accumulation
+     */
+    private String _removeDocumentContext(String content) {
+        // Remove "Current open file:" sections
+        int docContextStart = content.indexOf("Current open file:");
+        if (docContextStart != -1) {
+            return content.substring(0, docContextStart).trim();
+        }
+        
+        // Remove "Regarding this code:" sections that might contain old context
+        int codeContextStart = content.indexOf("Regarding this code:");
+        if (codeContextStart != -1) {
+            // Look for the actual question after the code context
+            String afterCode = content.substring(codeContextStart);
+            int questionStart = afterCode.indexOf('\n');
+            if (questionStart != -1) {
+                String potentialQuestion = afterCode.substring(questionStart + 1).trim();
+                if (!potentialQuestion.isEmpty() && !potentialQuestion.startsWith("Current open file:")) {
+                    return potentialQuestion;
+                }
+            }
+            return content.substring(0, codeContextStart).trim();
+        }
+        
+        return content;
     }
 } 
