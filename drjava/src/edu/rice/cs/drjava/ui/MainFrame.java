@@ -124,6 +124,7 @@ import static edu.rice.cs.util.XMLConfig.XMLConfigException;
 import static edu.rice.cs.drjava.ui.MainFrameStatics.*;
 
 import edu.rice.cs.drjava.model.junit.JUnitResultTuple;
+import edu.rice.cs.drjava.ui.aichat.AIChatPanel;
 
 /** DrJava's main window. */
 public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetListener {
