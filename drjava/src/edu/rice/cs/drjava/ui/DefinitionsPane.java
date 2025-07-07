@@ -1094,7 +1094,7 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
     */
   public void notifyActive() {
     assert ! _mainFrame.isVisible() || EventQueue.isDispatchThread();
-    super.setDocument(_doc);
+    super.setDocument(_doc.getDocument()); // Use the underlying DefinitionsDocument instead of the wrapper
     if (_doc.getUndoableEditListeners().length == 0) _resetUndo();
     
     int len = _doc.getLength();

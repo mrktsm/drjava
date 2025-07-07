@@ -54,6 +54,7 @@ import edu.rice.cs.util.swing.Utilities;
 import edu.rice.cs.drjava.model.definitions.indent.Indenter;
 import edu.rice.cs.drjava.model.OpenDefinitionsDocument;
 import edu.rice.cs.drjava.model.*;
+import edu.rice.cs.drjava.model.TextChangeLogger;
 
 import static edu.rice.cs.drjava.model.definitions.reducedmodel.ReducedModelStates.*;
 
@@ -103,6 +104,8 @@ public class DefinitionsDocument extends AbstractDJDocument implements Finalizab
   
   private volatile CompoundUndoManager _undoManager;
   
+  private volatile TextChangeLogger _textChangeLogger;
+  
   /** Keeps track of the listeners to this model. */
   private final GlobalEventNotifier _notifier;
   
@@ -132,6 +135,7 @@ public class DefinitionsDocument extends AbstractDJDocument implements Finalizab
     _notifier = notifier;
     _editor = new DefinitionsEditorKit(notifier);
     _undoManager = undoManager;
+    _textChangeLogger = new TextChangeLogger();
   }
   
   /** Convenience constructor used ?? 
@@ -281,14 +285,47 @@ public class DefinitionsDocument extends AbstractDJDocument implements Finalizab
     super.insertString(offset, str, a);
   }
   
+  /** Override insertUpdate to log text insertions after they occur. */
+  protected void insertUpdate(AbstractDocument.DefaultDocumentEvent chng, AttributeSet attr) {
+    super.insertUpdate(chng, attr);
+    
+    try {
+      final int offset = chng.getOffset();
+      final int length = chng.getLength();
+      final String str = getText(offset, length);
+      
+      System.out.println("LOG: Text inserted at offset " + offset + ": '" + str + "'");
+      _textChangeLogger.logInsertion(offset, str);
+    }
+    catch (BadLocationException e) {
+      // Should not happen since we just inserted this text
+    }
+  }
+  
   /** Removes a block of text from the specified location. We don't update the reduced model here; that happens
     * in {@link #removeUpdate}.
     */
   public void remove(int offset, int len) throws BadLocationException {
-    
     if (len == 0) return;
     _setModifiedSinceSave();
     super.remove(offset, len);
+  }
+  
+  /** Override removeUpdate to log text deletions before they occur. */
+  protected void removeUpdate(AbstractDocument.DefaultDocumentEvent chng) {
+    try {
+      final int offset = chng.getOffset();
+      final int length = chng.getLength();
+      final String deletedText = getText(offset, length);
+      
+      System.out.println("LOG: Text deleted at offset " + offset + ": '" + deletedText + "'");
+      _textChangeLogger.logDeletion(offset, deletedText);
+    }
+    catch (BadLocationException e) {
+      // Should not happen
+    }
+    
+    super.removeUpdate(chng);
   }
   
   /** Given a String, return a new String will all tabs converted to spaces.  Each tab is converted 
