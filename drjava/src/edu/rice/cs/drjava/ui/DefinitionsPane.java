@@ -32,6 +32,7 @@ import javax.swing.*;
 import javax.swing.undo.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
+import javax.swing.text.AbstractDocument.DefaultDocumentEvent;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -54,7 +55,6 @@ import edu.rice.cs.drjava.config.*;
 import edu.rice.cs.drjava.DrJava;
 import edu.rice.cs.drjava.model.debug.Breakpoint;
 import static edu.rice.cs.drjava.model.definitions.reducedmodel.ReducedModelStates.*;
-import edu.rice.cs.drjava.ui.aichat.AIChatPanel;
 
 /** The pane in which work on a given OpenDefinitionsDocument occurs. A DefinitionsPane is tied to a single document,
  *  which cannot be changed.
@@ -303,31 +303,77 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
     }
   }
 
-  /** Listens to any undoable events in the document, and adds them to the undo manager.  Must be done in the view 
-    * because the edits are stored along with the caret position at the time of the edit.   Correction: document
-    * cursor position should be used instead of caret position.  Perhaps this listener should be attached to the 
-    * document.
-    */
+  /** Listens to any undoable events in the document, and adds them to the undo manager.  Must run in event thread. */
   private final UndoableEditListener _undoListener = new UndoableEditListener() {
     
     /** The function to handle what happens when an UndoableEditEvent occurs.
-     *  @param e
-     */
+      * @param e
+      */
     public void undoableEditHappened(UndoableEditEvent e) {
-      assert EventQueue.isDispatchThread();
-//      UndoWithPosition undo = new UndoWithPosition(e.getEdit(), _doc.getCurrentLocation());
-      UndoableEdit undo = e.getEdit();
-      if (! _inCompoundEdit) {
-        CompoundUndoManager undoMan = _doc.getUndoManager();
-        _inCompoundEdit = true;
-        _compoundEditKey = undoMan.startCompoundEdit();
-        getUndoAction().updateUndoState();
-        getRedoAction().updateRedoState();
-      }
-      _doc.getUndoManager().addEdit(undo);
-      getRedoAction().setEnabled(false);
+      //Add the edit to the manager
+      final UndoableEdit edit = e.getEdit();
+      _doc.getUndoManager().addEdit(edit);
+      _doc.updateModifiedSinceSave();
+      _updateUndoAction();
     }
   };
+
+  /** Updates both undo and redo action states */
+  private void _updateUndoAction() {
+    if (_undoAction != null) _undoAction.updateUndoState();
+    if (_redoAction != null) _redoAction.updateRedoState();
+  }
+
+  /** DocumentListener to capture text changes for logging */
+  private DocumentListener _documentChangeListener = new DocumentListener() {
+    public void insertUpdate(DocumentEvent e) {
+      _logTextInsertion(e);
+    }
+    
+    public void removeUpdate(DocumentEvent e) {
+      _logTextDeletion(e);
+    }
+    
+    public void changedUpdate(DocumentEvent e) {
+      // Style changes, not relevant for text logging
+    }
+  };
+
+  /** Logs a text insertion event
+    * @param e the DocumentEvent representing the insertion
+    */
+  private void _logTextInsertion(DocumentEvent e) {
+    try {
+      String insertedText = e.getDocument().getText(e.getOffset(), e.getLength());
+      String logMessage = "Text inserted at position " + e.getOffset() + ": \"" + insertedText + "\"";
+      System.out.println(logMessage);
+      _writeToLogFile(logMessage);
+    } catch (BadLocationException ex) {
+      String logMessage = "Text inserted at position " + e.getOffset() + " (length: " + e.getLength() + ")";
+      System.out.println(logMessage);
+      _writeToLogFile(logMessage);
+    }
+  }
+
+  /** Logs a text deletion event
+    * @param e the DocumentEvent representing the deletion
+    */
+  private void _logTextDeletion(DocumentEvent e) {
+    String logMessage = "Text deleted at position " + e.getOffset() + " (length: " + e.getLength() + ")";
+    System.out.println(logMessage);
+    _writeToLogFile(logMessage);
+  }
+
+  /** Writes a message to the log file */
+  private void _writeToLogFile(String message) {
+    try {
+      java.io.FileWriter writer = new java.io.FileWriter("drjava_text_changes.log", true);
+      writer.write(java.time.LocalDateTime.now() + ": " + message + "\n");
+      writer.close();
+    } catch (java.io.IOException e) {
+      // Silently ignore log file errors
+    }
+  }
 
 //  /** The menu item for the "Add Watch" option. Stored in field so that it may be enabled and
 //   *  disabled depending on Debug Mode.
@@ -1094,7 +1140,7 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
     */
   public void notifyActive() {
     assert ! _mainFrame.isVisible() || EventQueue.isDispatchThread();
-    super.setDocument(_doc.getDocument()); // Use the underlying DefinitionsDocument instead of the wrapper
+    super.setDocument(_doc);
     if (_doc.getUndoableEditListeners().length == 0) _resetUndo();
     
     int len = _doc.getLength();
@@ -1241,6 +1287,7 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
     _doc.resetUndoManager();
     
     getDocument().addUndoableEditListener(_undoListener);
+    getDocument().addDocumentListener(_documentChangeListener);
     _undoAction.updateUndoState();
     _redoAction.updateRedoState();
   }
