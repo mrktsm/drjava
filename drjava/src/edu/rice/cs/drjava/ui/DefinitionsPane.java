@@ -54,6 +54,7 @@ import edu.rice.cs.drjava.model.definitions.reducedmodel.ReducedModelState;
 import edu.rice.cs.drjava.config.*;
 import edu.rice.cs.drjava.DrJava;
 import edu.rice.cs.drjava.model.debug.Breakpoint;
+import edu.rice.cs.drjava.ui.aichat.AIChatPanel;
 import static edu.rice.cs.drjava.model.definitions.reducedmodel.ReducedModelStates.*;
 
 /** The pane in which work on a given OpenDefinitionsDocument occurs. A DefinitionsPane is tied to a single document,
