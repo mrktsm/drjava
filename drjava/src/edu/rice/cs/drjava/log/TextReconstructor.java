@@ -40,13 +40,28 @@ public class TextReconstructor {
 
                 Matcher insertMatcher = INSERT_PATTERN.matcher(line);
                 if (insertMatcher.matches()) {
+                    String insertedText = insertMatcher.group(2).replace("\n", "\\n"); // Get text and escape newlines
                     applyInsertion(insertMatcher, document, lineNumber, line);
+
+                    System.out.println("--- After log line " + lineNumber + " ---");
+                    System.out.println("Action: Inserted \"" + insertedText + "\"");
+                    System.out.println("Document state:");
+                    System.out.println(document.toString());
+                    System.out.println("------------------------------------");
                     continue;
                 }
 
                 Matcher deleteMatcher = DELETE_PATTERN.matcher(line);
                 if (deleteMatcher.matches()) {
+                    String position = deleteMatcher.group(1);
+                    String length = deleteMatcher.group(2);
                     applyDeletion(deleteMatcher, document, lineNumber, line);
+
+                    System.out.println("--- After log line " + lineNumber + " ---");
+                    System.out.println("Action: Deleted " + length + " character(s) at position " + position);
+                    System.out.println("Document state:");
+                    System.out.println(document.toString());
+                    System.out.println("------------------------------------");
                     continue;
                 }
                 
