@@ -9177,6 +9177,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     }
     
     public void newFileCreated(final OpenDefinitionsDocument doc) {
+      _logSystemEvent("FILE_CREATED: " + doc.getCanonicalPath());
       _createDefScrollPane(doc);
       PropertyMaps.TEMPLATE.getProperty("DrJava", "drjava.all.files").invalidate();
     }
@@ -9297,6 +9298,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     }
     
     public void fileOpened(final OpenDefinitionsDocument doc) { 
+      _logSystemEvent("FILE_OPENED: " + doc.getCanonicalPath());
       _fileOpened(doc);
       PropertyMaps.TEMPLATE.getProperty("DrJava", "drjava.all.files").invalidate(); 
     }
@@ -9911,6 +9913,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
       * @return A boolean indicating whether the user cancelled the save process.  False means cancel.
       */
     public boolean canAbandonFile(OpenDefinitionsDocument doc) {
+      _logSystemEvent("FILE_CLOSED: " + doc.getCanonicalPath());
       return _fileSaveHelper(doc, JOptionPane.YES_NO_CANCEL_OPTION);
     }
     
@@ -10780,15 +10783,11 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   private void _logSystemEvent(String eventMessage) {
     String logFilePath = "drjava_text_changes.log";
     try (PrintWriter writer = new PrintWriter(new FileWriter(logFilePath, true))) {
-      java.io.FileWriter writer = new java.io.FileWriter(logFilePath, true);
-        
-      // Prepend the timestamp to the message
-      String fullLogMessage = java.time.LocalDateTime.now() + ": " + eventMessage + "\n";
-      
-      writer.write(fullLogMessage);
-      writer.close();
+        String fullLogMessage = java.time.LocalDateTime.now() + ": " + eventMessage;
+        writer.println(fullLogMessage);
     } catch (IOException e) {
-      // Siltently ignore errors to prevent disruption 
+        System.err.println("Failed to write to log: " + e.getMessage());
     }
   }
+
 }
