@@ -10776,4 +10776,19 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     _modalWindowAdapterOwner = null;
     _modalWindowAdapters.remove(w);
   }
+
+  private void _logSystemEvent(String eventMessage) {
+    String logFilePath = "drjava_text_changes.log";
+    try (PrintWriter writer = new PrintWriter(new FileWriter(logFilePath, true))) {
+      java.io.FileWriter writer = new java.io.FileWriter(logFilePath, true);
+        
+      // Prepend the timestamp to the message
+      String fullLogMessage = java.time.LocalDateTime.now() + ": " + eventMessage + "\n";
+      
+      writer.write(fullLogMessage);
+      writer.close();
+    } catch (IOException e) {
+      // Siltently ignore errors to prevent disruption 
+    }
+  }
 }
