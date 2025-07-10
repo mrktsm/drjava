@@ -3117,33 +3117,6 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     public void windowIconified(WindowEvent ev) { }
     public void windowOpened(WindowEvent ev) { _currentDefPane.requestFocusInWindow(); }
   };
-
-  private final WindowFocusListener _windowFocusListener = new WindowFocusListener() {
-    private volatile long _unfocusedTimestamp = 0L;
-    
-    public void windowGainedFocus(WindowEvent e) {
-      if (_unfocusedTimestamp > 0) {
-        long refocusedTimestamp = System.currentTimeMillis();
-        long timeAway = refocusedTimestamp - _unfocusedTimestamp;
-        _writeToLogFile("WINDOW_FOCUS_GAINED: " + refocusedTimestamp + " (away for " + timeAway + "ms)");
-      }
-    }
-    
-    public void windowLostFocus(WindowEvent e) {
-      _unfocusedTimestamp = System.currentTimeMillis();
-      _writeToLogFile("WINDOW_FOCUS_LOST: " + _unfocusedTimestamp);
-    }
-    
-    private void _writeToLogFile(String message) {
-      try {
-        java.io.FileWriter writer = new java.io.FileWriter("drjava_text_changes.log", true);
-        writer.write(java.time.LocalDateTime.now() + ": " + message + "\n");
-        writer.close();
-      } catch (java.io.IOException ex) {
-        // Silently ignore log file errors
-      }
-    }
-  };
   
   private final MouseListener _resetFindReplaceListener = new MouseListener() {
     public void mouseClicked(MouseEvent e) { }
@@ -3323,7 +3296,46 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   /* ----------------------- Constructor is here! --------------------------- */
   
   /** Creates the main window, and shows it. */ 
-  public MainFrame() {    
+  public MainFrame() {  
+    // Replace your current KeyboardFocusManager listener with this:
+    KeyboardFocusManager.getCurrentKeyboardFocusManager().addPropertyChangeListener(
+      "activeWindow", new PropertyChangeListener() {
+        private volatile long _unfocusedTimestamp = 0L;
+        private static final int MIN_FOCUS_DURATION_MS = 100; // Only log if unfocused for at least 100ms
+        
+        public void propertyChange(PropertyChangeEvent evt) {
+          Window newActiveWindow = (Window) evt.getNewValue();
+          
+          if (newActiveWindow == null) {
+            // No active window - app is being deactivated
+            _unfocusedTimestamp = System.currentTimeMillis();
+            // Don't log immediately - wait to see if it's a real focus loss
+          } else if (_unfocusedTimestamp > 0) {
+            // An active window exists and we were previously deactivated
+            long refocusedTimestamp = System.currentTimeMillis();
+            long timeAway = refocusedTimestamp - _unfocusedTimestamp;
+            
+            // Only log if we were away for a meaningful amount of time
+            if (timeAway >= MIN_FOCUS_DURATION_MS) {
+              _writeToLogFile("APP_DEACTIVATED: " + _unfocusedTimestamp);
+              _writeToLogFile("APP_ACTIVATED: " + refocusedTimestamp + " (away for " + timeAway + "ms)");
+            }
+            
+            _unfocusedTimestamp = 0;
+          }
+        }
+        
+        private void _writeToLogFile(String message) {
+          try {
+            java.io.FileWriter writer = new java.io.FileWriter("drjava_text_changes.log", true);
+            writer.write(java.time.LocalDateTime.now() + ": " + message + "\n");
+            writer.close();
+          } catch (java.io.IOException ex) {
+            // Silently ignore log file errors
+          }
+        }
+      }
+    );
     Utilities.invokeAndWait(new Runnable() { public void run() {
       // Cache the config object, since we use it many, many times.
       final Configuration config = DrJava.getConfig(); 
@@ -3525,7 +3537,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
       
       // Set up listeners
       addWindowListener(_windowCloseListener);
-      addWindowFocusListener(_windowFocusListener);
+      // addWindowFocusListener(_windowFocusListener);
       // Create the main model listener and attach it to the global model
       _mainListener = new ModelListener();
       _model.addListener(_mainListener);
