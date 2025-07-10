@@ -3301,7 +3301,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     KeyboardFocusManager.getCurrentKeyboardFocusManager().addPropertyChangeListener(
       "activeWindow", new PropertyChangeListener() {
         private volatile long _unfocusedTimestamp = 0L;
-        private static final int MIN_FOCUS_DURATION_MS = 100; // Only log if unfocused for at least 100ms
+        private static final int MIN_FOCUS_DURATION_MS = 20; // Only log if unfocused for at least 100ms
         
         public void propertyChange(PropertyChangeEvent evt) {
           Window newActiveWindow = (Window) evt.getNewValue();
