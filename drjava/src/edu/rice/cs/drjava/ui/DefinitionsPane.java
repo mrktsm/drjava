@@ -93,8 +93,6 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
   //used in fix of bug ID: 2953661
   private volatile boolean _isCtrlShiftBracketDown = false;
   
-  private volatile long _unfocusedTimestamp = 0L;
-  
 //  /** Used by the centering source mechanism to ensure paints */
 //  private volatile boolean _updatePending = false;
 
@@ -531,19 +529,7 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
     addFocusListener(new FocusAdapter() {
       public void focusGained(FocusEvent e) {  
         _mainFrame.getModel().getDocumentNavigator().requestSelectionUpdate(doc);
-        
-        // This is our new logging logic
-        if (_unfocusedTimestamp > 0) {
-          long refocusedTimestamp = System.currentTimeMillis();
-          long timeAway = refocusedTimestamp - _unfocusedTimestamp;
-          _writeToLogFile("FOCUS_GAINED: " + refocusedTimestamp + " (away for " + timeAway + "ms)");
-        }
-      }
-      
-      public void focusLost(FocusEvent e) {
-        // This is our new method and logging logic
-        _unfocusedTimestamp = System.currentTimeMillis();
-        _writeToLogFile("FOCUS_LOST: " + _unfocusedTimestamp);
+        // Focus logging moved to MainFrame
       }
     });
     
