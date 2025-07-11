@@ -232,6 +232,25 @@ class Playbar {
   }
 }
 
+// React component for file explorer
+function FileExplorer({ files, activeFile, onFileSelect }) {
+  return (
+    <div className="file-explorer">
+      <ul className="file-list">
+        {files.map((file, index) => (
+          <li
+            key={index}
+            className={`file-item ${activeFile === file ? "active" : ""}`}
+            onClick={() => onFileSelect(file)}
+          >
+            {file}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // React component for media controls
 function MediaControls({
   isPlaying = false,
@@ -312,57 +331,14 @@ function PlaybarComponent() {
     };
   }, []);
 
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-    console.log(isPlaying ? "Paused" : "Playing");
-  };
-
-  const handleSkipBackward = () => {
-    console.log("Skip backward");
-    // Add logic to skip backward
-  };
-
-  const handleSkipForward = () => {
-    console.log("Skip forward");
-    // Add logic to skip forward
-  };
-
-  const handleRestart = () => {
-    console.log("Restart");
-    if (playbarInstanceRef.current) {
-      playbarInstanceRef.current.jumpCursorToTime("00:00");
-      setCurrentTime("00:00");
-      setIsPlaying(false);
-    }
-  };
-
-  const handleSkipToEnd = () => {
-    console.log("Skip to end");
-    if (playbarInstanceRef.current) {
-      playbarInstanceRef.current.jumpCursorToTime("23:59");
-      setCurrentTime("23:59");
-      setIsPlaying(false);
-    }
-  };
-
   return (
-    <>
-      <MediaControls
-        isPlaying={isPlaying}
-        onPlayPause={handlePlayPause}
-        onSkipBackward={handleSkipBackward}
-        onSkipForward={handleSkipForward}
-        onRestart={handleRestart}
-        onSkipToEnd={handleSkipToEnd}
-      />
-      <div className="container">
-        <div
-          ref={playbarRef}
-          id="playbar-container"
-          className="playbar-container"
-        ></div>
-      </div>
-    </>
+    <div className="container">
+      <div
+        ref={playbarRef}
+        id="playbar-container"
+        className="playbar-container"
+      ></div>
+    </div>
   );
 }
 
@@ -376,6 +352,18 @@ public class HelloWorld {
         // based on DrJava activity logs
     }
 }`);
+
+  // Sample files for the file explorer
+  const [files] = useState([
+    "HelloWorld.java",
+    "StudentRecord.java",
+    "Calculator.java",
+    "FileManager.java",
+    "DatabaseHelper.java",
+    "UIController.java",
+  ]);
+
+  const [activeFile, setActiveFile] = useState("HelloWorld.java");
 
   // Detect platform and set appropriate font family to match DrJava
   const [fontFamily, setFontFamily] = useState("");
@@ -401,31 +389,54 @@ public class HelloWorld {
     setCode(value);
   };
 
+  const handleFileSelect = (filename) => {
+    setActiveFile(filename);
+    console.log("Selected file:", filename);
+    // Here you would load the content for the selected file
+  };
+
   return (
     <div className="app">
-      <div className="editor-container">
-        <div className="editor-wrapper">
-          <Editor
-            height="100%"
-            defaultLanguage="java"
-            value={code}
-            onChange={handleEditorChange}
-            theme="vs"
-            options={{
-              fontSize: 18,
-              fontFamily: fontFamily,
-              fontWeight: "500",
-              minimap: { enabled: true },
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              lineNumbers: "on",
-              renderWhitespace: "selection",
-              wordWrap: "off",
-              scrollbar: {
-                horizontal: "auto",
-                vertical: "auto",
-              },
-            }}
+      <div className="main-content">
+        <FileExplorer
+          files={files}
+          activeFile={activeFile}
+          onFileSelect={handleFileSelect}
+        />
+        <div className="editor-and-controls-area">
+          <div className="editor-container">
+            <div className="editor-wrapper">
+              <Editor
+                height="100%"
+                defaultLanguage="java"
+                value={code}
+                onChange={handleEditorChange}
+                theme="vs"
+                options={{
+                  fontSize: 18,
+                  fontFamily: fontFamily,
+                  fontWeight: "500",
+                  minimap: { enabled: true },
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  lineNumbers: "on",
+                  renderWhitespace: "selection",
+                  wordWrap: "off",
+                  scrollbar: {
+                    horizontal: "auto",
+                    vertical: "auto",
+                  },
+                }}
+              />
+            </div>
+          </div>
+          <MediaControls
+            isPlaying={false}
+            onPlayPause={() => console.log("Play/Pause")}
+            onSkipBackward={() => console.log("Skip backward")}
+            onSkipForward={() => console.log("Skip forward")}
+            onRestart={() => console.log("Restart")}
+            onSkipToEnd={() => console.log("Skip to end")}
           />
         </div>
       </div>
