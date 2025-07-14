@@ -170,10 +170,13 @@
   width: 0;
   background-color: #00aaff;
   border-radius: 4px 0 0 4px; /* Reduced from 8px to match container */
+  z-index: 1; /* Lowest layer */
 }
 
 .segments-container {
   height: 100%;
+  position: relative; /* Add position for z-index to work */
+  z-index: 2; /* Above playbar */
 }
 
 .segment {
@@ -213,6 +216,7 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+  z-index: 3; /* Above segments */
 }
 
 .hour-line {
@@ -220,9 +224,8 @@
   top: 0;
   width: 1px;
   height: 100%;
-  background-color: #000;
-  opacity: 0.5;
-  border-left: 1px dotted #000;
+  border-left: 1px solid; /* Use solid border, color is set in component */
+  /* Removed hardcoded background-color, opacity and border color */
 }
 
 .hour-label {
