@@ -161,11 +161,11 @@ function App() {
             lastLogTime.getMinutes() / 60 +
             lastLogTime.getSeconds() / 3600;
 
-          // Use exact timing from first to last log entry
-          const duration = endTime - startTime;
+          // Use exact timing from first to last log entry with small buffer for smooth completion
+          const duration = endTime - startTime + 0.001; // Add ~3.6 seconds buffer
 
           setSessionStart(startTime);
-          setSessionEnd(endTime);
+          setSessionEnd(endTime + 0.001);
           setSessionDuration(duration);
           setCurrentTime(startTime);
           setCurrentLogIndex(0);
@@ -195,12 +195,17 @@ function App() {
         const timelinePosition = sessionStart + progress * sessionDuration;
         setCurrentTime(timelinePosition);
 
-        if (progress < 1) {
+        // Continue animation until both timeline is complete AND all keystrokes are processed
+        const allKeystrokesProcessed = currentLogIndex >= logs.length - 1;
+        const timelineComplete = progress >= 1;
+
+        if (!timelineComplete || !allKeystrokesProcessed) {
           animationFrame = requestAnimationFrame(animate);
         } else {
-          // Reached the end
+          // Reached the end - both timeline and keystrokes complete
           setIsPlaying(false);
           setCurrentTime(sessionEnd);
+          setCurrentLogIndex(logs.length - 1);
         }
       };
 
@@ -220,6 +225,7 @@ function App() {
     sessionEnd,
     sessionDuration,
     logs.length,
+    currentLogIndex,
   ]);
 
   // Event-driven playback for keystrokes - independent of timeline movement
@@ -243,6 +249,11 @@ function App() {
         timeout = setTimeout(() => {
           setCurrentLogIndex(nextLogIndex);
         }, timeToNextKeystroke * 1000); // Convert to milliseconds
+      } else if (nextLogIndex === logs.length) {
+        // Handle the final keystroke with a minimal delay to ensure it gets processed
+        timeout = setTimeout(() => {
+          setCurrentLogIndex(logs.length - 1);
+        }, 50); // Small delay to ensure final keystroke is visible
       }
     }
 
