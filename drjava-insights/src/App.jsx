@@ -87,6 +87,19 @@ public class HelloWorld {
     }
 }`);
 
+  const [logData, setLogData] = useState(null);
+
+  // Fetch log data from the server
+  useEffect(() => {
+    fetch("http://localhost:3001/api/logs")
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("Successfully fetched log data:", data);
+        setLogData(data);
+      })
+      .catch((err) => console.error("Error fetching logs:", err));
+  }, []);
+
   // Sample files for the file explorer
   const [files] = useState([
     "HelloWorld.java",
