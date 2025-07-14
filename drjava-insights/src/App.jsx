@@ -92,6 +92,7 @@ function App() {
   const [currentLogIndex, setCurrentLogIndex] = useState(0);
   const [playbackStartTime, setPlaybackStartTime] = useState(null);
   const [playbackPausedAt, setPlaybackPausedAt] = useState(0);
+  const [isUserScrubbing, setIsUserScrubbing] = useState(false);
 
   // Fetch and process log data from the server
   useEffect(() => {
@@ -178,18 +179,25 @@ function App() {
       .catch((err) => console.error("Error fetching logs:", err));
   }, []);
 
-  // Smooth timeline movement - independent of keystroke timing
+  // Smooth timeline movement - synced with authentic keystroke duration
   useEffect(() => {
     let animationFrame;
 
-    if (isPlaying && logs.length > 0) {
+    // Don't animate timeline if user is scrubbing
+    if (isPlaying && logs.length > 0 && !isUserScrubbing) {
+      // Calculate total authentic duration from logs
+      const firstLog = logs[0];
+      const lastLog = logs[logs.length - 1];
+      const totalAuthenticDuration =
+        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
+        playbackSpeed;
+
       const animate = () => {
         const now = Date.now();
-        const elapsed = (now - playbackStartTime) / 1000; // seconds elapsed since play started
-        const totalPlaybackDuration = sessionDuration * 3600; // convert hours to seconds
+        const elapsed = now - playbackStartTime; // milliseconds elapsed since play started
         const progress = Math.min(
           1,
-          (playbackPausedAt + elapsed) / totalPlaybackDuration
+          (playbackPausedAt + elapsed) / totalAuthenticDuration
         );
 
         const timelinePosition = sessionStart + progress * sessionDuration;
@@ -224,31 +232,36 @@ function App() {
     sessionStart,
     sessionEnd,
     sessionDuration,
-    logs.length,
+    logs,
     currentLogIndex,
+    isUserScrubbing,
+    playbackSpeed,
   ]);
 
-  // Event-driven playback for keystrokes - independent of timeline movement
+  // Event-driven playback for keystrokes - using authentic timing
   useEffect(() => {
     let timeout;
 
-    if (isPlaying && logs.length > 0 && currentLogIndex < logs.length) {
+    // Don't advance keystrokes if user is scrubbing
+    if (
+      isPlaying &&
+      logs.length > 0 &&
+      currentLogIndex < logs.length &&
+      !isUserScrubbing
+    ) {
       const nextLogIndex = currentLogIndex + 1;
 
       if (nextLogIndex < logs.length) {
-        // Calculate when this keystroke should occur based on timeline position
-        const currentLogProgress = currentLogIndex / (logs.length - 1);
-        const nextLogProgress = nextLogIndex / (logs.length - 1);
-        const progressDiff = nextLogProgress - currentLogProgress;
-
-        // Timeline duration in seconds
-        const totalTimelineSeconds = sessionDuration * 3600;
-        const timeToNextKeystroke =
-          (progressDiff * totalTimelineSeconds) / playbackSpeed;
+        // Use real timestamp differences for authentic typing speed
+        const currentLog = logs[currentLogIndex];
+        const nextLog = logs[nextLogIndex];
+        const currentTime = new Date(currentLog.timestamp);
+        const nextTime = new Date(nextLog.timestamp);
+        const realDelay = (nextTime - currentTime) / playbackSpeed; // Real time delay between keystrokes
 
         timeout = setTimeout(() => {
           setCurrentLogIndex(nextLogIndex);
-        }, timeToNextKeystroke * 1000); // Convert to milliseconds
+        }, realDelay);
       } else if (nextLogIndex === logs.length) {
         // Handle the final keystroke with a minimal delay to ensure it gets processed
         timeout = setTimeout(() => {
@@ -262,7 +275,7 @@ function App() {
         clearTimeout(timeout);
       }
     };
-  }, [isPlaying, currentLogIndex, logs, playbackSpeed, sessionDuration]);
+  }, [isPlaying, currentLogIndex, logs, playbackSpeed, isUserScrubbing]);
 
   // Reconstruct code for the editor based on the current log index
   useEffect(() => {
@@ -338,7 +351,7 @@ function App() {
     if (isPlaying) {
       // Pausing - record where we paused
       const now = Date.now();
-      const elapsed = (now - playbackStartTime) / 1000;
+      const elapsed = now - playbackStartTime;
       setPlaybackPausedAt((prev) => prev + elapsed);
       setIsPlaying(false);
     } else {
@@ -360,7 +373,14 @@ function App() {
     setIsPlaying(false);
     setCurrentLogIndex(logs.length - 1);
     setCurrentTime(sessionEnd);
-    setPlaybackPausedAt(sessionDuration * 3600); // Set to end
+    if (logs.length > 0) {
+      const firstLog = logs[0];
+      const lastLog = logs[logs.length - 1];
+      const totalAuthenticDuration =
+        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
+        playbackSpeed;
+      setPlaybackPausedAt(totalAuthenticDuration); // Set to end
+    }
     setPlaybackStartTime(null);
   };
 
@@ -374,10 +394,16 @@ function App() {
     const newTimelinePosition = sessionStart + progress * sessionDuration;
     setCurrentTime(newTimelinePosition);
 
-    // Update playback position for smooth timeline
-    const totalPlaybackDuration = sessionDuration * 3600;
-    setPlaybackPausedAt(progress * totalPlaybackDuration);
-    setPlaybackStartTime(Date.now());
+    // Update playback position for smooth timeline using authentic duration
+    if (logs.length > 0) {
+      const firstLog = logs[0];
+      const lastLog = logs[logs.length - 1];
+      const totalAuthenticDuration =
+        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
+        playbackSpeed;
+      setPlaybackPausedAt(progress * totalAuthenticDuration);
+      setPlaybackStartTime(Date.now());
+    }
   };
 
   const handleSkipForward = () => {
@@ -390,11 +416,65 @@ function App() {
     const newTimelinePosition = sessionStart + progress * sessionDuration;
     setCurrentTime(newTimelinePosition);
 
-    // Update playback position for smooth timeline
-    const totalPlaybackDuration = sessionDuration * 3600;
-    setPlaybackPausedAt(progress * totalPlaybackDuration);
-    setPlaybackStartTime(Date.now());
+    // Update playback position for smooth timeline using authentic duration
+    if (logs.length > 0) {
+      const firstLog = logs[0];
+      const lastLog = logs[logs.length - 1];
+      const totalAuthenticDuration =
+        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
+        playbackSpeed;
+      setPlaybackPausedAt(progress * totalAuthenticDuration);
+      setPlaybackStartTime(Date.now());
+    }
   };
+
+  // Handle timeline scrubbing - convert timeline position to log index
+  const handleTimelineChange = (newTime) => {
+    // Pause playback during scrubbing
+    if (isPlaying) {
+      setIsPlaying(false);
+      setIsUserScrubbing(true);
+    }
+
+    // Convert timeline position to progress (0-1)
+    const progress = Math.max(
+      0,
+      Math.min(1, (newTime - sessionStart) / sessionDuration)
+    );
+
+    // Convert progress to log index
+    const targetLogIndex = Math.round(progress * (logs.length - 1));
+    const clampedLogIndex = Math.max(
+      0,
+      Math.min(logs.length - 1, targetLogIndex)
+    );
+
+    // Update both timeline position and log index
+    setCurrentTime(newTime);
+    setCurrentLogIndex(clampedLogIndex);
+
+    // Update playback position for smooth timeline using authentic duration
+    if (logs.length > 0) {
+      const firstLog = logs[0];
+      const lastLog = logs[logs.length - 1];
+      const totalAuthenticDuration =
+        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
+        playbackSpeed;
+      setPlaybackPausedAt(progress * totalAuthenticDuration);
+      setPlaybackStartTime(Date.now());
+    }
+  };
+
+  // Reset scrubbing state when user stops interacting
+  useEffect(() => {
+    if (isUserScrubbing) {
+      const timer = setTimeout(() => {
+        setIsUserScrubbing(false);
+      }, 500); // Reset after 500ms of no scrubbing
+
+      return () => clearTimeout(timer);
+    }
+  }, [isUserScrubbing, currentTime]);
 
   return (
     <div className="app">
@@ -444,7 +524,7 @@ function App() {
       <PlaybarComponent
         segments={segments}
         currentTime={currentTime}
-        onTimeChange={setCurrentTime}
+        onTimeChange={handleTimelineChange}
         sessionStart={sessionStart}
         sessionEnd={sessionEnd}
         sessionDuration={sessionDuration}
