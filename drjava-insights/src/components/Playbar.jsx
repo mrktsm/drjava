@@ -1,19 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // Reactive React Playbar Component
-function PlaybarComponent() {
-  const [currentTime, setCurrentTime] = useState(8.2); // 8:12 in decimal hours
+function PlaybarComponent({
+  segments = [],
+  currentTime,
+  onTimeChange,
+  sessionStart = 0,
+  sessionEnd = 24,
+  sessionDuration = 24,
+}) {
   const [isDragging, setIsDragging] = useState(false);
   const [playbarWidth, setPlaybarWidth] = useState(0);
 
   const containerRef = useRef(null);
-  const totalDuration = 24; // 24 hours
-
-  // Sample segments - in a real app these would come from props
-  const segments = [
-    { start: 8.2, end: 11.53 }, // 08:12 to 11:32
-    { start: 14, end: 18 }, // 14:00 to 18:00
-  ];
 
   // Convert decimal hours to time string
   const formatTime = useCallback((decimalHours) => {
@@ -24,27 +23,27 @@ function PlaybarComponent() {
     return `${hours}:${minutes}`;
   }, []);
 
-  // Convert time position to percentage
+  // Convert time position to percentage (relative to session duration)
   const timeToPercentage = useCallback(
     (time) => {
-      return (time / totalDuration) * 100;
+      return ((time - sessionStart) / sessionDuration) * 100;
     },
-    [totalDuration]
+    [sessionStart, sessionDuration]
   );
 
   // Convert mouse position to time
   const mouseToTime = useCallback(
     (clientX) => {
-      if (!containerRef.current) return 0;
+      if (!containerRef.current) return sessionStart;
       const rect = containerRef.current.getBoundingClientRect();
       const relativeX = clientX - rect.left;
       const percentage = Math.max(
         0,
         Math.min(100, (relativeX / rect.width) * 100)
       );
-      return (percentage / 100) * totalDuration;
+      return sessionStart + (percentage / 100) * sessionDuration;
     },
-    [totalDuration]
+    [sessionStart, sessionDuration]
   );
 
   // Handle mouse down on playbar
@@ -52,10 +51,11 @@ function PlaybarComponent() {
     (e) => {
       setIsDragging(true);
       const newTime = mouseToTime(e.clientX);
-      setCurrentTime(newTime);
-      console.log("Time changed:", formatTime(newTime));
+      if (onTimeChange) {
+        onTimeChange(newTime);
+      }
     },
-    [mouseToTime, formatTime]
+    [mouseToTime, onTimeChange]
   );
 
   // Handle mouse move during drag
@@ -63,10 +63,11 @@ function PlaybarComponent() {
     (e) => {
       if (!isDragging) return;
       const newTime = mouseToTime(e.clientX);
-      setCurrentTime(newTime);
-      console.log("Time changed:", formatTime(newTime));
+      if (onTimeChange) {
+        onTimeChange(newTime);
+      }
     },
-    [isDragging, mouseToTime, formatTime]
+    [isDragging, mouseToTime, onTimeChange]
   );
 
   // Handle mouse up
@@ -96,28 +97,24 @@ function PlaybarComponent() {
     }
   }, [currentTime, timeToPercentage]);
 
-  // Generate hour lines (1-23, skipping 0)
-  const hourLines = [];
-  for (let i = 1; i < totalDuration; i++) {
-    const percentage = timeToPercentage(i);
+  // Generate evenly spaced lines (not hour-based)
+  const spacedLines = [];
+  const numberOfLines = 10; // Number of evenly spaced lines
+
+  for (let i = 1; i < numberOfLines; i++) {
+    const percentage = (i / numberOfLines) * 100;
+    const timeAtLine = sessionStart + (i / numberOfLines) * sessionDuration;
 
     // Determine color based on what's behind the line
-    const isUnderPlaybar = i <= currentTime;
-    const isUnderSegment = segments.some(
-      (segment) => i >= segment.start && i <= segment.end
-    );
+    const isUnderPlaybar = timeAtLine <= currentTime;
 
     let color = "#999"; // default grey
 
-    if (isUnderPlaybar && isUnderSegment) {
-      color = "#008080"; // Teal (blue-green) for overlap
-    } else if (isUnderPlaybar) {
+    if (isUnderPlaybar) {
       color = "#0088cc"; // Darker blue
-    } else if (isUnderSegment) {
-      color = "#cc9900"; // Darker orange
     }
 
-    hourLines.push(
+    spacedLines.push(
       <div
         key={i}
         className="hour-line"
@@ -130,23 +127,6 @@ function PlaybarComponent() {
     );
   }
 
-  // Generate segment elements
-  const segmentElements = segments.map((segment, index) => {
-    const startPercentage = timeToPercentage(segment.start);
-    const width = timeToPercentage(segment.end - segment.start);
-
-    return (
-      <div
-        key={index}
-        className="segment"
-        style={{
-          left: `${startPercentage}%`,
-          width: `${width}%`,
-        }}
-      />
-    );
-  });
-
   const currentPercentage = timeToPercentage(currentTime);
 
   return (
@@ -156,11 +136,8 @@ function PlaybarComponent() {
         className="playbar-container"
         onMouseDown={handleMouseDown}
       >
-        {/* Segments layer */}
-        <div className="segments-container">{segmentElements}</div>
-
-        {/* Hour lines layer */}
-        <div className="hour-line-container">{hourLines}</div>
+        {/* Spaced lines layer */}
+        <div className="hour-line-container">{spacedLines}</div>
 
         {/* Playbar (blue progress) */}
         <div className="playbar" style={{ width: `${playbarWidth}px` }} />

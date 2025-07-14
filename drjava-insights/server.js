@@ -27,12 +27,46 @@ app.get("/api/logs", (req, res) => {
       });
     }
 
-    // For now, just send the raw log data.
-    // Later we will parse this into structured JSON.
-    const parsedLogs = {
-      rawData: data,
-    };
+    // Parse the raw log data into a structured format
+    const lines = data.split("\n");
 
+    // Regex patterns for the new log format
+    const insertRegex =
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): Text inserted at position (\d+): "(.*)"/;
+    const deleteRegex =
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): Text deleted at position (\d+) \(length: (\d+)\)/;
+
+    const parsedLogs = lines
+      .map((line) => {
+        // Try to match insertion pattern
+        const insertMatch = line.match(insertRegex);
+        if (insertMatch) {
+          return {
+            timestamp: insertMatch[1],
+            type: "insert",
+            offset: parseInt(insertMatch[2], 10),
+            insertedText: insertMatch[3],
+            length: insertMatch[3].length,
+          };
+        }
+
+        // Try to match deletion pattern
+        const deleteMatch = line.match(deleteRegex);
+        if (deleteMatch) {
+          return {
+            timestamp: deleteMatch[1],
+            type: "delete",
+            offset: parseInt(deleteMatch[2], 10),
+            length: parseInt(deleteMatch[3], 10),
+            insertedText: "", // For deletions, we don't insert anything
+          };
+        }
+
+        return null; // Ignore lines that don't match either format
+      })
+      .filter(Boolean); // Remove any null entries
+
+    console.log(`Parsed ${parsedLogs.length} log entries`);
     res.json(parsedLogs);
   });
 });
