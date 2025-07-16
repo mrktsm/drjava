@@ -218,10 +218,10 @@
 }
 
 .timeline-divider {
-  width: 100%;
+  width: calc(100% + 30px);
   height: 1px;
   background-color: #d0d0d0; /* Match other borders */
-  margin: 8px 0;
+  margin: 8px -15px;
 }
 
 .hour-line {
