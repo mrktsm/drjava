@@ -185,6 +185,23 @@ function App() {
         (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
       );
 
+      // Check if app was already active when session started
+      // Look for the last activity event before session start
+      let wasActiveAtStart = false;
+      for (let i = sortedActivityLogs.length - 1; i >= 0; i--) {
+        const log = sortedActivityLogs[i];
+        const logTime = new Date(log.timestamp);
+        if (logTime < sessionStartTime) {
+          wasActiveAtStart = log.type === "app_activated";
+          break;
+        }
+      }
+
+      // If app was active at session start, begin with an active segment
+      if (wasActiveAtStart) {
+        currentActiveStart = sessionStartHours;
+      }
+
       sortedActivityLogs.forEach((log) => {
         const logTime = new Date(log.timestamp);
         const timeInHours =
@@ -192,7 +209,7 @@ function App() {
           logTime.getMinutes() / 60 +
           logTime.getSeconds() / 3600;
 
-        // Use session boundaries
+        // Only process events within or overlapping the session boundaries
         if (timeInHours < sessionStartHours || timeInHours > sessionEndHours) {
           return;
         }
@@ -219,6 +236,14 @@ function App() {
           end: sessionEndHours,
         });
       }
+
+      console.log("Activity processing:", {
+        wasActiveAtStart,
+        currentActiveStart,
+        sessionStartHours,
+        sessionEndHours,
+        activitySegments,
+      });
 
       return activitySegments;
     };
