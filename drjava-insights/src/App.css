@@ -23,7 +23,7 @@
 /* File Explorer */
 .file-explorer {
   width: 250px;
-  background-color: #f5f5f5;
+  background-color: #f5f5f5; /* Light grey */
   border-right: 1px solid #d0d0d0; /* Darkened from #e0e0e0 */
   padding: 15px 0; /* Remove left and right padding, keep only top and bottom */
   overflow-y: auto;
@@ -77,7 +77,7 @@
   flex: 1;
   min-height: 0;
   padding-top: 15px; /* Add top padding for breathing room */
-  background-color: #f5f5f5; /* Change to match timeline container grey */
+  background-color: #f5f5f5; /* Light grey */
   display: flex;
   flex-direction: column;
 }
@@ -93,7 +93,7 @@
 
 /* Media Controls Bar */
 .media-controls-container {
-  background-color: #f5f5f5; /* Change to match timeline container grey */
+  background-color: #f5f5f5; /* Light grey */
   padding: 12px 20px;
   display: flex;
   align-items: center;
@@ -145,7 +145,7 @@
 .container {
   padding: 0 15px;
   height: 150px; /* Increased from 130px */
-  background-color: #f5f5f5;
+  background-color: #e8e8e8; /* Darker grey for timeline area */
   border-top: 1px solid #d0d0d0; /* Darkened from #ddd to match other borders */
   display: flex;
   flex-direction: column;
@@ -156,10 +156,23 @@
   position: relative;
   width: 100%;
   height: 80px; /* Increased from 65px */
-  background-color: #eee;
+  background-color: #cce7ff; /* Pale blue background */
+  border: 1px solid #00aaff; /* Blue outline */
+  padding: 8px 0; /* Add vertical padding */
   margin: 0; /* Remove margin since we're using container padding */
   border-radius: 4px; /* Reduced from 8px to make it less rounded */
   overflow: visible; /* Allow cursor to extend beyond container */
+}
+
+.activity-bar-container {
+  position: relative;
+  width: 100%;
+  height: 20px; /* A smaller bar for the activity */
+  background-color: #ffcc99; /* Darker orange background */
+  border: 1px solid #ff8800; /* Orange outline */
+  padding: 4px 0; /* Add vertical padding */
+  margin-top: 5px; /* Space between the two bars */
+  border-radius: 4px;
 }
 
 .playbar {
@@ -170,27 +183,18 @@
   width: 0;
   background-color: #00aaff;
   border-radius: 4px 0 0 4px; /* Reduced from 8px to match container */
-  z-index: 1; /* Lowest layer */
-}
-
-.segments-container {
-  height: 100%;
-  position: relative; /* Add position for z-index to work */
-  z-index: 2; /* Above playbar */
+  z-index: 1;
 }
 
 .segment {
   position: absolute;
   top: 0;
   height: 100%;
-  background-color: #ffcc00;
-  opacity: 0.5;
-  border-radius: 2px;
 }
 
 .cursor {
   width: 3px; /* Made slightly wider */
-  height: 96px; /* Ends at the bottom of the playbar */
+  height: 112px; /* Extended to reach bottom of orange bar */
   background-color: red;
   position: absolute;
   z-index: 99999;
