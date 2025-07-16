@@ -82,17 +82,29 @@ function App() {
 // Select a log file to begin...`
   );
   const [segments, setSegments] = useState([]);
+  const [activitySegments, setActivitySegments] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [keystrokeLogs, setKeystrokeLogs] = useState([]); // Only insert/delete logs
+
+  // Real-time keystroke playback system
+  const [currentKeystrokeIndex, setCurrentKeystrokeIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [sessionStartTime, setSessionStartTime] = useState(null); // First keystroke timestamp
+  const [sessionEndTime, setSessionEndTime] = useState(null); // Last event timestamp
+
+  // Timeline display values
   const [currentTime, setCurrentTime] = useState(0);
   const [sessionStart, setSessionStart] = useState(0);
   const [sessionEnd, setSessionEnd] = useState(24);
   const [sessionDuration, setSessionDuration] = useState(24);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1); // 1x real-time speed
-  const [currentLogIndex, setCurrentLogIndex] = useState(0);
-  const [playbackStartTime, setPlaybackStartTime] = useState(null);
-  const [playbackPausedAt, setPlaybackPausedAt] = useState(0);
+
+  // Playback state for timeline synchronization
+  const [playbackStartTime, setPlaybackStartTime] = useState(null); // When playback started
+  const [playbackStartKeystroke, setPlaybackStartKeystroke] = useState(0); // Which keystroke we started from
   const [isUserScrubbing, setIsUserScrubbing] = useState(false);
+
+  const timeoutRef = useRef(null); // For keystroke scheduling
 
   // Fetch and process log data from the server
   useEffect(() => {
@@ -106,6 +118,9 @@ function App() {
       const SESSION_GAP_THRESHOLD = 5 * 60 * 1000; // 5 minutes in milliseconds
 
       sortedLogs.forEach((log, index) => {
+        // Only process text insertion/deletion events for the blue timeline
+        if (log.type !== "insert" && log.type !== "delete") return;
+
         const logTime = new Date(log.timestamp);
         const timeInHours =
           logTime.getHours() +
@@ -134,6 +149,80 @@ function App() {
       return newSegments;
     };
 
+    const processActivityLogs = (
+      sortedLogs,
+      sessionStartTime,
+      sessionEndTime
+    ) => {
+      if (
+        !sortedLogs ||
+        sortedLogs.length === 0 ||
+        !sessionStartTime ||
+        !sessionEndTime
+      ) {
+        return [];
+      }
+
+      const activityLogs = sortedLogs.filter(
+        (log) => log.type === "app_activated" || log.type === "app_deactivated"
+      );
+
+      const sessionStartHours =
+        sessionStartTime.getHours() +
+        sessionStartTime.getMinutes() / 60 +
+        sessionStartTime.getSeconds() / 3600;
+
+      const sessionEndHours =
+        sessionEndTime.getHours() +
+        sessionEndTime.getMinutes() / 60 +
+        sessionEndTime.getSeconds() / 3600;
+
+      const activitySegments = [];
+      let currentActiveStart = null;
+
+      // Filter and sort activity logs by their timestamps
+      const sortedActivityLogs = activityLogs.sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+      );
+
+      sortedActivityLogs.forEach((log) => {
+        const logTime = new Date(log.timestamp);
+        const timeInHours =
+          logTime.getHours() +
+          logTime.getMinutes() / 60 +
+          logTime.getSeconds() / 3600;
+
+        // Use session boundaries
+        if (timeInHours < sessionStartHours || timeInHours > sessionEndHours) {
+          return;
+        }
+
+        if (log.type === "app_deactivated") {
+          // App became inactive - end the current active segment
+          if (currentActiveStart !== null) {
+            activitySegments.push({
+              start: Math.max(currentActiveStart, sessionStartHours),
+              end: Math.min(timeInHours, sessionEndHours),
+            });
+            currentActiveStart = null;
+          }
+        } else if (log.type === "app_activated") {
+          // App became active - start a new active segment
+          currentActiveStart = Math.max(timeInHours, sessionStartHours);
+        }
+      });
+
+      // If we end with an active session, close it at the session end
+      if (currentActiveStart !== null) {
+        activitySegments.push({
+          start: currentActiveStart,
+          end: sessionEndHours,
+        });
+      }
+
+      return activitySegments;
+    };
+
     fetch("http://localhost:3001/api/logs")
       .then((res) => res.json())
       .then((data) => {
@@ -143,81 +232,174 @@ function App() {
         );
         setLogs(sortedLogs);
 
+        // Extract keystroke logs for real-time playback
+        const keystrokeLogs = sortedLogs.filter(
+          (log) => log.type === "insert" || log.type === "delete"
+        );
+        setKeystrokeLogs(keystrokeLogs);
+
         const processedSegments = processLogsIntoSegments(sortedLogs);
         setSegments(processedSegments);
 
-        // Calculate actual session duration from logs
-        if (sortedLogs.length > 0) {
-          const firstLogTime = new Date(sortedLogs[0].timestamp);
-          const lastLogTime = new Date(
-            sortedLogs[sortedLogs.length - 1].timestamp
+        // Calculate session boundaries
+        if (keystrokeLogs.length > 0) {
+          const firstKeystrokeTime = new Date(keystrokeLogs[0].timestamp);
+          const lastKeystrokeTime = new Date(
+            keystrokeLogs[keystrokeLogs.length - 1].timestamp
           );
 
-          const startTime =
-            firstLogTime.getHours() +
-            firstLogTime.getMinutes() / 60 +
-            firstLogTime.getSeconds() / 3600;
-          const endTime =
-            lastLogTime.getHours() +
-            lastLogTime.getMinutes() / 60 +
-            lastLogTime.getSeconds() / 3600;
+          // Session ends at the last keystroke, not extended to activity events
+          setSessionStartTime(firstKeystrokeTime);
+          setSessionEndTime(lastKeystrokeTime);
 
-          // Use exact timing from first to last log entry with small buffer for smooth completion
-          const duration = endTime - startTime + 0.001; // Add ~3.6 seconds buffer
+          // Convert to hours for timeline display
+          const startTimeHours =
+            firstKeystrokeTime.getHours() +
+            firstKeystrokeTime.getMinutes() / 60 +
+            firstKeystrokeTime.getSeconds() / 3600;
+          const endTimeHours =
+            lastKeystrokeTime.getHours() +
+            lastKeystrokeTime.getMinutes() / 60 +
+            lastKeystrokeTime.getSeconds() / 3600;
 
-          setSessionStart(startTime);
-          setSessionEnd(endTime + 0.001);
-          setSessionDuration(duration);
-          setCurrentTime(startTime);
-          setCurrentLogIndex(0);
-        }
+          setSessionStart(startTimeHours);
+          setSessionEnd(endTimeHours);
+          setSessionDuration(endTimeHours - startTimeHours);
+          setCurrentTime(startTimeHours);
 
-        if (processedSegments.length > 0) {
-          setCurrentTime(processedSegments[0].start);
+          // Process activity segments with keystroke-only session boundaries
+          const processedActivitySegments = processActivityLogs(
+            sortedLogs,
+            firstKeystrokeTime,
+            lastKeystrokeTime
+          );
+          setActivitySegments(processedActivitySegments);
+
+          // Reset playback state
+          setCurrentKeystrokeIndex(0);
+          setPlaybackStartKeystroke(0);
         }
       })
       .catch((err) => console.error("Error fetching logs:", err));
   }, []);
 
-  // Smooth timeline movement - synced with authentic keystroke duration
+  // Convert keystroke index to timeline position
+  const keystrokeIndexToTimelinePosition = (keystrokeIndex) => {
+    if (keystrokeLogs.length === 0) return sessionStart;
+
+    const progress = keystrokeIndex / (keystrokeLogs.length - 1);
+    return sessionStart + progress * sessionDuration;
+  };
+
+  // Convert timeline position to keystroke index
+  const timelinePositionToKeystrokeIndex = (timelinePos) => {
+    if (sessionDuration === 0) return 0;
+    const progress = Math.max(
+      0,
+      Math.min(1, (timelinePos - sessionStart) / sessionDuration)
+    );
+    return Math.min(
+      keystrokeLogs.length - 1,
+      Math.round(progress * (keystrokeLogs.length - 1))
+    );
+  };
+
+  // Schedule the next keystroke with authentic timing
+  const scheduleNextKeystroke = () => {
+    if (!isPlaying || currentKeystrokeIndex >= keystrokeLogs.length - 1) {
+      return;
+    }
+
+    const currentKeystroke = keystrokeLogs[currentKeystrokeIndex];
+    const nextKeystroke = keystrokeLogs[currentKeystrokeIndex + 1];
+
+    // Calculate actual delay between keystrokes
+    const currentTime = new Date(currentKeystroke.timestamp);
+    const nextTime = new Date(nextKeystroke.timestamp);
+    const actualDelay = nextTime - currentTime;
+    const scaledDelay = actualDelay / playbackSpeed;
+
+    console.log(
+      `Scheduling next keystroke in ${scaledDelay}ms (actual: ${actualDelay}ms)`
+    );
+
+    timeoutRef.current = setTimeout(() => {
+      if (isPlaying && !isUserScrubbing) {
+        setCurrentKeystrokeIndex((prev) => prev + 1);
+      }
+    }, scaledDelay);
+  };
+
+  // Real-time keystroke playback effect
+  useEffect(() => {
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    if (isPlaying && keystrokeLogs.length > 0 && !isUserScrubbing) {
+      if (currentKeystrokeIndex < keystrokeLogs.length - 1) {
+        scheduleNextKeystroke();
+      } else {
+        // Reached the end
+        setIsPlaying(false);
+      }
+    }
+
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [
+    isPlaying,
+    currentKeystrokeIndex,
+    keystrokeLogs,
+    playbackSpeed,
+    isUserScrubbing,
+  ]);
+
+  // Timeline synchronization effect - update timeline position based on keystroke progress
   useEffect(() => {
     let animationFrame;
 
-    // Don't animate timeline if user is scrubbing
-    if (isPlaying && logs.length > 0 && !isUserScrubbing) {
-      // Calculate total authentic duration from logs
-      const firstLog = logs[0];
-      const lastLog = logs[logs.length - 1];
-      const totalAuthenticDuration =
-        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
-        playbackSpeed;
-
-      const animate = () => {
+    if (
+      isPlaying &&
+      keystrokeLogs.length > 0 &&
+      playbackStartTime &&
+      !isUserScrubbing
+    ) {
+      const updateTimeline = () => {
         const now = Date.now();
-        const elapsed = now - playbackStartTime; // milliseconds elapsed since play started
-        const progress = Math.min(
-          1,
-          (playbackPausedAt + elapsed) / totalAuthenticDuration
+        const elapsedSincePlay = now - playbackStartTime;
+
+        // Calculate how much progress we've made through the keystrokes based on real time
+        const currentKeystroke = keystrokeLogs[playbackStartKeystroke];
+        const sessionElapsedMs = elapsedSincePlay * playbackSpeed;
+        const currentKeystrokeTime = new Date(currentKeystroke.timestamp);
+        const expectedCurrentTime = new Date(
+          currentKeystrokeTime.getTime() + sessionElapsedMs
         );
 
-        const timelinePosition = sessionStart + progress * sessionDuration;
+        // Convert to timeline position
+        const totalSessionMs = sessionEndTime - sessionStartTime;
+        const progressThroughSession = Math.min(
+          1,
+          (expectedCurrentTime - sessionStartTime) / totalSessionMs
+        );
+        const timelinePosition =
+          sessionStart + progressThroughSession * sessionDuration;
+
         setCurrentTime(timelinePosition);
 
-        // Continue animation until both timeline is complete AND all keystrokes are processed
-        const allKeystrokesProcessed = currentLogIndex >= logs.length - 1;
-        const timelineComplete = progress >= 1;
-
-        if (!timelineComplete || !allKeystrokesProcessed) {
-          animationFrame = requestAnimationFrame(animate);
-        } else {
-          // Reached the end - both timeline and keystrokes complete
-          setIsPlaying(false);
-          setCurrentTime(sessionEnd);
-          setCurrentLogIndex(logs.length - 1);
+        if (isPlaying) {
+          animationFrame = requestAnimationFrame(updateTimeline);
         }
       };
 
-      animationFrame = requestAnimationFrame(animate);
+      animationFrame = requestAnimationFrame(updateTimeline);
     }
 
     return () => {
@@ -228,71 +410,39 @@ function App() {
   }, [
     isPlaying,
     playbackStartTime,
-    playbackPausedAt,
+    playbackStartKeystroke,
+    keystrokeLogs,
+    sessionStartTime,
+    sessionEndTime,
     sessionStart,
-    sessionEnd,
     sessionDuration,
-    logs,
-    currentLogIndex,
-    isUserScrubbing,
     playbackSpeed,
+    isUserScrubbing,
   ]);
 
-  // Event-driven playback for keystrokes - using authentic timing
+  // Reconstruct code based on current keystroke index
   useEffect(() => {
-    let timeout;
+    if (keystrokeLogs.length === 0) return;
 
-    // Don't advance keystrokes if user is scrubbing
-    if (
-      isPlaying &&
-      logs.length > 0 &&
-      currentLogIndex < logs.length &&
-      !isUserScrubbing
-    ) {
-      const nextLogIndex = currentLogIndex + 1;
-
-      if (nextLogIndex < logs.length) {
-        // Use real timestamp differences for authentic typing speed
-        const currentLog = logs[currentLogIndex];
-        const nextLog = logs[nextLogIndex];
-        const currentTime = new Date(currentLog.timestamp);
-        const nextTime = new Date(nextLog.timestamp);
-        const realDelay = (nextTime - currentTime) / playbackSpeed; // Real time delay between keystrokes
-
-        timeout = setTimeout(() => {
-          setCurrentLogIndex(nextLogIndex);
-        }, realDelay);
-      } else if (nextLogIndex === logs.length) {
-        // Handle the final keystroke with a minimal delay to ensure it gets processed
-        timeout = setTimeout(() => {
-          setCurrentLogIndex(logs.length - 1);
-        }, 50); // Small delay to ensure final keystroke is visible
-      }
-    }
-
-    return () => {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-    };
-  }, [isPlaying, currentLogIndex, logs, playbackSpeed, isUserScrubbing]);
-
-  // Reconstruct code for the editor based on the current log index
-  useEffect(() => {
-    if (logs.length === 0) return;
+    // Find the corresponding index in the full logs array
+    const targetKeystroke = keystrokeLogs[currentKeystrokeIndex];
+    const fullLogIndex = logs.findIndex(
+      (log) =>
+        log.timestamp === targetKeystroke.timestamp &&
+        log.type === targetKeystroke.type &&
+        log.offset === targetKeystroke.offset
+    );
 
     const reconstructCodeAtLogIndex = (targetIndex, allLogs) => {
       let fileContent = "";
       for (let i = 0; i <= targetIndex && i < allLogs.length; i++) {
         const log = allLogs[i];
         if (log.type === "insert") {
-          // Insert text at the specified position
           fileContent =
             fileContent.slice(0, log.offset) +
             log.insertedText +
             fileContent.slice(log.offset);
         } else if (log.type === "delete") {
-          // Delete text from the specified position
           fileContent =
             fileContent.slice(0, log.offset) +
             fileContent.slice(log.offset + log.length);
@@ -301,9 +451,9 @@ function App() {
       return fileContent;
     };
 
-    const newCode = reconstructCodeAtLogIndex(currentLogIndex, logs);
+    const newCode = reconstructCodeAtLogIndex(fullLogIndex, logs);
     setCode(newCode);
-  }, [currentLogIndex, logs]);
+  }, [currentKeystrokeIndex, keystrokeLogs, logs]);
 
   // Sample files for the file explorer
   const [files] = useState([
@@ -349,96 +499,81 @@ function App() {
 
   const handlePlayPause = () => {
     if (isPlaying) {
-      // Pausing - record where we paused
-      const now = Date.now();
-      const elapsed = now - playbackStartTime;
-      setPlaybackPausedAt((prev) => prev + elapsed);
+      // Pausing
       setIsPlaying(false);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     } else {
       // Check if we're at the end - if so, restart from beginning
-      const isAtEnd = currentLogIndex >= logs.length - 1;
-
-      if (isAtEnd) {
-        // Restart from beginning
-        setCurrentLogIndex(0);
+      if (currentKeystrokeIndex >= keystrokeLogs.length - 1) {
+        setCurrentKeystrokeIndex(0);
         setCurrentTime(sessionStart);
-        setPlaybackPausedAt(0);
       }
 
-      // Starting/resuming - record when we started
+      // Starting/resuming
       setPlaybackStartTime(Date.now());
+      setPlaybackStartKeystroke(currentKeystrokeIndex);
       setIsPlaying(true);
     }
   };
 
   const handleRestart = () => {
     setIsPlaying(false);
-    setCurrentLogIndex(0);
+    setCurrentKeystrokeIndex(0);
     setCurrentTime(sessionStart);
-    setPlaybackPausedAt(0);
-    setPlaybackStartTime(null);
+    setPlaybackStartKeystroke(0);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
   };
 
   const handleSkipToEnd = () => {
     setIsPlaying(false);
-    setCurrentLogIndex(logs.length - 1);
+    setCurrentKeystrokeIndex(keystrokeLogs.length - 1);
     setCurrentTime(sessionEnd);
-    if (logs.length > 0) {
-      const firstLog = logs[0];
-      const lastLog = logs[logs.length - 1];
-      const totalAuthenticDuration =
-        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
-        playbackSpeed;
-      setPlaybackPausedAt(totalAuthenticDuration); // Set to end
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
-    setPlaybackStartTime(null);
   };
 
   const handleSkipBackward = () => {
-    const skipAmount = Math.max(1, Math.floor(logs.length * 0.1)); // Skip back 10% of logs
-    const newIndex = Math.max(0, currentLogIndex - skipAmount);
-    setCurrentLogIndex(newIndex);
+    const skipAmount = Math.max(1, Math.floor(keystrokeLogs.length * 0.1)); // Skip back 10%
+    const newIndex = Math.max(0, currentKeystrokeIndex - skipAmount);
 
-    // Update timeline to match the log position
-    const progress = newIndex / (logs.length - 1);
-    const newTimelinePosition = sessionStart + progress * sessionDuration;
-    setCurrentTime(newTimelinePosition);
+    setCurrentKeystrokeIndex(newIndex);
+    setCurrentTime(keystrokeIndexToTimelinePosition(newIndex));
+    setPlaybackStartKeystroke(newIndex);
+    setPlaybackStartTime(Date.now());
 
-    // Update playback position for smooth timeline using authentic duration
-    if (logs.length > 0) {
-      const firstLog = logs[0];
-      const lastLog = logs[logs.length - 1];
-      const totalAuthenticDuration =
-        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
-        playbackSpeed;
-      setPlaybackPausedAt(progress * totalAuthenticDuration);
-      setPlaybackStartTime(Date.now());
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
   };
 
   const handleSkipForward = () => {
-    const skipAmount = Math.max(1, Math.floor(logs.length * 0.1)); // Skip forward 10% of logs
-    const newIndex = Math.min(logs.length - 1, currentLogIndex + skipAmount);
-    setCurrentLogIndex(newIndex);
+    const skipAmount = Math.max(1, Math.floor(keystrokeLogs.length * 0.1)); // Skip forward 10%
+    const newIndex = Math.min(
+      keystrokeLogs.length - 1,
+      currentKeystrokeIndex + skipAmount
+    );
 
-    // Update timeline to match the log position
-    const progress = newIndex / (logs.length - 1);
-    const newTimelinePosition = sessionStart + progress * sessionDuration;
-    setCurrentTime(newTimelinePosition);
+    setCurrentKeystrokeIndex(newIndex);
+    setCurrentTime(keystrokeIndexToTimelinePosition(newIndex));
+    setPlaybackStartKeystroke(newIndex);
+    setPlaybackStartTime(Date.now());
 
-    // Update playback position for smooth timeline using authentic duration
-    if (logs.length > 0) {
-      const firstLog = logs[0];
-      const lastLog = logs[logs.length - 1];
-      const totalAuthenticDuration =
-        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
-        playbackSpeed;
-      setPlaybackPausedAt(progress * totalAuthenticDuration);
-      setPlaybackStartTime(Date.now());
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
   };
 
-  // Handle timeline scrubbing - convert timeline position to log index
+  // Handle timeline scrubbing
   const handleTimelineChange = (newTime) => {
     // Pause playback during scrubbing
     if (isPlaying) {
@@ -446,32 +581,16 @@ function App() {
       setIsUserScrubbing(true);
     }
 
-    // Convert timeline position to progress (0-1)
-    const progress = Math.max(
-      0,
-      Math.min(1, (newTime - sessionStart) / sessionDuration)
-    );
-
-    // Convert progress to log index
-    const targetLogIndex = Math.round(progress * (logs.length - 1));
-    const clampedLogIndex = Math.max(
-      0,
-      Math.min(logs.length - 1, targetLogIndex)
-    );
-
-    // Update both timeline position and log index
+    // Convert timeline position to keystroke index
+    const newKeystrokeIndex = timelinePositionToKeystrokeIndex(newTime);
+    setCurrentKeystrokeIndex(newKeystrokeIndex);
     setCurrentTime(newTime);
-    setCurrentLogIndex(clampedLogIndex);
+    setPlaybackStartKeystroke(newKeystrokeIndex);
+    setPlaybackStartTime(Date.now());
 
-    // Update playback position for smooth timeline using authentic duration
-    if (logs.length > 0) {
-      const firstLog = logs[0];
-      const lastLog = logs[logs.length - 1];
-      const totalAuthenticDuration =
-        (new Date(lastLog.timestamp) - new Date(firstLog.timestamp)) /
-        playbackSpeed;
-      setPlaybackPausedAt(progress * totalAuthenticDuration);
-      setPlaybackStartTime(Date.now());
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
   };
 
@@ -533,6 +652,7 @@ function App() {
       </div>
       <PlaybarComponent
         segments={segments}
+        activitySegments={activitySegments}
         currentTime={currentTime}
         onTimeChange={handleTimelineChange}
         sessionStart={sessionStart}

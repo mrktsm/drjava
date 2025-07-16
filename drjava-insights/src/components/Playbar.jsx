@@ -135,16 +135,6 @@ function PlaybarComponent({
 
   const currentPercentage = timeToPercentage(currentTime);
 
-  // Fallback data if activitySegments is empty
-  const activityData =
-    activitySegments.length > 0
-      ? activitySegments
-      : [
-          { start: 2, end: 6 },
-          { start: 7, end: 12 },
-          { start: 15, end: 20 },
-        ];
-
   return (
     <div className="container">
       <div className="time-ticks-container">{spacedLines}</div>
@@ -169,7 +159,7 @@ function PlaybarComponent({
 
       {/* Activity Bar (Orange) */}
       <div className="activity-bar-container">
-        {activityData.map((seg, index) => {
+        {activitySegments.map((seg, index) => {
           const left = timeToPercentage(seg.start);
           const width = timeToPercentage(seg.end) - left;
           return (

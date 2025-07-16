@@ -350,7 +350,7 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   }
 
   /** Return the suggested file extension that will be appended to a file without extension.
-    * @return the suggested file extension */
+   * @return the suggested file extension */
   private String getSuggestedFileExtension() {
     CompilerModel cm = _model.getCompilerModel();
     if (cm == null) return DrJavaFileUtils.getSuggestedFileExtension();
@@ -3301,7 +3301,6 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
     KeyboardFocusManager.getCurrentKeyboardFocusManager().addPropertyChangeListener(
       "activeWindow", new PropertyChangeListener() {
         private volatile long _unfocusedTimestamp = 0L;
-        private static final int MIN_FOCUS_DURATION_MS = 20; // Only log if unfocused for at least 100ms
         
         public void propertyChange(PropertyChangeEvent evt) {
           Window newActiveWindow = (Window) evt.getNewValue();
@@ -3309,18 +3308,11 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
           if (newActiveWindow == null) {
             // No active window - app is being deactivated
             _unfocusedTimestamp = System.currentTimeMillis();
-            // Don't log immediately - wait to see if it's a real focus loss
+            _writeToLogFile("APP_DEACTIVATED: " + _unfocusedTimestamp);
           } else if (_unfocusedTimestamp > 0) {
             // An active window exists and we were previously deactivated
             long refocusedTimestamp = System.currentTimeMillis();
-            long timeAway = refocusedTimestamp - _unfocusedTimestamp;
-            
-            // Only log if we were away for a meaningful amount of time
-            if (timeAway >= MIN_FOCUS_DURATION_MS) {
-              _writeToLogFile("APP_DEACTIVATED: " + _unfocusedTimestamp);
-              _writeToLogFile("APP_ACTIVATED: " + refocusedTimestamp + " (away for " + timeAway + "ms)");
-            }
-            
+            _writeToLogFile("APP_ACTIVATED: " + refocusedTimestamp);
             _unfocusedTimestamp = 0;
           }
         }

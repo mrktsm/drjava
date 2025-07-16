@@ -7,7 +7,15 @@ const port = 3001;
 
 // Explicitly allow requests from the Vite development server
 const corsOptions = {
-  origin: "http://localhost:5173",
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+    "http://localhost:4173",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:4173",
+  ],
   optionsSuccessStatus: 200, // For legacy browser compatibility
 };
 
@@ -35,6 +43,10 @@ app.get("/api/logs", (req, res) => {
       /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): Text inserted at position (\d+): "(.*)"/;
     const deleteRegex =
       /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): Text deleted at position (\d+) \(length: (\d+)\)/;
+    const appActivatedRegex =
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): APP_ACTIVATED: (\d+)(?: \(away for (\d+)ms\))?/;
+    const appDeactivatedRegex =
+      /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): APP_DEACTIVATED: (\d+)/;
 
     const parsedLogs = lines
       .map((line) => {
@@ -62,7 +74,30 @@ app.get("/api/logs", (req, res) => {
           };
         }
 
-        return null; // Ignore lines that don't match either format
+        // Try to match app activated pattern
+        const activatedMatch = line.match(appActivatedRegex);
+        if (activatedMatch) {
+          return {
+            timestamp: activatedMatch[1],
+            type: "app_activated",
+            epochTime: parseInt(activatedMatch[2], 10),
+            awayDuration: activatedMatch[3]
+              ? parseInt(activatedMatch[3], 10)
+              : null,
+          };
+        }
+
+        // Try to match app deactivated pattern
+        const deactivatedMatch = line.match(appDeactivatedRegex);
+        if (deactivatedMatch) {
+          return {
+            timestamp: deactivatedMatch[1],
+            type: "app_deactivated",
+            epochTime: parseInt(deactivatedMatch[2], 10),
+          };
+        }
+
+        return null; // Ignore lines that don't match any format
       })
       .filter(Boolean); // Remove any null entries
 
