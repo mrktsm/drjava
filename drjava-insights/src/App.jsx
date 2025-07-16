@@ -355,6 +355,16 @@ function App() {
       setPlaybackPausedAt((prev) => prev + elapsed);
       setIsPlaying(false);
     } else {
+      // Check if we're at the end - if so, restart from beginning
+      const isAtEnd = currentLogIndex >= logs.length - 1;
+
+      if (isAtEnd) {
+        // Restart from beginning
+        setCurrentLogIndex(0);
+        setCurrentTime(sessionStart);
+        setPlaybackPausedAt(0);
+      }
+
       // Starting/resuming - record when we started
       setPlaybackStartTime(Date.now());
       setIsPlaying(true);

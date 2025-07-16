@@ -99,31 +99,36 @@ function PlaybarComponent({
 
   // Generate evenly spaced lines (not hour-based)
   const spacedLines = [];
-  const numberOfLines = 10; // Number of evenly spaced lines
+  const numberOfLines = 10; // Number of main sections
+  const subdivisions = 2; // Number of subdivisions between main lines
+  const totalLines = numberOfLines * subdivisions;
 
-  for (let i = 1; i < numberOfLines; i++) {
-    const percentage = (i / numberOfLines) * 100;
-    const timeAtLine = sessionStart + (i / numberOfLines) * sessionDuration;
+  for (let i = 0; i <= totalLines; i++) {
+    const percentage = (i / totalLines) * 100;
+    const color = "#999"; // Ticks are a constant color now
+    const isMainLine = i % subdivisions === 0;
 
-    // Determine color based on what's behind the line
-    const isUnderPlaybar = timeAtLine <= currentTime;
+    const style = {
+      left: `${percentage}%`,
+      borderLeftColor: color,
+    };
 
-    let color = "#999"; // default grey
+    if (percentage === 100) {
+      style.marginLeft = "-1px";
+    }
 
-    if (isUnderPlaybar) {
-      color = "#0088cc"; // Darker blue
+    const className = isMainLine ? "hour-line" : "hour-line hour-line--small";
+
+    let label = null;
+    if (isMainLine) {
+      const timeAtLine = sessionStart + (i / totalLines) * sessionDuration;
+      label = <div className="hour-label">{formatTime(timeAtLine)}</div>;
     }
 
     spacedLines.push(
-      <div
-        key={i}
-        className="hour-line"
-        style={{
-          left: `${percentage}%`,
-          borderLeftColor: color,
-          backgroundColor: color,
-        }}
-      />
+      <div key={i} className={className} style={style}>
+        {label}
+      </div>
     );
   }
 
@@ -131,14 +136,13 @@ function PlaybarComponent({
 
   return (
     <div className="container">
+      <div className="time-ticks-container">{spacedLines}</div>
+      <div className="timeline-divider" />
       <div
         ref={containerRef}
         className="playbar-container"
         onMouseDown={handleMouseDown}
       >
-        {/* Spaced lines layer */}
-        <div className="hour-line-container">{spacedLines}</div>
-
         {/* Playbar (blue progress) */}
         <div className="playbar" style={{ width: `${playbarWidth}px` }} />
 

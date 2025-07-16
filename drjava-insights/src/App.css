@@ -148,8 +148,8 @@
   background-color: #f5f5f5;
   border-top: 1px solid #d0d0d0; /* Darkened from #ddd to match other borders */
   display: flex;
-  align-items: center; /* Changed from flex-start to center */
-  padding-top: 0; /* Remove top padding since we're centering */
+  flex-direction: column;
+  justify-content: flex-start; /* Align content to the top */
 }
 
 .playbar-container {
@@ -190,12 +190,12 @@
 
 .cursor {
   width: 3px; /* Made slightly wider */
-  height: 90px; /* Increased from 75px to match taller playbar */
+  height: 96px; /* Ends at the bottom of the playbar */
   background-color: red;
   position: absolute;
   z-index: 99999;
   cursor: pointer;
-  top: -5px; /* Slightly offset to extend above playbar */
+  top: -8px; /* Positioned so circle is just above playbar */
 }
 
 .cursor::after {
@@ -204,36 +204,45 @@
   height: 18px;
   background-color: red;
   position: absolute;
-  top: -9px; /* Move circle to the top (flipped from bottom: 100%) */
+  top: -18px; /* Aligned bottom of circle with bottom of time bar */
   left: -7px;
   border-radius: 50%;
 }
 
-.hour-line-container {
-  position: absolute;
-  top: 0;
-  left: 0;
+.time-ticks-container {
+  position: relative; /* New container for ticks */
   width: 100%;
-  height: 100%;
+  height: 20px; /* Give it some space */
   pointer-events: none;
-  z-index: 3; /* Above segments */
+  margin-bottom: 0; /* Let divider handle spacing */
+}
+
+.timeline-divider {
+  width: 100%;
+  height: 1px;
+  background-color: #d0d0d0; /* Match other borders */
+  margin: 8px 0;
 }
 
 .hour-line {
   position: absolute;
-  top: 0;
+  top: 0; /* Position ticks at the top of their container */
   width: 1px;
-  height: 100%;
+  height: 10px; /* Height of the tick */
   border-left: 1px solid; /* Use solid border, color is set in component */
   /* Removed hardcoded background-color, opacity and border color */
 }
 
+.hour-line--small {
+  height: 5px; /* Smaller height for intermediate ticks */
+}
+
 .hour-label {
   position: absolute;
-  bottom: -35px; /* Adjusted for larger container and cursor space */
+  top: 10px; /* Position below the main tick */
   left: 50%;
   transform: translateX(-50%);
-  font-size: 12px;
-  color: #000;
+  font-size: 11px; /* Slightly smaller font */
+  color: #666; /* Softer grey */
   font-family: monospace;
 }
