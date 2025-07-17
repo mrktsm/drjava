@@ -9,23 +9,123 @@ import {
   FaForward,
   FaFastForward,
 } from "react-icons/fa";
+import { BsFiletypeJava } from "react-icons/bs";
+import { VscFile, VscChevronDown, VscChevronRight } from "react-icons/vsc";
 import PlaybarComponent from "./components/Playbar";
 
 // React component for file explorer
 function FileExplorer({ files, activeFile, onFileSelect }) {
+  const [isProjectExpanded, setIsProjectExpanded] = useState(true);
+
+  const toggleProjectFolder = () => {
+    setIsProjectExpanded(!isProjectExpanded);
+  };
+
+  const getFileIcon = (filename) => {
+    const extension = filename.split(".").pop().toLowerCase();
+    switch (extension) {
+      case "java":
+        return <BsFiletypeJava className="file-icon java" />;
+      default:
+        return <VscFile className="file-icon" />;
+    }
+  };
+
   return (
     <div className="file-explorer">
-      <ul className="file-list">
-        {files.map((file, index) => (
-          <li
-            key={index}
-            className={`file-item ${activeFile === file ? "active" : ""}`}
-            onClick={() => onFileSelect(file)}
-          >
-            {file}
-          </li>
-        ))}
-      </ul>
+      <div className="explorer-header">EXPLORER</div>
+      <div className="explorer-content">
+        <button className="project-folder" onClick={toggleProjectFolder}>
+          <div className="chevron-container">
+            {isProjectExpanded ? (
+              <VscChevronDown size={16} className="chevron-icon" />
+            ) : (
+              <VscChevronRight size={16} className="chevron-icon" />
+            )}
+          </div>
+          <span className="project-name">DRJAVA PROJECT</span>
+        </button>
+
+        {isProjectExpanded && (
+          <div className="files-container">
+            <div className="tree-line"></div>
+
+            {files.map((file, index) => (
+              <div
+                key={index}
+                className={`file-item-vscode ${
+                  activeFile === file ? "active" : ""
+                }`}
+                onClick={() => onFileSelect(file)}
+                title={file}
+              >
+                {getFileIcon(file)}
+                <span className="file-name">{file}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// React component for info panel (right side)
+function InfoPanel({ keystrokeLogs, currentKeystrokeIndex, isPlaying }) {
+  const currentKeystroke = keystrokeLogs[currentKeystrokeIndex];
+  const totalKeystrokes = keystrokeLogs.length;
+  const progress =
+    totalKeystrokes > 0
+      ? (((currentKeystrokeIndex + 1) / totalKeystrokes) * 100).toFixed(1)
+      : 0;
+
+  return (
+    <div className="info-panel">
+      <h3>Session Info</h3>
+      <div className="info-content">
+        <div className="info-item">
+          <label>Status:</label>
+          <span className={`status ${isPlaying ? "playing" : "paused"}`}>
+            {isPlaying ? "Playing" : "Paused"}
+          </span>
+        </div>
+        <div className="info-item">
+          <label>Progress:</label>
+          <span>
+            {currentKeystrokeIndex + 1} / {totalKeystrokes} ({progress}%)
+          </span>
+        </div>
+        <div className="info-item">
+          <label>Total Keystrokes:</label>
+          <span>{totalKeystrokes}</span>
+        </div>
+        {currentKeystroke && (
+          <>
+            <div className="info-item">
+              <label>Current Action:</label>
+              <span className={`action-type ${currentKeystroke.type}`}>
+                {currentKeystroke.type === "insert" ? "Insert" : "Delete"}
+              </span>
+            </div>
+            <div className="info-item">
+              <label>Character:</label>
+              <span className="character">
+                "{currentKeystroke.insertedText || "⌫"}"
+              </span>
+            </div>
+            <div className="info-item">
+              <label>Position:</label>
+              <span>{currentKeystroke.offset}</span>
+            </div>
+            <div className="info-item">
+              <label>Timestamp:</label>
+              <span className="timestamp">
+                {new Date(currentKeystroke.timestamp).toLocaleTimeString()}
+              </span>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -633,11 +733,11 @@ function App() {
   return (
     <div className="app">
       <div className="main-content">
-        {/* <FileExplorer
+        <FileExplorer
           files={files}
           activeFile={activeFile}
           onFileSelect={handleFileSelect}
-        /> */}
+        />
         <div className="editor-and-controls-area">
           <div className="editor-container">
             <div className="editor-wrapper">
@@ -674,6 +774,11 @@ function App() {
             onSkipToEnd={handleSkipToEnd}
           />
         </div>
+        <InfoPanel
+          keystrokeLogs={keystrokeLogs}
+          currentKeystrokeIndex={currentKeystrokeIndex}
+          isPlaying={isPlaying}
+        />
       </div>
       <PlaybarComponent
         segments={segments}
