@@ -81,7 +81,7 @@ function InfoPanel({ keystrokeLogs, currentKeystrokeIndex, isPlaying }) {
 
   return (
     <div className="info-panel">
-      <h3>Session Info</h3>
+      <h3>SESSION INFO</h3>
       <div className="info-content">
         <div className="info-item">
           <label>Status:</label>
@@ -740,6 +740,10 @@ function App() {
         />
         <div className="editor-and-controls-area">
           <div className="editor-container">
+            <div className="editor-header">
+              <span className="file-title">{activeFile}</span>
+              <VscChevronDown size={16} className="file-chevron" />
+            </div>
             <div className="editor-wrapper">
               <Editor
                 height="100%"
