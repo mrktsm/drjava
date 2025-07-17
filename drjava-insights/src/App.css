@@ -139,7 +139,7 @@
 }
 
 .file-icon.java {
-  color: #ed8b00; /* Java orange for light theme */
+  color: #dc3545; /* Red color for Java files */
 }
 
 .file-name {
