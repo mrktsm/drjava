@@ -56,6 +56,7 @@
   padding: 4px 16px;
   background: none;
   border: none;
+  border-radius: 0; /* Remove any circular/rounded styling */
   cursor: pointer;
   font-size: 13px;
   color: #495057;
@@ -266,7 +267,7 @@
   width: 100%;
   height: 80px; /* Increased from 65px */
   background-color: #cce7ff; /* Pale blue background */
-  border: 1px solid #ced4da; /* Light grey outline */
+  border: 1px solid #00aaff; /* Blue outline restored */
   padding: 8px 0; /* Add vertical padding */
   margin: 0; /* Remove margin since we're using container padding */
   border-radius: 4px; /* Reduced from 8px to make it less rounded */
@@ -278,7 +279,7 @@
   width: 100%;
   height: 20px; /* A smaller bar for the activity */
   background-color: #ffcc99; /* Darker orange background */
-  border: 1px solid #ced4da; /* Light grey outline */
+  border: 1px solid #ff8800; /* Orange outline restored */
   padding: 4px 0; /* Add vertical padding */
   margin-top: 5px; /* Space between the two bars */
   border-radius: 4px;
