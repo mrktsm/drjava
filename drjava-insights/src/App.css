@@ -25,7 +25,7 @@
 .file-explorer {
   width: 300px;
   background-color: #e9ecef; /* Dark background */
-  border-right: 3px solid #ced4da; /* Light grey divider */
+  border-right: 1px solid #ced4da; /* Thin divider instead of 3px */
   display: flex;
   flex-direction: column;
   color: #495057;
@@ -255,7 +255,7 @@
   padding: 0 15px;
   height: 150px; /* Increased from 130px */
   background-color: #e9ecef; /* Dark background */
-  border-top: 3px solid #ced4da; /* Light grey divider */
+  border-top: 1px solid #ced4da; /* Thin divider instead of 3px */
   display: flex;
   flex-direction: column;
   justify-content: flex-start; /* Align content to the top */
@@ -364,7 +364,7 @@
 .info-panel {
   width: 300px; /* Increased from 250px */
   background-color: #e9ecef; /* Dark background */
-  border-left: 3px solid #ced4da; /* Light grey divider */
+  border-left: 1px solid #ced4da; /* Thin divider instead of 3px */
   padding: 0; /* Remove padding to match file explorer */
   overflow-y: auto;
   display: flex;
