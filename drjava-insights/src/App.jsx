@@ -204,6 +204,9 @@ function App() {
   const [playbackStartKeystroke, setPlaybackStartKeystroke] = useState(0); // Which keystroke we started from
   const [isUserScrubbing, setIsUserScrubbing] = useState(false);
 
+  // File dropdown state
+  const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
+
   const timeoutRef = useRef(null); // For keystroke scheduling
 
   // Fetch and process log data from the server
@@ -618,8 +621,13 @@ function App() {
 
   const handleFileSelect = (filename) => {
     setActiveFile(filename);
+    setIsFileDropdownOpen(false); // Close dropdown when file is selected
     console.log("Selected file:", filename);
     // Here you would load the content for the selected file
+  };
+
+  const toggleFileDropdown = () => {
+    setIsFileDropdownOpen(!isFileDropdownOpen);
   };
 
   const handlePlayPause = () => {
@@ -733,16 +741,35 @@ function App() {
   return (
     <div className="app">
       <div className="main-content">
-        <FileExplorer
+        {/* <FileExplorer
           files={files}
           activeFile={activeFile}
           onFileSelect={handleFileSelect}
-        />
+        /> */}
         <div className="editor-and-controls-area">
           <div className="editor-container">
-            <div className="editor-header">
+            <div className="editor-header" onClick={toggleFileDropdown}>
               <span className="file-title">{activeFile}</span>
               <VscChevronDown size={16} className="file-chevron" />
+              {isFileDropdownOpen && (
+                <div className="file-dropdown">
+                  {files.map((file, index) => (
+                    <div
+                      key={index}
+                      className={`file-dropdown-item ${
+                        activeFile === file ? "active" : ""
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFileSelect(file);
+                      }}
+                    >
+                      <BsFiletypeJava className="file-icon java" />
+                      <span className="file-name">{file}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="editor-wrapper">
               <Editor
@@ -778,11 +805,11 @@ function App() {
             onSkipToEnd={handleSkipToEnd}
           />
         </div>
-        <InfoPanel
+        {/* <InfoPanel
           keystrokeLogs={keystrokeLogs}
           currentKeystrokeIndex={currentKeystrokeIndex}
           isPlaying={isPlaying}
-        />
+        /> */}
       </div>
       <PlaybarComponent
         segments={segments}

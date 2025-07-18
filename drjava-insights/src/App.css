@@ -160,9 +160,9 @@
 
 .editor-header {
   padding: 8px 16px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #6c757d;
+  font-size: 11px; /* Match dropdown font size */
+  font-weight: 600; /* Make it thicker/bolder */
+  color: #495057; /* Match dropdown color */
   letter-spacing: 0.5px;
   background-color: #e9ecef;
   flex-shrink: 0;
@@ -172,6 +172,63 @@
   align-items: center;
   justify-content: center;
   gap: 4px; /* Small gap between filename and chevron */
+  cursor: pointer; /* Make it clickable */
+  position: relative; /* For dropdown positioning */
+  transition: background-color 0.2s ease;
+}
+
+.editor-header:hover {
+  background-color: #dee2e6; /* Slightly lighter on hover */
+}
+
+/* File Dropdown Menu */
+.file-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%); /* Center the dropdown */
+  width: 200px; /* Fixed width instead of full header width */
+  background-color: #e9ecef;
+  border: 1px solid #ced4da;
+  border-top: none;
+  max-height: 200px; /* Reduced from 300px */
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Reduced shadow */
+}
+
+.file-dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px; /* Reduced from 8px 16px */
+  cursor: pointer;
+  font-size: 11px; /* Back to original smaller size */
+  font-weight: 600; /* Make it thicker/bolder to match header */
+  color: #495057; /* Back to original darker color */
+  transition: background-color 0.2s ease;
+  gap: 6px; /* Reduced from 8px */
+}
+
+.file-dropdown-item:hover {
+  background-color: #dee2e6;
+}
+
+.file-dropdown-item.active {
+  background-color: rgba(0, 122, 204, 0.8);
+  color: #ffffff;
+}
+
+.file-dropdown-item.active:hover {
+  background-color: rgba(0, 122, 204, 0.8);
+}
+
+.file-dropdown-item .file-icon {
+  flex-shrink: 0;
+  font-size: 12px; /* Smaller icon */
+}
+
+.file-dropdown-item .file-name {
+  flex: 1;
 }
 
 .file-title {
