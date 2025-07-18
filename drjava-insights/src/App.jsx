@@ -7,6 +7,7 @@ import PlaybarComponent from "./components/Playbar";
 import MediaControls from "./components/MediaControls";
 import useLogs from "./hooks/useLogs";
 import useKeystrokePlayback from "./hooks/useKeystrokePlayback";
+import useCodeReconstruction from "./hooks/useCodeReconstruction";
 
 function App() {
   const {
@@ -60,9 +61,12 @@ function App() {
         : 24,
   });
 
-  const [code, setCode] = useState(
-    `// DrJava Insights - Code Activity Viewer\n// Select a log file to begin...`
-  );
+  // Replace code state and reconstruction useEffect with the hook
+  const code = useCodeReconstruction({
+    logs,
+    keystrokeLogs,
+    currentKeystrokeIndex,
+  });
 
   // File dropdown state
   const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
@@ -111,43 +115,8 @@ function App() {
     setCurrentKeystrokeIndex,
   ]);
 
-  // Reconstruct code based on current keystroke index
-  useEffect(() => {
-    if (keystrokeLogs.length === 0) return;
-
-    // Find the corresponding index in the full logs array
-    const targetKeystroke = keystrokeLogs[currentKeystrokeIndex];
-    const fullLogIndex = logs.findIndex(
-      (log) =>
-        log.timestamp === targetKeystroke.timestamp &&
-        log.type === targetKeystroke.type &&
-        log.offset === targetKeystroke.offset
-    );
-
-    const reconstructCodeAtLogIndex = (targetIndex, allLogs) => {
-      let fileContent = "";
-      for (let i = 0; i <= targetIndex && i < allLogs.length; i++) {
-        const log = allLogs[i];
-        if (log.type === "insert") {
-          fileContent =
-            fileContent.slice(0, log.offset) +
-            log.insertedText +
-            fileContent.slice(log.offset);
-        } else if (log.type === "delete") {
-          fileContent =
-            fileContent.slice(0, log.offset) +
-            fileContent.slice(log.offset + log.length);
-        }
-      }
-      return fileContent;
-    };
-
-    const newCode = reconstructCodeAtLogIndex(fullLogIndex, logs);
-    setCode(newCode);
-  }, [currentKeystrokeIndex, keystrokeLogs, logs]);
-
   const handleEditorChange = (value) => {
-    setCode(value);
+    // setCode(value); // This line is no longer needed as code is managed by useCodeReconstruction
   };
 
   const handleFileSelect = (filename) => {

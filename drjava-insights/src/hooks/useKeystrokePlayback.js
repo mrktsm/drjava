@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from "react";
+import {
+  keystrokeIndexToTimelinePosition,
+  timelinePositionToKeystrokeIndex,
+} from "../utils/keystrokePlaybackUtils";
 
 export default function useKeystrokePlayback({
   keystrokeLogs = [],
@@ -14,26 +18,6 @@ export default function useKeystrokePlayback({
   const [playbackStartKeystroke, setPlaybackStartKeystroke] = useState(0);
   const [isUserScrubbing, setIsUserScrubbing] = useState(false);
   const timeoutRef = useRef(null);
-
-  // Convert keystroke index to timeline position
-  const keystrokeIndexToTimelinePosition = (keystrokeIndex) => {
-    if (keystrokeLogs.length === 0) return sessionStart;
-    const progress = keystrokeIndex / (keystrokeLogs.length - 1);
-    return sessionStart + progress * sessionDuration;
-  };
-
-  // Convert timeline position to keystroke index
-  const timelinePositionToKeystrokeIndex = (timelinePos) => {
-    if (sessionDuration === 0) return 0;
-    const progress = Math.max(
-      0,
-      Math.min(1, (timelinePos - sessionStart) / sessionDuration)
-    );
-    return Math.min(
-      keystrokeLogs.length - 1,
-      Math.round(progress * (keystrokeLogs.length - 1))
-    );
-  };
 
   // Schedule the next keystroke with authentic timing
   const scheduleNextKeystroke = () => {
@@ -175,7 +159,14 @@ export default function useKeystrokePlayback({
     const skipAmount = Math.max(1, Math.floor(keystrokeLogs.length * 0.1));
     const newIndex = Math.max(0, currentKeystrokeIndex - skipAmount);
     setCurrentKeystrokeIndex(newIndex);
-    setCurrentTime(keystrokeIndexToTimelinePosition(newIndex));
+    setCurrentTime(
+      keystrokeIndexToTimelinePosition(
+        newIndex,
+        keystrokeLogs,
+        sessionStart,
+        sessionDuration
+      )
+    );
     setPlaybackStartKeystroke(newIndex);
     setPlaybackStartTime(Date.now());
     if (timeoutRef.current) {
@@ -191,7 +182,14 @@ export default function useKeystrokePlayback({
       currentKeystrokeIndex + skipAmount
     );
     setCurrentKeystrokeIndex(newIndex);
-    setCurrentTime(keystrokeIndexToTimelinePosition(newIndex));
+    setCurrentTime(
+      keystrokeIndexToTimelinePosition(
+        newIndex,
+        keystrokeLogs,
+        sessionStart,
+        sessionDuration
+      )
+    );
     setPlaybackStartKeystroke(newIndex);
     setPlaybackStartTime(Date.now());
     if (timeoutRef.current) {
@@ -205,7 +203,12 @@ export default function useKeystrokePlayback({
       setIsPlaying(false);
       setIsUserScrubbing(true);
     }
-    const newKeystrokeIndex = timelinePositionToKeystrokeIndex(newTime);
+    const newKeystrokeIndex = timelinePositionToKeystrokeIndex(
+      newTime,
+      keystrokeLogs,
+      sessionStart,
+      sessionDuration
+    );
     setCurrentKeystrokeIndex(newKeystrokeIndex);
     setCurrentTime(newTime);
     setPlaybackStartKeystroke(newKeystrokeIndex);
