@@ -4,6 +4,38 @@ import {
   timelinePositionToKeystrokeIndex,
 } from "../utils/keystrokePlaybackUtils";
 
+/**
+ * A custom hook to manage the state and logic of keystroke playback.
+ *
+ * This hook is the core engine for the session replay functionality. It handles:
+ * - Play/pause state management.
+ * - Scheduling keystrokes with authentic timing based on log timestamps.
+ * - Synchronizing the visual timeline with the current playback position.
+ * - Providing handler functions for all media controls (play, pause, skip, restart).
+ * - Managing user interactions like scrubbing through the timeline.
+ *
+ * @param {object} props - The properties for configuring the playback.
+ * @param {Array<object>} [props.keystrokeLogs=[]] - An array of keystroke log objects to be played back.
+ * @param {number} [props.sessionStart=0] - The starting value of the timeline (e.g., in hours).
+ * @param {number} [props.sessionEnd=24] - The ending value of the timeline (e.g., in hours).
+ * @param {number} [props.sessionDuration=24] - The total duration represented by the timeline.
+ *
+ * @returns {object} An object containing the playback state and control handlers.
+ * @property {boolean} isPlaying - True if the playback is currently active.
+ * @property {number} currentKeystrokeIndex - The index of the current keystroke in the `keystrokeLogs` array.
+ * @property {function} setCurrentKeystrokeIndex - Function to manually set the keystroke index.
+ * @property {number} currentTime - The current position on the timeline, synchronized with playback.
+ * @property {function} setCurrentTime - Function to manually set the timeline position.
+ * @property {function} handlePlayPause - Toggles the playback state between playing and paused.
+ * @property {function} handleRestart - Resets the playback to the beginning.
+ * @property {function} handleSkipToEnd - Jumps the playback to the very end of the session.
+ * @property {function} handleSkipBackward - Skips playback backward by a percentage of the total keystrokes.
+ * @property {function} handleSkipForward - Skips playback forward by a percentage of the total keystrokes.
+ * @property {function} handleTimelineChange - Handles user scrubbing/clicking on the timeline to jump to a specific time.
+ * @property {number} playbackSpeed - The current speed multiplier for the playback (e.g., 1 for normal, 2 for double speed).
+ * @property {function} setPlaybackSpeed - Function to update the playback speed.
+ * @property {boolean} isUserScrubbing - True if the user is currently interacting with the timeline.
+ */
 export default function useKeystrokePlayback({
   keystrokeLogs = [],
   sessionStart = 0,

@@ -9,6 +9,23 @@ import useLogs from "./hooks/useLogs";
 import useKeystrokePlayback from "./hooks/useKeystrokePlayback";
 import useCodeReconstruction from "./hooks/useCodeReconstruction";
 
+/**
+ * DrJava Insights: A web-based tool for visualizing and replaying student coding sessions.
+ *
+ * This application allows instructors or researchers to load a log of student activity
+ * and watch a step-by-step reconstruction of their coding process. It features a
+ * code editor that shows the code evolving over time, a timeline with activity segments,
+ * and playback controls to navigate the session.
+ *
+ * This project was developed for CS111 at Gettysburg College under the supervision
+ * of Professor Ivaylo Ilinkin.
+ *
+ * The `App` component serves as the main container that initializes all necessary hooks,
+ * manages the overall application state, and renders the primary UI layout.
+ *
+ * @author markotsymbaluk
+ * @returns {JSX.Element} The rendered App component.
+ */
 function App() {
   const {
     logs,
