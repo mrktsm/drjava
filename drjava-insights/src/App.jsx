@@ -17,8 +17,8 @@ function App() {
     activitySegments,
     sessionStartTime,
     sessionEndTime,
-    loading,
-    error,
+    // loading, // Loading state for the logs, could be used to show a loading screen
+    // error, // Error state for the logs, could be used to show an error screen
   } = useLogs();
 
   // Playback logic extracted to hook
@@ -27,17 +27,17 @@ function App() {
     currentKeystrokeIndex,
     setCurrentKeystrokeIndex,
     currentTime,
-    setCurrentTime,
+    // setCurrentTime
     handlePlayPause,
     handleRestart,
     handleSkipToEnd,
     handleSkipBackward,
     handleSkipForward,
     handleTimelineChange,
-    playbackSpeed,
-    setPlaybackSpeed,
-    isUserScrubbing,
-    setIsUserScrubbing,
+    // playbackSpeed, // Playback speed, could be used to show a playback speed selector
+    // setPlaybackSpeed,
+    // isUserScrubbing,
+    // setIsUserScrubbing,
   } = useKeystrokePlayback({
     keystrokeLogs,
     sessionStart: sessionStartTime
@@ -61,7 +61,6 @@ function App() {
         : 24,
   });
 
-  // Replace code state and reconstruction useEffect with the hook
   const code = useCodeReconstruction({
     logs,
     keystrokeLogs,
@@ -83,26 +82,6 @@ function App() {
 
   const [activeFile, setActiveFile] = useState("HelloWorld.java");
 
-  // Detect platform and set appropriate font family to match DrJava
-  const [fontFamily, setFontFamily] = useState("");
-
-  useEffect(() => {
-    // Detect if we're on Mac (like DrJava does)
-    const isMac =
-      /Mac|iPod|iPhone|iPad/.test(navigator.platform) ||
-      /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
-
-    if (isMac) {
-      // On Mac, DrJava uses Monaco-12, so we use Monaco with fallbacks
-      setFontFamily(
-        "Monaco, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace"
-      );
-    } else {
-      // On other platforms, DrJava uses Monospaced-12, so we use system monospace
-      setFontFamily("'Courier New', Consolas, 'Liberation Mono', monospace");
-    }
-  }, []);
-
   // Set session timeline values when logs are loaded
   useEffect(() => {
     if (keystrokeLogs.length > 0 && sessionStartTime && sessionEndTime) {
@@ -119,6 +98,7 @@ function App() {
     // setCode(value); // This line is no longer needed as code is managed by useCodeReconstruction
   };
 
+  // TODO: Implement file select
   const handleFileSelect = (filename) => {
     setActiveFile(filename);
     setIsFileDropdownOpen(false); // Close dropdown when file is selected
@@ -133,11 +113,6 @@ function App() {
   return (
     <div className="app">
       <div className="main-content">
-        {/* <FileExplorer
-          files={files}
-          activeFile={activeFile}
-          onFileSelect={handleFileSelect}
-        /> */}
         <div className="editor-and-controls-area">
           <div className="editor-container">
             <div className="editor-header" onClick={toggleFileDropdown}>
@@ -172,7 +147,8 @@ function App() {
                 theme="vs"
                 options={{
                   fontSize: 18,
-                  fontFamily: fontFamily,
+                  fontFamily:
+                    "Monaco, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
                   fontWeight: "500",
                   minimap: { enabled: true },
                   scrollBeyondLastLine: false,
@@ -197,11 +173,6 @@ function App() {
             onSkipToEnd={handleSkipToEnd}
           />
         </div>
-        {/* <InfoPanel
-          keystrokeLogs={keystrokeLogs}
-          currentKeystrokeIndex={currentKeystrokeIndex}
-          isPlaying={isPlaying}
-        /> */}
       </div>
       <PlaybarComponent
         segments={segments}
