@@ -884,7 +884,7 @@ public class AIChatPanel extends JPanel {
         Dimension d = super.getPreferredSize();
         Container parent = getParent();
         if (parent != null && parent.getWidth() > 100) {
-          d.width = (int) (parent.getWidth() * 0.90); // Make it 98% of parent width
+          d.width = (int) (parent.getWidth() * 0.90);
         } else if (d.width < 350) {
           d.width = 350; // Set a minimum width
         }
@@ -905,15 +905,15 @@ public class AIChatPanel extends JPanel {
         int h = height - 1;
 
         GeneralPath path = new GeneralPath();
-        path.moveTo(0, h); // Start at bottom-left
+        path.moveTo(0, h);
         path.lineTo(0, arc);
-        path.quadTo(0, 0, arc, 0); // Top-left corner
+        path.quadTo(0, 0, arc, 0);
         path.lineTo(w - arc, 0);
-        path.quadTo(w, 0, w, arc); // Top-right corner
+        path.quadTo(w, 0, w, arc);
         path.lineTo(w, h);
-        path.closePath(); // Connect to start, drawing bottom edge
+        path.closePath();
 
-        // Paint background - using light grey
+        // Paint background
         g2d.setColor(new Color(248, 249, 250));
         g2d.fill(path);
         
@@ -926,7 +926,7 @@ public class AIChatPanel extends JPanel {
       }
     };
     pill.setOpaque(false);
-    pill.setBorder(new EmptyBorder(4, 8, 4, 10)); // Smaller padding for chat context
+    pill.setBorder(new EmptyBorder(2, 8, 2, 4));
     
     _contextLabel = new JLabel();
     _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
