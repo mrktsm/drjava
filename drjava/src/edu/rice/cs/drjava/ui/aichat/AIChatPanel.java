@@ -904,25 +904,20 @@ public class AIChatPanel extends JPanel {
         int w = width - 1;
         int h = height - 1;
 
-        // Path for the border (left, top, right sides)
         GeneralPath path = new GeneralPath();
-        path.moveTo(0, h);
+        path.moveTo(0, h); // Start at bottom-left
         path.lineTo(0, arc);
-        path.quadTo(0, 0, arc, 0);
+        path.quadTo(0, 0, arc, 0); // Top-left corner
         path.lineTo(w - arc, 0);
-        path.quadTo(w, 0, w, arc);
+        path.quadTo(w, 0, w, arc); // Top-right corner
         path.lineTo(w, h);
-        // Path is intentionally left open at the bottom
-
-        // A closed version of the path is needed for filling the background.
-        GeneralPath fillPath = (GeneralPath) path.clone();
-        fillPath.closePath();
+        path.closePath(); // Connect to start, drawing bottom edge
 
         // Paint background - using light grey
         g2d.setColor(new Color(248, 249, 250));
-        g2d.fill(fillPath);
+        g2d.fill(path);
         
-        // Paint border (which is the open path)
+        // Paint border
         g2d.setColor(BORDER_COLOR);
         g2d.setStroke(new BasicStroke(1.0f));
         g2d.draw(path);
@@ -931,7 +926,7 @@ public class AIChatPanel extends JPanel {
       }
     };
     pill.setOpaque(false);
-    pill.setBorder(new EmptyBorder(4, 10, 4, 4));
+    pill.setBorder(new EmptyBorder(4, 8, 4, 10)); // Smaller padding for chat context
     
     _contextLabel = new JLabel();
     _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
@@ -1986,7 +1981,7 @@ public class AIChatPanel extends JPanel {
     if (fileName != null) {
       JPanel contextBubble = _createChatContextBubble(fileName, startLine, endLine);
       _messagesPanel.add(contextBubble);
-      _messagesPanel.add(Box.createVerticalStrut(4)); // Smaller gap between context and message
+      _messagesPanel.add(Box.createVerticalStrut(0)); // No gap between context and message
     }
     
     // Add user message (can be empty if only context was sent)
@@ -2001,31 +1996,66 @@ public class AIChatPanel extends JPanel {
   }
   
   private JPanel _createChatContextBubble(String fileName, int startLine, int endLine) {
-    JPanel contextPanel = new JPanel(new BorderLayout());
-    contextPanel.setOpaque(false);
+    // This container allows the bubble to expand to the full width of the parent
+    JPanel contextContainer = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0)) {
+        @Override
+        public Dimension getMaximumSize() {
+            Dimension pref = getPreferredSize();
+            return new Dimension(Integer.MAX_VALUE, pref.height);
+        }
+    };
+    contextContainer.setOpaque(false);
     
-    // Create the circular indicator with file info (same style as input context indicator)
-    JPanel indicatorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-    indicatorPanel.setBackground(CHAT_BACKGROUND);
-    
-    // Create rounded pill-shaped indicator
+    // Create the pill-shaped indicator, which will control its own width
     JPanel pill = new JPanel(new BorderLayout()) {
+      @Override
+      public Dimension getPreferredSize() {
+        Dimension pref = super.getPreferredSize();
+        // Limit to 95% of the viewport width to be slightly smaller than the message
+        int availableWidth = _chatScroll.getViewport().getWidth();
+        if (availableWidth > 100) {
+            pref.width = availableWidth * 95 / 100;
+        } else if (pref.width < 150) {
+            pref.width = 150;
+        }
+        return pref;
+      }
+      
+      @Override
+      public Dimension getMaximumSize() {
+        return getPreferredSize();
+      }
+      
       @Override
       protected void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
-        int height = getHeight();
         int width = getWidth();
+        int height = getHeight();
+        int arc = 12; // Radius for top corners
+
+        // Adjust coordinates for stroke width to prevent clipping
+        int w = width - 1;
+        int h = height - 1;
+
+        GeneralPath path = new GeneralPath();
+        path.moveTo(0, h);
+        path.lineTo(0, arc);
+        path.quadTo(0, 0, arc, 0);
+        path.lineTo(w - arc, 0);
+        path.quadTo(w, 0, w, arc);
+        path.lineTo(w, h);
+        path.closePath();
+
+        // Paint background
+        g2d.setColor(new Color(248, 249, 250));
+        g2d.fill(path);
         
-        // Paint background - using light grey similar to input field
-        g2d.setColor(new Color(248, 249, 250)); // Light grey background (matches BACKGROUND_COLOR)
-        g2d.fillRoundRect(0, 0, width, height, height, height);
-        
-        // Paint border - using border color from the design system
-        g2d.setColor(BORDER_COLOR); // Grey border color from constants
+        // Paint border
+        g2d.setColor(BORDER_COLOR);
         g2d.setStroke(new BasicStroke(1.0f));
-        g2d.drawRoundRect(0, 0, width - 1, height - 1, height, height);
+        g2d.draw(path);
         
         g2d.dispose();
       }
@@ -2042,16 +2072,15 @@ public class AIChatPanel extends JPanel {
     }
     
     JLabel contextLabel = new JLabel(contextInfo);
-    contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11)); // Slightly smaller font for chat
+    contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
     contextLabel.setForeground(SECONDARY_TEXT_COLOR);
-    contextLabel.setHorizontalAlignment(JLabel.CENTER);
+    contextLabel.setHorizontalAlignment(JLabel.LEFT);
     contextLabel.setVerticalAlignment(JLabel.CENTER);
     
     pill.add(contextLabel, BorderLayout.CENTER);
-    indicatorPanel.add(pill);
-    contextPanel.add(indicatorPanel, BorderLayout.CENTER);
+    contextContainer.add(pill);
     
-    return contextPanel;
+    return contextContainer;
   }
   
   private void _addAIMessage(String message) {
