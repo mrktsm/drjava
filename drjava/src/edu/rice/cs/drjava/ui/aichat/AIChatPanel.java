@@ -900,7 +900,7 @@ public class AIChatPanel extends JPanel {
         int height = getHeight();
         int arc = 12; // Radius for top corners
 
-        // Adjust coordinates for stroke width to prevent clipping on right/bottom edges
+        // Adjust coordinates for stroke width to prevent clipping
         int w = width - 1;
         int h = height - 1;
 
@@ -914,7 +914,7 @@ public class AIChatPanel extends JPanel {
         path.closePath();
 
         // Paint background
-        g2d.setColor(new Color(248, 249, 250));
+        g2d.setColor(USER_BUBBLE_COLOR);
         g2d.fill(path);
         
         // Paint border
@@ -930,9 +930,9 @@ public class AIChatPanel extends JPanel {
     
     _contextLabel = new JLabel();
     _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-    _contextLabel.setForeground(SECONDARY_TEXT_COLOR); // Grey text matching secondary text
-    _contextLabel.setHorizontalAlignment(JLabel.LEFT); // Align text to the left
-    _contextLabel.setVerticalAlignment(JLabel.CENTER); // Center vertically
+    _contextLabel.setForeground(USER_TEXT_COLOR);
+    _contextLabel.setHorizontalAlignment(JLabel.LEFT);
+    _contextLabel.setVerticalAlignment(JLabel.CENTER);
     
     // Create close button
     _contextCloseButton = new JButton("×") {
@@ -2049,7 +2049,7 @@ public class AIChatPanel extends JPanel {
         path.closePath();
 
         // Paint background
-        g2d.setColor(new Color(248, 249, 250));
+        g2d.setColor(USER_BUBBLE_COLOR);
         g2d.fill(path);
         
         // Paint border
@@ -2112,6 +2112,11 @@ public class AIChatPanel extends JPanel {
         // Paint rounded background with proper anti-aliasing
         g2d.setColor(getBackground());
         g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+        
+        // Paint border
+        g2d.setColor(BORDER_COLOR);
+        g2d.setStroke(new BasicStroke(1.0f));
+        g2d.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
         
         g2d.dispose();
       }
