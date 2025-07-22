@@ -754,22 +754,27 @@ public class AIChatPanel extends JPanel {
     chatPanel.add(_chatScroll, BorderLayout.CENTER);
     
     // Main layout with layered pane
-    JLayeredPane layeredPane = new JLayeredPane();
-    layeredPane.addComponentListener(new ComponentAdapter() {
-      @Override
-      public void componentResized(ComponentEvent e) {
-        Component c = e.getComponent();
-        int width = c.getWidth();
-        int height = c.getHeight();
-        
-        if (width <= 0 || height <= 0) return;
-        
-        chatPanel.setBounds(0, 0, width, height);
-        
-        Dimension bottomPref = bottomPanel.getPreferredSize();
-        bottomPanel.setBounds(0, height - bottomPref.height, width, bottomPref.height);
-      }
-    });
+    JLayeredPane layeredPane = new JLayeredPane() {
+        @Override
+        public void doLayout() {
+            int width = getWidth();
+            int height = getHeight();
+
+            if (width <= 0 || height <= 0) return;
+
+            // chatPanel and bottomPanel are final variables from the outer scope, accessible here
+            chatPanel.setBounds(0, 0, width, height);
+
+            // Ensure the input container has a stable height and position the context indicator above it.
+            int inputHeight = 60; // Approximate height of the input container with padding
+            Dimension contextPref = AIChatPanel.this._contextIndicator.isVisible() ? AIChatPanel.this._contextIndicator.getPreferredSize() : new Dimension(0, 0);
+            int contextHeight = contextPref.height;
+            
+            int bottomPanelHeight = inputHeight + contextHeight;
+            
+            bottomPanel.setBounds(0, height - bottomPanelHeight, width, bottomPanelHeight);
+        }
+    };
 
     layeredPane.add(chatPanel, JLayeredPane.DEFAULT_LAYER);
     layeredPane.add(bottomPanel, JLayeredPane.PALETTE_LAYER);
