@@ -587,7 +587,7 @@ public class AIChatPanel extends JPanel {
     _messagesPanel = new JPanel();
     _messagesPanel.setLayout(new BoxLayout(_messagesPanel, BoxLayout.Y_AXIS));
     _messagesPanel.setBackground(CHAT_BACKGROUND);
-    _messagesPanel.setBorder(new EmptyBorder(16, 8, 16, 8)); // Reduced side padding from 20 to 8
+    _messagesPanel.setBorder(new EmptyBorder(16, 8, 80, 8));
     
     // Add component listener to automatically scroll when content changes
     _messagesPanel.addComponentListener(new ComponentAdapter() {
