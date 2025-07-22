@@ -726,21 +726,56 @@ public class AIChatPanel extends JPanel {
     _contextIndicator = _createContextIndicator();
     
     // Create bottom panel that includes context indicator and input
-    JPanel bottomPanel = new JPanel(new BorderLayout());
-    bottomPanel.setBackground(CHAT_BACKGROUND);
+    final JPanel bottomPanel = new JPanel(new BorderLayout()) {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            
+            // Calculate the Y coordinate where the solid background should start.
+            // This is halfway through the input field's pill.
+            // The pill is inside a container with 16px bottom padding, and the pill itself is 44px high.
+            // Its midpoint is 16 + (44/2) = 38px from the bottom of the panel.
+            int backgroundStartY = getHeight() - 38;
+
+            Graphics2D g2d = (Graphics2D) g.create();
+            g2d.setColor(CHAT_BACKGROUND);
+            g2d.fillRect(0, backgroundStartY, getWidth(), getHeight() - backgroundStartY);
+            g2d.dispose();
+        }
+    };
+    bottomPanel.setOpaque(false);
     bottomPanel.add(_contextIndicator, BorderLayout.NORTH);
     bottomPanel.add(inputContainer, BorderLayout.CENTER);
     
     // Chat area
-    JPanel chatPanel = new JPanel(new BorderLayout());
+    final JPanel chatPanel = new JPanel(new BorderLayout());
     chatPanel.setBackground(CHAT_BACKGROUND);
     chatPanel.setBorder(null);
     chatPanel.add(_chatScroll, BorderLayout.CENTER);
     
-    // Main layout
+    // Main layout with layered pane
+    JLayeredPane layeredPane = new JLayeredPane();
+    layeredPane.addComponentListener(new ComponentAdapter() {
+      @Override
+      public void componentResized(ComponentEvent e) {
+        Component c = e.getComponent();
+        int width = c.getWidth();
+        int height = c.getHeight();
+        
+        if (width <= 0 || height <= 0) return;
+        
+        chatPanel.setBounds(0, 0, width, height);
+        
+        Dimension bottomPref = bottomPanel.getPreferredSize();
+        bottomPanel.setBounds(0, height - bottomPref.height, width, bottomPref.height);
+      }
+    });
+
+    layeredPane.add(chatPanel, JLayeredPane.DEFAULT_LAYER);
+    layeredPane.add(bottomPanel, JLayeredPane.PALETTE_LAYER);
+
     setLayout(new BorderLayout());
-    add(chatPanel, BorderLayout.CENTER);
-    add(bottomPanel, BorderLayout.SOUTH);
+    add(layeredPane, BorderLayout.CENTER);
   }
   
   private JPanel _createEmbeddedInputPanel() {
@@ -823,7 +858,7 @@ public class AIChatPanel extends JPanel {
     
     // Container for the input with padding - make sure this is also transparent
     JPanel inputContainer = new JPanel(new BorderLayout());
-    inputContainer.setBackground(CHAT_BACKGROUND);
+    inputContainer.setOpaque(false);
     inputContainer.setBorder(new EmptyBorder(0, 8, 16, 8));
     inputContainer.add(layeredPane, BorderLayout.CENTER);
     
@@ -831,17 +866,25 @@ public class AIChatPanel extends JPanel {
   }
   
   private JPanel _createContextIndicator() {
-    JPanel contextPanel = new JPanel(new BorderLayout());
-    contextPanel.setBackground(CHAT_BACKGROUND);
+    JPanel contextPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+    contextPanel.setOpaque(false);
     contextPanel.setBorder(new EmptyBorder(4, 16, 4, 16));
     contextPanel.setVisible(false); // Hidden by default
     
-    // Create the circular indicator with file info
-    JPanel indicatorPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-    indicatorPanel.setBackground(CHAT_BACKGROUND);
-    
     // Create rounded pill-shaped indicator
     JPanel pill = new JPanel(new BorderLayout()) {
+      @Override
+      public Dimension getPreferredSize() {
+        Dimension d = super.getPreferredSize();
+        Container parent = getParent();
+        if (parent != null && parent.getWidth() > 100) {
+          d.width = (int) (parent.getWidth() * 0.95); // Make it 98% of parent width
+        } else if (d.width < 350) {
+          d.width = 350; // Set a minimum width
+        }
+        return d;
+      }
+
       @Override
       protected void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
@@ -868,7 +911,7 @@ public class AIChatPanel extends JPanel {
     _contextLabel = new JLabel();
     _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
     _contextLabel.setForeground(SECONDARY_TEXT_COLOR); // Grey text matching secondary text
-    _contextLabel.setHorizontalAlignment(JLabel.CENTER); // Center horizontally
+    _contextLabel.setHorizontalAlignment(JLabel.LEFT); // Align text to the left
     _contextLabel.setVerticalAlignment(JLabel.CENTER); // Center vertically
     
     // Create close button
@@ -905,8 +948,7 @@ public class AIChatPanel extends JPanel {
     pill.add(_contextLabel, BorderLayout.CENTER);
     pill.add(_contextCloseButton, BorderLayout.EAST);
     
-    indicatorPanel.add(pill);
-    contextPanel.add(indicatorPanel, BorderLayout.CENTER);
+    contextPanel.add(pill);
     
     return contextPanel;
   }
@@ -1964,7 +2006,7 @@ public class AIChatPanel extends JPanel {
       }
     };
     pill.setOpaque(false);
-    pill.setBorder(new EmptyBorder(4, 8, 4, 8)); // Smaller padding for chat context
+    pill.setBorder(new EmptyBorder(4, 8, 4, 10));
     
     // Create context label with file info
     String contextInfo;

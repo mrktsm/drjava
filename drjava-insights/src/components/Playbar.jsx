@@ -1,4 +1,49 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
+
+const TimelineTicks = memo(function TimelineTicks({
+  sessionStart,
+  sessionDuration,
+  formatTime,
+}) {
+  const spacedLines = useMemo(() => {
+    const lines = [];
+    const numberOfLines = 10; // Number of main sections
+    const subdivisions = 2; // Number of subdivisions between main lines
+    const totalLines = numberOfLines * subdivisions;
+
+    for (let i = 0; i <= totalLines; i++) {
+      const percentage = (i / totalLines) * 100;
+      const color = "#999"; // Ticks are a constant color now
+      const isMainLine = i % subdivisions === 0;
+
+      const style = {
+        left: `${percentage}%`,
+        borderLeftColor: color,
+      };
+
+      if (percentage === 100) {
+        style.marginLeft = "-1px";
+      }
+
+      const className = isMainLine ? "hour-line" : "hour-line hour-line--small";
+
+      let label = null;
+      if (isMainLine) {
+        const timeAtLine = sessionStart + (i / totalLines) * sessionDuration;
+        label = <div className="hour-label">{formatTime(timeAtLine)}</div>;
+      }
+
+      lines.push(
+        <div key={i} className={className} style={style}>
+          {label}
+        </div>
+      );
+    }
+    return lines;
+  }, [sessionStart, sessionDuration, formatTime]);
+
+  return <div className="time-ticks-container">{spacedLines}</div>;
+});
 
 // Reactive React Playbar Component
 function PlaybarComponent({
@@ -98,46 +143,15 @@ function PlaybarComponent({
     }
   }, [currentTime, timeToPercentage]);
 
-  // Generate evenly spaced lines (not hour-based)
-  const spacedLines = [];
-  const numberOfLines = 10; // Number of main sections
-  const subdivisions = 2; // Number of subdivisions between main lines
-  const totalLines = numberOfLines * subdivisions;
-
-  for (let i = 0; i <= totalLines; i++) {
-    const percentage = (i / totalLines) * 100;
-    const color = "#999"; // Ticks are a constant color now
-    const isMainLine = i % subdivisions === 0;
-
-    const style = {
-      left: `${percentage}%`,
-      borderLeftColor: color,
-    };
-
-    if (percentage === 100) {
-      style.marginLeft = "-1px";
-    }
-
-    const className = isMainLine ? "hour-line" : "hour-line hour-line--small";
-
-    let label = null;
-    if (isMainLine) {
-      const timeAtLine = sessionStart + (i / totalLines) * sessionDuration;
-      label = <div className="hour-label">{formatTime(timeAtLine)}</div>;
-    }
-
-    spacedLines.push(
-      <div key={i} className={className} style={style}>
-        {label}
-      </div>
-    );
-  }
-
   const currentPercentage = timeToPercentage(currentTime);
 
   return (
     <div className="container">
-      <div className="time-ticks-container">{spacedLines}</div>
+      <TimelineTicks
+        sessionStart={sessionStart}
+        sessionDuration={sessionDuration}
+        formatTime={formatTime}
+      />
       <div className="timeline-divider" />
       <div
         ref={containerRef}
@@ -188,4 +202,4 @@ PlaybarComponent.defaultProps = {
   ],
 };
 
-export default PlaybarComponent;
+export default memo(PlaybarComponent);

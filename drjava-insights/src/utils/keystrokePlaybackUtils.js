@@ -1,3 +1,12 @@
+/**
+ * Converts a keystroke's zero-based index to its corresponding position on the playback timeline (e.g., in hours).
+ *
+ * @param {number} keystrokeIndex - The index of the keystroke.
+ * @param {Array<object>} keystrokeLogs - All keystroke log objects.
+ * @param {number} sessionStart - The timeline's start value.
+ * @param {number} sessionDuration - The timeline's total duration.
+ * @returns {number} The calculated timeline position.
+ */
 export function keystrokeIndexToTimelinePosition(
   keystrokeIndex,
   keystrokeLogs,
@@ -9,6 +18,17 @@ export function keystrokeIndexToTimelinePosition(
   return sessionStart + progress * sessionDuration;
 }
 
+/**
+ * Converts a position on the playback timeline (e.g., a time in hours) back to a corresponding keystroke index.
+ *
+ * Handles clamping to valid index bounds and rounds to the nearest whole index.
+ *
+ * @param {number} timelinePos - The position on the timeline.
+ * @param {Array<object>} keystrokeLogs - All keystroke log objects.
+ * @param {number} sessionStart - The timeline's start value.
+ * @param {number} sessionDuration - The timeline's total duration.
+ * @returns {number} The calculated zero-based keystroke index.
+ */
 export function timelinePositionToKeystrokeIndex(
   timelinePos,
   keystrokeLogs,

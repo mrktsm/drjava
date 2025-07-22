@@ -1,5 +1,26 @@
 import { useState, useEffect } from "react";
 
+/**
+ * A custom React hook for fetching, processing, and managing log data.
+ *
+ * This hook is responsible for:
+ * - Fetching raw log data from the backend API.
+ * - Parsing and sorting the fetched logs.
+ * - Differentiating between keystroke logs (insert/delete) and other activity logs (app_activated/deactivated).
+ * - Calculating and segmenting active coding periods (segments) and application activity periods (activitySegments).
+ * - Determining the overall session start and end times based on keystroke logs.
+ * - Managing loading and error states during data fetching.
+ *
+ * @returns {object} An object containing various states derived from the log data.
+ * @property {Array<object>} logs - The complete, sorted array of all log entries.
+ * @property {Array<object>} keystrokeLogs - A filtered array containing only insert and delete (keystroke) log entries.
+ * @property {Array<object>} segments - An array of objects, each representing a continuous coding segment with `start` and `end` times (in hours).
+ * @property {Array<object>} activitySegments - An array of objects, each representing periods of application activity with `start` and `end` times (in hours).
+ * @property {Date|null} sessionStartTime - The timestamp of the first keystroke in the session, or `null` if no keystrokes.
+ * @property {Date|null} sessionEndTime - The timestamp of the last keystroke in the session, or `null` if no keystrokes.
+ * @property {boolean} loading - True if the log data is currently being fetched.
+ * @property {Error|null} error - An error object if fetching fails, otherwise `null`.
+ */
 export default function useLogs() {
   const [logs, setLogs] = useState([]);
   const [keystrokeLogs, setKeystrokeLogs] = useState([]);
