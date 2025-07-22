@@ -11,6 +11,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.geom.Ellipse2D;
+import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.net.URL;
 import java.awt.event.ComponentEvent;
@@ -873,17 +874,17 @@ public class AIChatPanel extends JPanel {
   private JPanel _createContextIndicator() {
     JPanel contextPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
     contextPanel.setOpaque(false);
-    contextPanel.setBorder(new EmptyBorder(4, 16, 4, 16));
+    contextPanel.setBorder(new EmptyBorder(4, 16, 0, 16));
     contextPanel.setVisible(false); // Hidden by default
     
-    // Create rounded pill-shaped indicator
+    // Create squared indicator
     JPanel pill = new JPanel(new BorderLayout()) {
       @Override
       public Dimension getPreferredSize() {
         Dimension d = super.getPreferredSize();
         Container parent = getParent();
         if (parent != null && parent.getWidth() > 100) {
-          d.width = (int) (parent.getWidth() * 0.95); // Make it 98% of parent width
+          d.width = (int) (parent.getWidth() * 0.90); // Make it 98% of parent width
         } else if (d.width < 350) {
           d.width = 350; // Set a minimum width
         }
@@ -895,17 +896,36 @@ public class AIChatPanel extends JPanel {
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
-        int height = getHeight();
         int width = getWidth();
+        int height = getHeight();
+        int arc = 12; // Radius for top corners
+
+        // Adjust coordinates for stroke width to prevent clipping on right/bottom edges
+        int w = width - 1;
+        int h = height - 1;
+
+        // Path for the border (left, top, right sides)
+        GeneralPath path = new GeneralPath();
+        path.moveTo(0, h);
+        path.lineTo(0, arc);
+        path.quadTo(0, 0, arc, 0);
+        path.lineTo(w - arc, 0);
+        path.quadTo(w, 0, w, arc);
+        path.lineTo(w, h);
+        // Path is intentionally left open at the bottom
+
+        // A closed version of the path is needed for filling the background.
+        GeneralPath fillPath = (GeneralPath) path.clone();
+        fillPath.closePath();
+
+        // Paint background - using light grey
+        g2d.setColor(new Color(248, 249, 250));
+        g2d.fill(fillPath);
         
-        // Paint background - using light grey similar to input field
-        g2d.setColor(new Color(248, 249, 250)); // Light grey background (matches BACKGROUND_COLOR)
-        g2d.fillRoundRect(0, 0, width, height, height, height);
-        
-        // Paint border - using border color from the design system
-        g2d.setColor(BORDER_COLOR); // Grey border color from constants
+        // Paint border (which is the open path)
+        g2d.setColor(BORDER_COLOR);
         g2d.setStroke(new BasicStroke(1.0f));
-        g2d.drawRoundRect(0, 0, width - 1, height - 1, height, height);
+        g2d.draw(path);
         
         g2d.dispose();
       }
