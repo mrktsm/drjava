@@ -314,9 +314,10 @@
 .playbar-wrapper {
   display: flex;
   flex-direction: column;
-  height: 180px; /* Increased to accommodate zoom controls */
+  height: 200px; /* Increased from 180px */
   background-color: #e9ecef;
   border-top: 1px solid #ced4da;
+  margin-bottom: 5px; /* Added margin below the playbar */
 }
 
 /* Zoom controls */
@@ -431,7 +432,7 @@
 
 .playbar-container {
   position: relative;
-  height: 80px; /* Increased from 65px */
+  height: 100px; /* Increased from 80px */
   background-color: #cce7ff; /* Pale blue background */
   border: 1px solid #00aaff; /* Blue outline restored */
   padding: 8px 0; /* Add vertical padding */
@@ -469,7 +470,7 @@
 
 .cursor {
   width: 3px; /* Made slightly wider */
-  height: 112px; /* Extended to reach bottom of orange bar */
+  height: 132px; /* Increased from 112px */
   background-color: red;
   position: absolute;
   z-index: 99999;

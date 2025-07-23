@@ -211,11 +211,11 @@ function PlaybarComponent({
 
   // Auto-scroll to keep cursor in view
   const scrollToKeepCursorVisible = useCallback(() => {
-    if (!timelineScrollRef.current || !containerRef.current) return;
+    if (!timelineScrollRef.current) return;
 
     const cursorPosition = timeToPixels(currentTime);
     const scrollContainer = timelineScrollRef.current;
-    const containerWidth = containerRef.current.offsetWidth;
+    const containerWidth = scrollContainer.offsetWidth;
     const scrollLeft = scrollContainer.scrollLeft;
     const scrollRight = scrollLeft + containerWidth;
 
@@ -301,7 +301,6 @@ function PlaybarComponent({
               ref={containerRef}
               className="playbar-container"
               onMouseDown={handleMouseDown}
-              style={{ width: `${timelineWidth}px` }}
             >
               {/* Playbar (blue progress) */}
               <div className="playbar" style={{ width: `${playbarWidth}px` }} />
@@ -317,10 +316,7 @@ function PlaybarComponent({
             </div>
 
             {/* Activity Bar (Orange) */}
-            <div
-              className="activity-bar-container"
-              style={{ width: `${timelineWidth}px` }}
-            >
+            <div className="activity-bar-container">
               {activitySegments.map((seg, index) => {
                 const left = timeToPercentage(seg.start);
                 const width = timeToPercentage(seg.end) - left;
