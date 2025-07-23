@@ -29,3 +29,9 @@ scratch
 *.swp
 *.swo
 .DS_Store
+
+# Environment variables
+.env
+
+# Log files
+*.log
