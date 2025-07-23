@@ -19,6 +19,8 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
+import com.google.gson.GsonBuilder;
+import com.google.gson.stream.JsonReader;
 
 /**
  * MCP Server that bridges DrJava to the Google Gemini API.
@@ -27,7 +29,7 @@ public class MCPServer {
     private static final int PORT = 8080;
     private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:streamGenerateContent";
     private final String apiKey;
-    private final Gson gson = new Gson();
+    private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
 
     public MCPServer() {
         Dotenv dotenv = Dotenv.configure().directory("./mcp-server").ignoreIfMissing().load();
@@ -86,23 +88,47 @@ public class MCPServer {
             }
 
             exchange.sendResponseHeaders(200, 0);
+            OutputStream responseBody = exchange.getResponseBody();
 
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (line.trim().startsWith("\"text\":")) {
-                        String text = line.substring(line.indexOf(":") + 1).trim();
-                        text = text.substring(1, text.length() - 1); // Remove quotes
-                        
-                        JsonObject sseData = new JsonObject();
-                        sseData.addProperty("chunk", text.replace("\\n", "\n").replace("\\\"", "\""));
-                        sseData.addProperty("done", false);
-                        
-                        String sseEvent = "data: " + gson.toJson(sseData) + "\n\n";
-                        exchange.getResponseBody().write(sseEvent.getBytes(StandardCharsets.UTF_8));
-                        exchange.getResponseBody().flush();
-                    }
+            try (JsonReader reader = new JsonReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                reader.setLenient(true);
+
+                reader.beginArray();
+                while (reader.hasNext()) {
+                    // Each element in the stream is a JSON object that we can parse.
+                    JsonObject responseJson = gson.fromJson(reader, JsonObject.class);
+                    
+                    JsonElement candidatesEl = responseJson.get("candidates");
+                    if (candidatesEl == null || !candidatesEl.isJsonArray()) continue;
+                    
+                    JsonArray candidates = candidatesEl.getAsJsonArray();
+                    if (candidates.isEmpty()) continue;
+                    
+                    JsonElement firstCandidateEl = candidates.get(0);
+                    if (firstCandidateEl == null || !firstCandidateEl.isJsonObject()) continue;
+
+                    JsonObject content = firstCandidateEl.getAsJsonObject().getAsJsonObject("content");
+                    if (content == null) continue;
+
+                    JsonArray parts = content.getAsJsonArray("parts");
+                    if (parts == null || parts.isEmpty()) continue;
+
+                    JsonObject firstPart = parts.get(0).getAsJsonObject();
+                    if (firstPart == null || !firstPart.has("text")) continue;
+                    
+                    String text = firstPart.get("text").getAsString();
+
+                    JsonObject sseData = new JsonObject();
+                    sseData.addProperty("chunk", text);
+                    sseData.addProperty("done", false);
+                    
+                    String sseEvent = "data: " + gson.toJson(sseData) + "\n\n";
+                    responseBody.write(sseEvent.getBytes(StandardCharsets.UTF_8));
+                    responseBody.flush();
                 }
+            } catch (IOException e) {
+                // This can happen if the stream is closed unexpectedly. We can log and ignore.
+                System.err.println("IOException during Gemini stream processing: " + e.getMessage());
             } finally {
                 // Send completion event
                 JsonObject finalSseData = new JsonObject();

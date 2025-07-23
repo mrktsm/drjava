@@ -309,19 +309,128 @@
 }
 
 /* Playbar styles */
-.container {
-  padding: 0 15px;
-  height: 150px; /* Increased from 130px */
-  background-color: #e9ecef; /* Dark background */
-  border-top: 1px solid #ced4da; /* Thin divider instead of 3px */
+
+/* Playbar wrapper for zoom functionality */
+.playbar-wrapper {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start; /* Align content to the top */
+  height: 180px; /* Increased to accommodate zoom controls */
+  background-color: #e9ecef;
+  border-top: 1px solid #ced4da;
+}
+
+/* Zoom controls */
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 15px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #ced4da;
+  font-size: 12px;
+  color: #495057;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+.zoom-controls label {
+  font-weight: 500;
+  color: #6c757d;
+  margin: 0;
+}
+
+.zoom-slider {
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: #dee2e6;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #007bff;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.zoom-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #007bff;
+  cursor: pointer;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.zoom-display {
+  font-weight: 600;
+  color: #495057;
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Timeline scroll container */
+.timeline-scroll-container {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  position: relative;
+  background-color: #e9ecef;
+  /* Custom scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: #6c757d #e9ecef;
+}
+
+.timeline-scroll-container::-webkit-scrollbar {
+  height: 8px;
+}
+
+.timeline-scroll-container::-webkit-scrollbar-track {
+  background: #e9ecef;
+}
+
+.timeline-scroll-container::-webkit-scrollbar-thumb {
+  background: #6c757d;
+  border-radius: 4px;
+}
+
+.timeline-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #495057;
+}
+
+/* Timeline content that can expand */
+.timeline-content {
+  position: relative;
+  min-width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 0 15px;
+}
+
+.container {
+  padding: 0;
+  height: auto;
+  background-color: transparent;
+  border-top: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  flex: 1;
 }
 
 .playbar-container {
   position: relative;
-  width: 100%;
   height: 80px; /* Increased from 65px */
   background-color: #cce7ff; /* Pale blue background */
   border: 1px solid #00aaff; /* Blue outline restored */
@@ -333,7 +442,6 @@
 
 .activity-bar-container {
   position: relative;
-  width: 100%;
   height: 20px; /* A smaller bar for the activity */
   background-color: #ffcc99; /* Darker orange background */
   border: 1px solid #ff8800; /* Orange outline restored */
@@ -389,10 +497,10 @@
 }
 
 .timeline-divider {
-  width: calc(100% + 30px);
+  width: 100%;
   height: 1px;
   background-color: #ced4da; /* Light grey divider */
-  margin: 8px -15px;
+  margin: 8px 0;
 }
 
 .hour-line {
