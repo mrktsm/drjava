@@ -852,10 +852,10 @@ public class AIChatPanel extends JPanel {
         int buttonPanelHeight = 44;
         
         if (width > buttonPanelWidth + 6 && height >= buttonPanelHeight) {
-          int x = width - buttonPanelWidth - 3;
+          int x = width - buttonPanelWidth - 4;
           int y = (height - buttonPanelHeight) / 2;
           buttonPanel.setBounds(x, y, buttonPanelWidth, buttonPanelHeight);
-          _sendButton.setBounds(6, 6, 32, 32);
+          _sendButton.setBounds(9, 6, 32, 32);
         } else {
           buttonPanel.setBounds(-buttonPanelWidth, -buttonPanelHeight, buttonPanelWidth, buttonPanelHeight);
         }
