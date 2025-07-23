@@ -203,10 +203,60 @@ function PlaybarComponent({
     (e) => {
       const newZoom = parseFloat(e.target.value);
       const minZoom = getMinZoom();
-      // Ensure zoom doesn't go below the minimum required to fill the window
-      setZoomLevel(Math.max(minZoom, newZoom));
+      const clampedZoom = Math.max(minZoom, newZoom);
+
+      if (
+        !timelineScrollRef.current ||
+        Math.abs(clampedZoom - zoomLevel) < 0.001
+      ) {
+        setZoomLevel(clampedZoom);
+        return;
+      }
+
+      // Store precise state before any changes
+      const scrollContainer = timelineScrollRef.current;
+      const containerWidth = scrollContainer.offsetWidth;
+      const currentScrollLeft = scrollContainer.scrollLeft;
+
+      // Calculate cursor's viewport position with high precision
+      const oldTimelineWidth = baseTimelineWidth * zoomLevel;
+      const cursorTimePercentage =
+        (currentTime - sessionStart) / sessionDuration;
+      const cursorPixelPosition = cursorTimePercentage * oldTimelineWidth;
+      const cursorViewportOffset = cursorPixelPosition - currentScrollLeft;
+
+      // Calculate the exact pixel position where cursor should be after zoom
+      const newTimelineWidth = baseTimelineWidth * clampedZoom;
+      const newCursorPixelPosition = cursorTimePercentage * newTimelineWidth;
+      const targetScrollLeft = newCursorPixelPosition - cursorViewportOffset;
+
+      // Update zoom and scroll together to prevent intermediate states
+      setZoomLevel(clampedZoom);
+
+      // Use RAF for smooth visual update
+      requestAnimationFrame(() => {
+        if (!timelineScrollRef.current) return;
+
+        const maxScrollLeft =
+          timelineScrollRef.current.scrollWidth -
+          timelineScrollRef.current.clientWidth;
+        const clampedScrollLeft = Math.max(
+          0,
+          Math.min(maxScrollLeft, targetScrollLeft)
+        );
+
+        // Round to prevent sub-pixel positioning issues
+        timelineScrollRef.current.scrollLeft = Math.round(clampedScrollLeft);
+      });
     },
-    [getMinZoom]
+    [
+      getMinZoom,
+      currentTime,
+      sessionStart,
+      sessionDuration,
+      baseTimelineWidth,
+      zoomLevel,
+    ]
   );
 
   // Auto-scroll to keep cursor in view
@@ -249,6 +299,16 @@ function PlaybarComponent({
     const cursorPixelPosition = timeToPixels(currentTime);
     setPlaybarWidth(cursorPixelPosition);
   }, [currentTime, timeToPixels]);
+
+  // Calculate constrained cursor position to prevent overflow
+  const constrainedPlaybarWidth = useMemo(() => {
+    if (!containerRef.current) return playbarWidth;
+
+    // Get the actual container width minus any borders/padding
+    const containerWidth = containerRef.current.offsetWidth;
+    // Constrain the playbar width to not exceed container boundaries
+    return Math.min(playbarWidth, containerWidth - 3); // -3px for cursor width
+  }, [playbarWidth, containerRef.current?.offsetWidth]);
 
   // Auto-scroll when playing
   useEffect(() => {
@@ -350,13 +410,16 @@ function PlaybarComponent({
               onMouseDown={handleMouseDown}
             >
               {/* Playbar (blue progress) */}
-              <div className="playbar" style={{ width: `${playbarWidth}px` }} />
+              <div
+                className="playbar"
+                style={{ width: `${constrainedPlaybarWidth}px` }}
+              />
 
               {/* Cursor - moved out of playbar to respect z-index */}
               <div
                 className="cursor"
                 style={{
-                  left: `${playbarWidth}px`,
+                  left: `${constrainedPlaybarWidth}px`,
                   cursor: isDragging ? "grabbing" : "grab",
                 }}
               />

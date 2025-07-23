@@ -464,6 +464,7 @@
   background-color: #00aaff;
   border-radius: 4px 0 0 4px; /* Reduced from 8px to match container */
   z-index: 1;
+  max-width: 100%; /* Prevent playbar from overflowing */
 }
 
 .segment {
@@ -474,7 +475,7 @@
 
 .cursor {
   width: 3px; /* Made slightly wider */
-  height: 132px; /* Increased from 112px */
+  height: 132px; /* Increased from 112px to extend through both bars */
   background-color: red;
   position: absolute;
   z-index: 99999;
