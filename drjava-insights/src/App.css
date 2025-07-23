@@ -386,6 +386,10 @@
   overflow-y: hidden;
   position: relative;
   background-color: #e9ecef;
+  overscroll-behavior-x: contain; /* Prevent overscroll bounce effect */
+  overscroll-behavior: contain; /* Additional fallback */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  scroll-behavior: auto; /* Prevent smooth scrolling that can cause bounce */
   /* Custom scrollbar styling */
   scrollbar-width: thin;
   scrollbar-color: #6c757d #e9ecef;

@@ -258,7 +258,54 @@ function PlaybarComponent({
   // Handle scroll events
   const handleScroll = useCallback((e) => {
     setScrollLeft(e.target.scrollLeft);
+
+    // Prevent overscroll bounce on Firefox and other browsers
+    const scrollContainer = e.target;
+    const maxScrollLeft =
+      scrollContainer.scrollWidth - scrollContainer.clientWidth;
+
+    // If user tries to scroll beyond boundaries, clamp the scroll position
+    if (scrollContainer.scrollLeft < 0) {
+      scrollContainer.scrollLeft = 0;
+    } else if (scrollContainer.scrollLeft > maxScrollLeft) {
+      scrollContainer.scrollLeft = maxScrollLeft;
+    }
   }, []);
+
+  // Prevent wheel events from causing overscroll
+  const handleWheel = useCallback((e) => {
+    const scrollContainer = timelineScrollRef.current;
+    if (!scrollContainer) return;
+
+    const maxScrollLeft =
+      scrollContainer.scrollWidth - scrollContainer.clientWidth;
+    const currentScrollLeft = scrollContainer.scrollLeft;
+
+    // Check if wheel would cause overscroll
+    const deltaX = e.deltaX;
+    const newScrollLeft = currentScrollLeft + deltaX;
+
+    if (newScrollLeft < 0 || newScrollLeft > maxScrollLeft) {
+      e.preventDefault(); // Prevent the overscroll
+      // Clamp to boundaries
+      scrollContainer.scrollLeft = Math.max(
+        0,
+        Math.min(maxScrollLeft, newScrollLeft)
+      );
+    }
+  }, []);
+
+  // Add wheel event listener to prevent overscroll
+  useEffect(() => {
+    const scrollContainer = timelineScrollRef.current;
+    if (!scrollContainer) return;
+
+    scrollContainer.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      scrollContainer.removeEventListener("wheel", handleWheel);
+    };
+  }, [handleWheel]);
 
   const currentPercentage = timeToPercentage(currentTime);
 
