@@ -872,7 +872,7 @@ public class AIChatPanel extends JPanel {
   }
   
   private JPanel _createContextIndicator() {
-    JPanel contextPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+    JPanel contextPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
     contextPanel.setOpaque(false);
     contextPanel.setBorder(new EmptyBorder(4, 16, 0, 16));
     contextPanel.setVisible(false); // Hidden by default
@@ -881,16 +881,27 @@ public class AIChatPanel extends JPanel {
     JPanel pill = new JPanel(new BorderLayout()) {
       @Override
       public Dimension getPreferredSize() {
-        Dimension d = super.getPreferredSize();
-        Container parent = getParent();
-        if (parent != null && parent.getWidth() > 100) {
-          d.width = (int) (parent.getWidth() * 0.90);
-        } else if (d.width < 350) {
-          d.width = 350; // Set a minimum width
+        Dimension pref = super.getPreferredSize();
+        // Limit to 98% of viewport width for consistency
+        int availableWidth = _chatScroll.getViewport().getWidth();
+        if (availableWidth > 100) {
+            int maxWidth = availableWidth * 98 / 100;
+            if (pref.width > maxWidth) {
+              pref.width = maxWidth;
+            }
+        } else {
+            // During initial layout or when parent is too small, use a reasonable default
+            int maxWidth = Math.max(150, pref.width);
+            pref.width = Math.min(pref.width, maxWidth);
         }
-        return d;
+        return pref;
       }
-
+      
+      @Override
+      public Dimension getMaximumSize() {
+        return getPreferredSize();
+      }
+      
       @Override
       protected void paintComponent(Graphics g) {
         Graphics2D g2d = (Graphics2D) g.create();
@@ -898,7 +909,7 @@ public class AIChatPanel extends JPanel {
         
         int width = getWidth();
         int height = getHeight();
-        int arc = 12; // Radius for top corners
+        int arc = 8; // Radius for top corners
 
         // Adjust coordinates for stroke width to prevent clipping
         int w = width - 1;
@@ -914,7 +925,7 @@ public class AIChatPanel extends JPanel {
         path.closePath();
 
         // Paint background
-        g2d.setColor(USER_BUBBLE_COLOR);
+        g2d.setColor(new Color(248, 249, 250));
         g2d.fill(path);
         
         // Paint border
@@ -930,9 +941,9 @@ public class AIChatPanel extends JPanel {
     
     _contextLabel = new JLabel();
     _contextLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-    _contextLabel.setForeground(USER_TEXT_COLOR);
-    _contextLabel.setHorizontalAlignment(JLabel.LEFT);
-    _contextLabel.setVerticalAlignment(JLabel.CENTER);
+    _contextLabel.setForeground(SECONDARY_TEXT_COLOR); // Grey text matching secondary text
+    _contextLabel.setHorizontalAlignment(JLabel.LEFT); // Align text to the left
+    _contextLabel.setVerticalAlignment(JLabel.CENTER); // Center vertically
     
     // Create close button
     _contextCloseButton = new JButton("×") {
@@ -1997,7 +2008,7 @@ public class AIChatPanel extends JPanel {
   
   private JPanel _createChatContextBubble(String fileName, int startLine, int endLine) {
     // This container allows the bubble to expand to the full width of the parent
-    JPanel contextContainer = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0)) {
+    JPanel contextContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0)) {
         @Override
         public Dimension getMaximumSize() {
             Dimension pref = getPreferredSize();
@@ -2011,12 +2022,17 @@ public class AIChatPanel extends JPanel {
       @Override
       public Dimension getPreferredSize() {
         Dimension pref = super.getPreferredSize();
-        // Limit to 95% of the viewport width to be slightly smaller than the message
+        // Limit to 98% of viewport width for consistency
         int availableWidth = _chatScroll.getViewport().getWidth();
         if (availableWidth > 100) {
-            pref.width = availableWidth * 95 / 100;
-        } else if (pref.width < 150) {
-            pref.width = 150;
+            int maxWidth = availableWidth * 98 / 100;
+            if (pref.width > maxWidth) {
+              pref.width = maxWidth;
+            }
+        } else {
+            // During initial layout or when parent is too small, use a reasonable default
+            int maxWidth = Math.max(150, pref.width);
+            pref.width = Math.min(pref.width, maxWidth);
         }
         return pref;
       }
@@ -2033,7 +2049,7 @@ public class AIChatPanel extends JPanel {
         
         int width = getWidth();
         int height = getHeight();
-        int arc = 12; // Radius for top corners
+        int arc = 8; // Radius for top corners
 
         // Adjust coordinates for stroke width to prevent clipping
         int w = width - 1;
@@ -2049,7 +2065,7 @@ public class AIChatPanel extends JPanel {
         path.closePath();
 
         // Paint background
-        g2d.setColor(USER_BUBBLE_COLOR);
+        g2d.setColor(new Color(248, 249, 250));
         g2d.fill(path);
         
         // Paint border
@@ -2109,14 +2125,17 @@ public class AIChatPanel extends JPanel {
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         
+        int width = getWidth();
+        int height = getHeight();
+
         // Paint rounded background with proper anti-aliasing
         g2d.setColor(getBackground());
-        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
-        
+        g2d.fillRoundRect(0, 0, width, height, 12, 12);
+
         // Paint border
         g2d.setColor(BORDER_COLOR);
         g2d.setStroke(new BasicStroke(1.0f));
-        g2d.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+        g2d.drawRoundRect(0, 0, width - 1, height - 1, 12, 12);
         
         g2d.dispose();
       }
@@ -2124,20 +2143,17 @@ public class AIChatPanel extends JPanel {
       @Override
       public Dimension getPreferredSize() {
         Dimension pref = super.getPreferredSize();
-        // Limit to 98% of parent width for user messages (nearly full width for maximum text alignment)
-        Container parent = getParent();
-        if (parent != null) {
-          int parentWidth = parent.getWidth();
-          if (parentWidth > 100) {
-            int maxWidth = parentWidth * 98 / 100;
+        // Limit to 98% of viewport width for user messages
+        int availableWidth = _chatScroll.getViewport().getWidth();
+        if (availableWidth > 100) {
+            int maxWidth = availableWidth * 98 / 100;
             if (pref.width > maxWidth) {
               pref.width = maxWidth;
             }
-          } else {
+        } else {
             // During initial layout or when parent is too small, use a reasonable default
             int maxWidth = Math.max(150, pref.width);
             pref.width = Math.min(pref.width, maxWidth);
-          }
         }
         return pref;
       }
@@ -2148,7 +2164,7 @@ public class AIChatPanel extends JPanel {
       }
     };
     bubblePanel.setBackground(USER_BUBBLE_COLOR);
-    bubblePanel.setBorder(new EmptyBorder(8, 8, 8, 12)); // Reduced left padding for better text alignment
+    bubblePanel.setBorder(new EmptyBorder(6, 8, 6, 10));
     
     // Message text inside the bubble
     JTextArea messageText = new JTextArea(message);
