@@ -188,6 +188,9 @@ public class AIChatPanel extends JPanel {
     html = html.replaceAll("(?m)^## (.+)$", "<h2>$1</h2>");
     html = html.replaceAll("(?m)^# (.+)$", "<h1>$1</h1>");
     
+    // Process tables BEFORE converting newlines to <br>
+    html = _convertTablesToHTML(html);
+
     // Line breaks
     html = html.replaceAll("\n", "<br>");
     
@@ -204,7 +207,72 @@ public class AIChatPanel extends JPanel {
            "p { margin: 4px 0; word-wrap: break-word; hyphens: auto; word-break: break-word; white-space: pre-wrap; }" +
            "strong { font-weight: 600; }" +
            "em { font-style: italic; }" +
+           "table { width: auto; border-collapse: collapse; margin: 8px 0; font-size: 10px; border: 1px solid #d0d7de; } " +
+           "th { border: 1px solid #d0d7de; padding: 4px 10px; text-align: left; background-color: #f6f8fa; font-weight: 600; } " +
+           "td { border: 1px solid #d0d7de; padding: 4px 10px; } " +
            "</style></head><body>" + html + "</body></html>";
+  }
+  
+  /**
+   * Converts markdown tables to HTML tables.
+   */
+  private String _convertTablesToHTML(String text) {
+      String tableRegex = 
+          "(\\|(?:.*?\\|)+[\\r\\n]+)" +      // Header row
+          "(\\|(?: *[-:]+[-| :]*\\|)+[\\r\\n]+)" + // Separator row
+          "((?:\\|(?:.*?\\|)+[\\r\\n]*)*)";      // Data rows
+
+      Pattern pattern = Pattern.compile(tableRegex, Pattern.MULTILINE);
+      Matcher matcher = pattern.matcher(text);
+
+      StringBuffer sb = new StringBuffer();
+      while (matcher.find()) {
+          String tableMarkdown = matcher.group(0).trim();
+          if (tableMarkdown.isEmpty()) {
+              continue;
+          }
+          
+          String[] rows = tableMarkdown.split("[\\r\\n]+");
+
+          StringBuilder tableHtml = new StringBuilder();
+          tableHtml.append("<table>");
+          
+          // Header
+          if (rows.length > 0) {
+              String headerRow = rows[0];
+              tableHtml.append("<thead><tr>");
+              String[] headers = headerRow.substring(1, headerRow.length() - 1).split("\\|");
+              for (String header : headers) {
+                  String cellContent = header.trim().replace("<", "&lt;").replace(">", "&gt;");
+                  tableHtml.append("<th>").append(cellContent).append("</th>");
+              }
+              tableHtml.append("</tr></thead>");
+          }
+
+          // Body (starts after separator line)
+          if (rows.length > 2) {
+              tableHtml.append("<tbody>");
+              for (int i = 2; i < rows.length; i++) {
+                  String dataRow = rows[i];
+                  if (!dataRow.contains("|")) continue;
+                  
+                  tableHtml.append("<tr>");
+                  String[] cells = dataRow.substring(1, dataRow.length() - 1).split("\\|");
+                  for (String cell : cells) {
+                      String cellContent = cell.trim().replace("<", "&lt;").replace(">", "&gt;");
+                      tableHtml.append("<td>").append(cellContent).append("</td>");
+                  }
+                  tableHtml.append("</tr>");
+              }
+              tableHtml.append("</tbody>");
+          }
+          tableHtml.append("</table>");
+          
+          matcher.appendReplacement(sb, tableHtml.toString());
+      }
+      matcher.appendTail(sb);
+      
+      return sb.toString();
   }
   
   /**
@@ -411,11 +479,9 @@ public class AIChatPanel extends JPanel {
     codeScrollPane.getHorizontalScrollBar().setUnitIncrement(16);
     
     // Calculate full height based on number of lines - no height limit
-    FontMetrics fm = codePane.getFontMetrics(new Font(mainFont.getFamily(), Font.PLAIN, 13));
-    int lineHeight = fm.getHeight();
-    String[] lines = code.split("\n");
-    int numLines = Math.max(1, lines.length);
-    int fullHeight = (numLines * lineHeight) + 24; // Add padding
+    FontMetrics fm = codePane.getFontMetrics(codePane.getFont());
+    int preferredHeight = codePane.getPreferredSize().height;
+    int fullHeight = preferredHeight + 24; // Add padding
     
     // Set the scroll pane to show full content height
     codeScrollPane.setPreferredSize(new Dimension(0, fullHeight));
