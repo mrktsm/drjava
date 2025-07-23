@@ -57,6 +57,7 @@ public class AIChatPanel extends JPanel {
   private JTextField _inputField;
   private JButton _sendButton;
   private JScrollPane _chatScroll;
+  private JLayeredPane _layeredPane;
   
   // Context indicator for selected text
   private JPanel _contextIndicator;
@@ -612,6 +613,25 @@ public class AIChatPanel extends JPanel {
     _chatScroll.getViewport().setBackground(CHAT_BACKGROUND);
     _chatScroll.getVerticalScrollBar().setUnitIncrement(16);
     
+    // Add listener to trigger layout update when scrollbar visibility changes
+    _chatScroll.getVerticalScrollBar().addComponentListener(new ComponentAdapter() {
+        @Override
+        public void componentShown(ComponentEvent e) {
+            if (_layeredPane != null) {
+                _layeredPane.revalidate();
+                _layeredPane.repaint();
+            }
+        }
+
+        @Override
+        public void componentHidden(ComponentEvent e) {
+            if (_layeredPane != null) {
+                _layeredPane.revalidate();
+                _layeredPane.repaint();
+            }
+        }
+    });
+    
     // Create embedded input field with send button inside
     _inputField = null; // Will be created in _createEmbeddedInputPanel
     _sendButton = _createSendButton();
@@ -755,7 +775,7 @@ public class AIChatPanel extends JPanel {
     chatPanel.add(_chatScroll, BorderLayout.CENTER);
     
     // Main layout with layered pane
-    JLayeredPane layeredPane = new JLayeredPane() {
+    _layeredPane = new JLayeredPane() {
         @Override
         public void doLayout() {
             int width = getWidth();
@@ -773,15 +793,22 @@ public class AIChatPanel extends JPanel {
             
             int bottomPanelHeight = inputHeight + contextHeight;
             
-            bottomPanel.setBounds(0, height - bottomPanelHeight, width, bottomPanelHeight);
+            // Adjust bottom panel width to account for vertical scrollbar in chat area
+            int effectiveBottomPanelWidth = width;
+            JScrollBar verticalScrollBar = AIChatPanel.this._chatScroll.getVerticalScrollBar();
+            if (verticalScrollBar != null && verticalScrollBar.isVisible()) {
+                effectiveBottomPanelWidth = width - verticalScrollBar.getWidth();
+            }
+
+            bottomPanel.setBounds(0, height - bottomPanelHeight, effectiveBottomPanelWidth, bottomPanelHeight);
         }
     };
 
-    layeredPane.add(chatPanel, JLayeredPane.DEFAULT_LAYER);
-    layeredPane.add(bottomPanel, JLayeredPane.PALETTE_LAYER);
+    _layeredPane.add(chatPanel, JLayeredPane.DEFAULT_LAYER);
+    _layeredPane.add(bottomPanel, JLayeredPane.PALETTE_LAYER);
 
     setLayout(new BorderLayout());
-    add(layeredPane, BorderLayout.CENTER);
+    add(_layeredPane, BorderLayout.CENTER);
   }
   
   private JPanel _createEmbeddedInputPanel() {
