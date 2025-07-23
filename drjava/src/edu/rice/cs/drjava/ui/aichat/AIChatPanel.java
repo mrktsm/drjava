@@ -2118,6 +2118,17 @@ public class AIChatPanel extends JPanel {
     };
     messagePanel.setOpaque(false);
     
+    // Message text inside the bubble
+    final JTextArea messageText = new JTextArea(message);
+    messageText.setEditable(false);
+    messageText.setOpaque(false);
+    messageText.setBackground(new Color(0, 0, 0, 0)); // Fully transparent
+    messageText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+    messageText.setForeground(USER_TEXT_COLOR);
+    messageText.setLineWrap(true);
+    messageText.setWrapStyleWord(true);
+    messageText.setBorder(null);
+
     // Create rounded chat bubble for user message
     JPanel bubblePanel = new JPanel(new BorderLayout()) {
       @Override
@@ -2142,22 +2153,35 @@ public class AIChatPanel extends JPanel {
       
       @Override
       public Dimension getPreferredSize() {
-        Dimension pref = super.getPreferredSize();
-        // Limit to 98% of viewport width for user messages
+        Insets insets = getInsets();
+        
+        // Calculate the maximum possible width for the bubble
         int availableWidth = _chatScroll.getViewport().getWidth();
-        if (availableWidth > 100) {
-            int maxWidth = availableWidth * 98 / 100;
-            if (pref.width > maxWidth) {
-              pref.width = maxWidth;
-            }
-        } else {
-            // During initial layout or when parent is too small, use a reasonable default
-            int maxWidth = Math.max(150, pref.width);
-            pref.width = Math.min(pref.width, maxWidth);
+        int bubbleMaxWidth = availableWidth > 100 ? (availableWidth * 98 / 100) : 150;
+
+        // Calculate the natural width of the text, accounting for manual newlines
+        FontMetrics fm = messageText.getFontMetrics(messageText.getFont());
+        String[] lines = messageText.getText().split("\n");
+        int maxTextWidth = 0;
+        for (String line : lines) {
+            maxTextWidth = Math.max(maxTextWidth, fm.stringWidth(line));
         }
-        return pref;
+        int naturalBubbleWidth = maxTextWidth + insets.left + insets.right;
+
+        // The bubble's actual width is the minimum of its natural width and the max allowed width.
+        int bubbleWidth = Math.min(bubbleMaxWidth, naturalBubbleWidth);
+
+        // The text area's width will be the bubble's width, minus padding.
+        int textAreaWidth = Math.max(1, bubbleWidth - insets.left - insets.right);
+
+        // Now calculate the required height for that width using the View API.
+        View v = messageText.getUI().getRootView(messageText);
+        v.setSize(textAreaWidth, 0);
+        float prefHeight = v.getPreferredSpan(View.Y_AXIS);
+        
+        return new Dimension(bubbleWidth, (int) prefHeight + insets.top + insets.bottom);
       }
-      
+
       @Override
       public Dimension getMaximumSize() {
         return getPreferredSize();
@@ -2165,17 +2189,6 @@ public class AIChatPanel extends JPanel {
     };
     bubblePanel.setBackground(USER_BUBBLE_COLOR);
     bubblePanel.setBorder(new EmptyBorder(6, 8, 6, 10));
-    
-    // Message text inside the bubble
-    JTextArea messageText = new JTextArea(message);
-    messageText.setEditable(false);
-    messageText.setOpaque(false);
-    messageText.setBackground(new Color(0, 0, 0, 0)); // Fully transparent
-    messageText.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-    messageText.setForeground(USER_TEXT_COLOR);
-    messageText.setLineWrap(true);
-    messageText.setWrapStyleWord(true);
-    messageText.setBorder(null);
     
     bubblePanel.add(messageText, BorderLayout.CENTER);
     
