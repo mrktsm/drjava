@@ -230,22 +230,22 @@
 .zoom-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 8px; /* Thicker */
+  width: 6px; /* Reduced from 8px to make thinner */
   height: 16px;
   border-radius: 0;
-  background: white; /* Whiter inside */
+  background: white;
   cursor: grab;
-  border: 1px solid #495057; /* Darker outline */
+  border: 1px solid #495057;
   box-shadow: none;
 }
 
 .zoom-slider::-moz-range-thumb {
-  width: 8px; /* Thicker */
+  width: 6px; /* Reduced from 8px to make thinner */
   height: 16px;
   border-radius: 0;
-  background: white; /* Whiter inside */
+  background: white;
   cursor: grab;
-  border: 1px solid #495057; /* Darker outline */
+  border: 1px solid #495057;
   box-shadow: none;
 }
 
@@ -456,24 +456,48 @@
 }
 
 .cursor {
-  width: 3px; /* Made slightly wider */
-  height: 132px; /* Increased from 112px to extend through both bars */
-  background-color: red;
+  width: 1px; /* Made slightly wider */
+  height: 180px; /* Increased height even more to reach higher */
+  background-color: #495057; /* Changed to dark grey to match slider toggles */
   position: absolute;
-  z-index: 99999;
+  z-index: 999999; /* Increased z-index to appear in front of all elements */
   cursor: pointer;
-  top: -8px; /* Positioned so circle is just above playbar */
+  top: -39px; /* Shifted one pixel higher */
 }
 
 .cursor::after {
   content: "";
-  width: 18px; /* Made larger */
-  height: 18px;
-  background-color: red;
+  width: 8px; /* Reduced from 12px for narrower head */
+  height: 16px; /* Made taller for better visibility */
+  background-color: #495057; /* Changed to dark grey for outline */
   position: absolute;
-  top: -18px; /* Aligned bottom of circle with bottom of time bar */
-  left: -7px;
-  border-radius: 50%;
+  top: 0px; /* Positioned at the very top of the cursor */
+  left: -3.5px; /* Adjusted to center the narrower head */
+  clip-path: polygon(
+    0% 0%,
+    100% 0%,
+    100% 70%,
+    50% 100%,
+    0% 70%
+  ); /* House shape pointing down */
+}
+
+.cursor::before {
+  content: "";
+  width: 5px; /* Reduced from 8px for narrower inner shape */
+  height: 12px; /* Smaller height for inner shape */
+  background-color: white; /* White interior to match slider toggles */
+  position: absolute;
+  top: 2px; /* Slightly offset from top */
+  left: -2px; /* Adjusted to center the narrower inner shape */
+  clip-path: polygon(
+    0% 0%,
+    100% 0%,
+    100% 70%,
+    50% 100%,
+    0% 70%
+  ); /* Same house shape pointing down */
+  z-index: 1; /* Above the outer shape */
 }
 
 .time-ticks-container {
@@ -510,7 +534,7 @@
   left: 50%;
   transform: translateX(-50%);
   font-size: 11px; /* Slightly smaller font */
-  color: #666; /* Softer grey */
+  color: #495057; /* Changed from #666 to dark grey */
   font-family: monospace;
 }
 
@@ -633,7 +657,7 @@
 }
 
 .playbar-wrapper .control-button:hover {
-  color: #212529; /* Only change color on hover */
+  color: #495057; /* Changed from #212529 to dark grey */
 }
 
 .playbar-wrapper .control-button:active {
@@ -650,7 +674,7 @@
 }
 
 .playbar-wrapper .control-button.primary:hover {
-  color: #212529; /* Same hover effect as other buttons */
+  color: #495057; /* Changed from #212529 to dark grey */
 }
 
 .playbar-wrapper .control-button.primary:active {
@@ -686,22 +710,22 @@
 .speed-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 8px; /* Thicker */
+  width: 6px; /* Reduced from 8px to make thinner */
   height: 16px;
   border-radius: 0;
-  background: white; /* Whiter inside */
+  background: white;
   cursor: grab;
-  border: 1px solid #495057; /* Darker outline */
+  border: 1px solid #495057;
   box-shadow: none;
 }
 
 .speed-slider::-moz-range-thumb {
-  width: 8px; /* Thicker */
+  width: 6px; /* Reduced from 8px to make thinner */
   height: 16px;
   border-radius: 0;
-  background: white; /* Whiter inside */
+  background: white;
   cursor: grab;
-  border: 1px solid #495057; /* Darker outline */
+  border: 1px solid #495057;
   box-shadow: none;
 }
 
@@ -742,22 +766,22 @@
 .font-size-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 8px; /* Thicker */
+  width: 6px; /* Reduced from 8px to make thinner */
   height: 16px;
   border-radius: 0;
-  background: white; /* Whiter inside */
+  background: white;
   cursor: grab;
-  border: 1px solid #495057; /* Darker outline */
+  border: 1px solid #495057;
   box-shadow: none;
 }
 
 .font-size-slider::-moz-range-thumb {
-  width: 8px; /* Thicker */
+  width: 6px; /* Reduced from 8px to make thinner */
   height: 16px;
   border-radius: 0;
-  background: white; /* Whiter inside */
+  background: white;
   cursor: grab;
-  border: 1px solid #495057; /* Darker outline */
+  border: 1px solid #495057;
   box-shadow: none;
 }
 
