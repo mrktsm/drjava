@@ -191,7 +191,7 @@
 .zoom-controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 10px; /* Consistent gap between direct children */
   padding: 8px 15px;
   background-color: #f8f9fa;
   border-bottom: 1px solid #ced4da;
@@ -199,6 +199,16 @@
   color: #495057;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+  /* Removed justify-content: space-between */
+}
+
+.zoom-controls > *:not(.file-explorer-controls) {
+  /* This rule is no longer necessary if we use specific margins or auto-margins */
+  margin-right: 0;
+}
+
+.zoom-controls > *:last-child {
+  margin-right: 0;
 }
 
 .zoom-controls label {
@@ -220,23 +230,23 @@
 .zoom-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 16px;
+  width: 8px; /* Thicker */
   height: 16px;
-  border-radius: 50%;
-  background: #007bff;
-  cursor: pointer;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border-radius: 0;
+  background: white; /* Whiter inside */
+  cursor: grab;
+  border: 1px solid #495057; /* Darker outline */
+  box-shadow: none;
 }
 
 .zoom-slider::-moz-range-thumb {
-  width: 16px;
+  width: 8px; /* Thicker */
   height: 16px;
-  border-radius: 50%;
-  background: #007bff;
-  cursor: pointer;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border-radius: 0;
+  background: white; /* Whiter inside */
+  cursor: grab;
+  border: 1px solid #495057; /* Darker outline */
+  box-shadow: none;
 }
 
 .zoom-display {
@@ -596,13 +606,13 @@
 
 /* Media Controls Bar - Now integrated in playbar */
 .playbar-wrapper .media-controls-container {
-  background-color: #f8f9fa; /* Slightly different shade to distinguish */
-  padding: 6px 15px; /* Reduced from 12px 20px */
+  background-color: #e9ecef; /* Changed to match playbar wrapper */
+  padding: 6px 15px;
   display: flex;
   align-items: center;
-  justify-content: flex-start; /* Changed from center to flex-start for left alignment */
-  gap: 2px; /* Reduced from 8px to 2px for much tighter spacing */
-  border-top: 1px solid #ced4da;
+  justify-content: flex-start;
+  gap: 2px;
+  border-top: none; /* Removed top border */
   margin-top: auto; /* Push to bottom of playbar-wrapper */
 }
 
@@ -645,4 +655,115 @@
 
 .playbar-wrapper .control-button.primary:active {
   color: #495057;
+}
+
+.playback-speed-control {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Increased gap to match zoom controls */
+  margin-left: 15px;
+  font-size: 12px; /* Changed to match zoom label */
+  color: #495057;
+  font-weight: 500;
+}
+
+.playback-speed-control label {
+  font-weight: 500;
+  color: #6c757d;
+  margin: 0;
+}
+
+.speed-slider {
+  width: 100px; /* Slightly smaller width than zoom slider */
+  height: 4px;
+  border-radius: 2px;
+  background: #dee2e6;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.speed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px; /* Thicker */
+  height: 16px;
+  border-radius: 0;
+  background: white; /* Whiter inside */
+  cursor: grab;
+  border: 1px solid #495057; /* Darker outline */
+  box-shadow: none;
+}
+
+.speed-slider::-moz-range-thumb {
+  width: 8px; /* Thicker */
+  height: 16px;
+  border-radius: 0;
+  background: white; /* Whiter inside */
+  cursor: grab;
+  border: 1px solid #495057; /* Darker outline */
+  box-shadow: none;
+}
+
+.speed-display {
+  font-weight: 600;
+  color: #495057;
+  min-width: 35px;
+  text-align: right;
+}
+
+/* Font Size Control */
+.font-size-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #495057;
+  font-weight: 500;
+  margin-left: auto; /* Push to the far right */
+}
+
+.font-size-control label {
+  font-weight: 500;
+  color: #6c757d;
+  margin: 0;
+}
+
+.font-size-slider {
+  width: 100px;
+  height: 4px;
+  border-radius: 2px;
+  background: #dee2e6;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.font-size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 8px; /* Thicker */
+  height: 16px;
+  border-radius: 0;
+  background: white; /* Whiter inside */
+  cursor: grab;
+  border: 1px solid #495057; /* Darker outline */
+  box-shadow: none;
+}
+
+.font-size-slider::-moz-range-thumb {
+  width: 8px; /* Thicker */
+  height: 16px;
+  border-radius: 0;
+  background: white; /* Whiter inside */
+  cursor: grab;
+  border: 1px solid #495057; /* Darker outline */
+  box-shadow: none;
+}
+
+.font-size-display {
+  font-weight: 600;
+  color: #495057;
+  min-width: 35px;
+  text-align: right;
 }

@@ -51,8 +51,8 @@ function App() {
     handleSkipBackward,
     handleSkipForward,
     handleTimelineChange,
-    // playbackSpeed, // Playback speed, could be used to show a playback speed selector
-    // setPlaybackSpeed,
+    playbackSpeed,
+    setPlaybackSpeed,
     // isUserScrubbing,
     // setIsUserScrubbing,
   } = useKeystrokePlayback({
@@ -83,6 +83,9 @@ function App() {
 
   // Use the first file from logs as default, or fallback
   const [activeFile, setActiveFile] = useState("");
+
+  // Font size state
+  const [fontSize, setFontSize] = useState(18); // Default font size
 
   // Update active file when files are loaded
   useEffect(() => {
@@ -138,7 +141,7 @@ function App() {
                 onChange={handleEditorChange}
                 theme="vs"
                 options={{
-                  fontSize: 18,
+                  fontSize: fontSize, // Use dynamic font size
                   fontFamily:
                     "Monaco, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
                   fontWeight: "500",
@@ -196,6 +199,10 @@ function App() {
         onSkipForward={handleSkipForward}
         onRestart={handleRestart}
         onSkipToEnd={handleSkipToEnd}
+        playbackSpeed={playbackSpeed}
+        onSetPlaybackSpeed={setPlaybackSpeed}
+        fontSize={fontSize}
+        onSetFontSize={setFontSize}
       />
     </div>
   );

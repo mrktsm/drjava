@@ -76,6 +76,10 @@ function PlaybarComponent({
   onSkipForward,
   onRestart,
   onSkipToEnd,
+  playbackSpeed,
+  onSetPlaybackSpeed,
+  fontSize,
+  onSetFontSize,
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [playbarWidth, setPlaybarWidth] = useState(0);
@@ -404,7 +408,7 @@ function PlaybarComponent({
 
   return (
     <div className="playbar-wrapper">
-      {/* Zoom Controls with File Explorer */}
+      {/* Zoom Controls with File Explorer and Font Size */}
       <div className="zoom-controls">
         {/* File Explorer */}
         <div className="file-explorer-controls">
@@ -446,6 +450,22 @@ function PlaybarComponent({
           className="zoom-slider"
         />
         <span className="zoom-display">{Math.round(zoomLevel * 100)}%</span>
+
+        {/* Font Size Control */}
+        <div className="font-size-control">
+          <label htmlFor="font-size-slider">Font Size:</label>
+          <input
+            id="font-size-slider"
+            type="range"
+            min="10"
+            max="30"
+            step="1"
+            value={fontSize}
+            onChange={(e) => onSetFontSize(parseInt(e.target.value))}
+            className="font-size-slider"
+          />
+          <span className="font-size-display">{fontSize}px</span>
+        </div>
       </div>
 
       <div className="container">
@@ -552,6 +572,22 @@ function PlaybarComponent({
         >
           <FaFastForward />
         </button>
+
+        {/* Playback Speed Control */}
+        <div className="playback-speed-control">
+          <label htmlFor="speed-slider">Speed:</label>
+          <input
+            id="speed-slider"
+            type="range"
+            min="0.5"
+            max="4.0"
+            step="0.1"
+            value={playbackSpeed}
+            onChange={(e) => onSetPlaybackSpeed(parseFloat(e.target.value))}
+            className="speed-slider"
+          />
+          <span className="speed-display">x{playbackSpeed.toFixed(1)}</span>
+        </div>
       </div>
     </div>
   );
