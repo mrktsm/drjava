@@ -372,30 +372,17 @@
   overscroll-behavior: contain; /* Additional fallback */
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
   scroll-behavior: auto; /* Prevent smooth scrolling that can cause bounce */
-  /* Custom scrollbar styling */
-  scrollbar-width: thin;
-  scrollbar-color: #6c757d #e9ecef;
   user-select: none; /* Prevent text selection when dragging */
   -webkit-user-select: none; /* Safari */
   -moz-user-select: none; /* Firefox */
   -ms-user-select: none; /* IE/Edge */
+  /* Hide scrollbar */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
 }
 
 .timeline-scroll-container::-webkit-scrollbar {
-  height: 8px;
-}
-
-.timeline-scroll-container::-webkit-scrollbar-track {
-  background: #e9ecef;
-}
-
-.timeline-scroll-container::-webkit-scrollbar-thumb {
-  background: #6c757d;
-  border-radius: 4px;
-}
-
-.timeline-scroll-container::-webkit-scrollbar-thumb:hover {
-  background: #495057;
+  display: none; /* Chrome, Safari, and Opera */
 }
 
 /* Timeline content that can expand */
