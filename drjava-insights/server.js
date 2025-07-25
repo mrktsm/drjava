@@ -22,23 +22,24 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Get the log file path from environment variable or use a default
-const logFilePath = process.env.LOG_FILE || "activity.log";
+// Get the log directory path from environment variable or use the DrJava default
+const logDirectory =
+  process.env.LOG_DIR || "/Users/markotsymbaluk/Desktop/drjava/drjava/logs";
 
 app.get("/api/logs", (req, res) => {
-  readAndParseLogs(logFilePath)
+  readAndParseLogs(logDirectory)
     .then((parsedLogs) => res.json(parsedLogs))
     .catch((err) => {
-      console.error(`Error reading log file from ${logFilePath}:`, err);
+      console.error(`Error reading log files from ${logDirectory}:`, err);
       res.status(500).json({
-        error: "Could not read log file.",
+        error: "Could not read log files.",
         message: err.message,
-        path: logFilePath,
+        path: logDirectory,
       });
     });
 });
 
 app.listen(port, () => {
   console.log(`Log server listening at http://localhost:${port}`);
-  console.log(`Serving logs from: ${logFilePath}`);
+  console.log(`Serving logs from: ${logDirectory}`);
 });

@@ -12,7 +12,7 @@ import useCodeReconstruction from "./hooks/useCodeReconstruction";
 /**
  * DrJava Insights: A web-based tool for visualizing and replaying student coding sessions.
  *
- * This application allows instructors or researchers to load a log of student activity
+ * This application allows instructors to load a log of student activity
  * and watch a step-by-step reconstruction of their coding process. It features a
  * code editor that shows the code evolving over time, a timeline with activity segments,
  * and playback controls to navigate the session.
@@ -23,7 +23,7 @@ import useCodeReconstruction from "./hooks/useCodeReconstruction";
  * The `App` component serves as the main container that initializes all necessary hooks,
  * manages the overall application state, and renders the primary UI layout.
  *
- * @author markotsymbaluk
+ * @author Marko Tsymbaliuk
  * @returns {JSX.Element} The rendered App component.
  */
 function App() {
@@ -34,6 +34,7 @@ function App() {
     activitySegments,
     sessionStartTime,
     sessionEndTime,
+    files,
     // loading, // Loading state for the logs, could be used to show a loading screen
     // error, // Error state for the logs, could be used to show an error screen
   } = useLogs();
@@ -78,26 +79,25 @@ function App() {
         : 24,
   });
 
+  // File dropdown state
+  const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
+
+  // Use the first file from logs as default, or fallback
+  const [activeFile, setActiveFile] = useState("");
+
+  // Update active file when files are loaded
+  useEffect(() => {
+    if (files.length > 0 && !activeFile) {
+      setActiveFile(files[0]);
+    }
+  }, [files, activeFile]);
+
   const code = useCodeReconstruction({
     logs,
     keystrokeLogs,
     currentKeystrokeIndex,
+    selectedFile: activeFile,
   });
-
-  // File dropdown state
-  const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
-
-  // Sample files for the file explorer
-  const [files] = useState([
-    "HelloWorld.java",
-    "StudentRecord.java",
-    "Calculator.java",
-    "FileManager.java",
-    "DatabaseHelper.java",
-    "UIController.java",
-  ]);
-
-  const [activeFile, setActiveFile] = useState("HelloWorld.java");
 
   // Set session timeline values when logs are loaded
   useEffect(() => {
@@ -115,12 +115,11 @@ function App() {
     // setCode(value); // This line is no longer needed as code is managed by useCodeReconstruction
   };
 
-  // TODO: Implement file select
+  // Now actually implement file select functionality
   const handleFileSelect = (filename) => {
     setActiveFile(filename);
     setIsFileDropdownOpen(false); // Close dropdown when file is selected
     console.log("Selected file:", filename);
-    // Here you would load the content for the selected file
   };
 
   const toggleFileDropdown = () => {
