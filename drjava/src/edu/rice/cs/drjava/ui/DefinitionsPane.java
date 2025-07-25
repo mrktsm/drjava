@@ -374,12 +374,50 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
   /** Writes a message to the log file */
   private void _writeToLogFile(String message) {
     try {
-      java.io.FileWriter writer = new java.io.FileWriter("drjava_text_changes.log", true);
+      // Create logs directory if it doesn't exist
+      java.io.File logsDir = new java.io.File("logs");
+      if (!logsDir.exists()) {
+        logsDir.mkdirs();
+      }
+      
+      // Create text_changes directory if it doesn't exist
+      java.io.File textChangesDir = new java.io.File("logs/text_changes");
+      if (!textChangesDir.exists()) {
+        textChangesDir.mkdirs();
+      }
+      
+      // Get the filename for this document
+      String filename = _getSafeFilename();
+      String logFilePath = "logs/text_changes/" + filename + ".log";
+      
+      java.io.FileWriter writer = new java.io.FileWriter(logFilePath, true);
       writer.write(java.time.LocalDateTime.now() + ": " + message + "\n");
       writer.close();
     } catch (java.io.IOException e) {
       // Silently ignore log file errors
     }
+  }
+
+  /** Gets a safe filename for logging purposes from the current document */
+  private String _getSafeFilename() {
+    try {
+      if (_doc != null) {
+        String path = _doc.getCompletePath();
+        if (path != null && !path.isEmpty()) {
+          // Extract just the filename from the full path
+          java.io.File file = new java.io.File(path);
+          String filename = file.getName();
+          
+          // Replace problematic characters for filesystem safety
+          return filename.replaceAll("[^a-zA-Z0-9._-]", "_");
+        }
+      }
+    } catch (Exception e) {
+      // Fall back to default if anything goes wrong
+    }
+    
+    // Default filename for untitled or problematic documents
+    return "untitled_document";
   }
 
 //  /** The menu item for the "Add Watch" option. Stored in field so that it may be enabled and

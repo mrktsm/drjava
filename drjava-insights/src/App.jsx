@@ -4,7 +4,6 @@ import "./App.css";
 import { BsFiletypeJava } from "react-icons/bs";
 import { VscChevronDown } from "react-icons/vsc";
 import PlaybarComponent from "./components/Playbar";
-import MediaControls from "./components/MediaControls";
 import useLogs from "./hooks/useLogs";
 import useKeystrokePlayback from "./hooks/useKeystrokePlayback";
 import useCodeReconstruction from "./hooks/useCodeReconstruction";
@@ -131,29 +130,6 @@ function App() {
       <div className="main-content">
         <div className="editor-and-controls-area">
           <div className="editor-container">
-            <div className="editor-header" onClick={toggleFileDropdown}>
-              <span className="file-title">{activeFile}</span>
-              <VscChevronDown size={16} className="file-chevron" />
-              {isFileDropdownOpen && (
-                <div className="file-dropdown">
-                  {files.map((file, index) => (
-                    <div
-                      key={index}
-                      className={`file-dropdown-item ${
-                        activeFile === file ? "active" : ""
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFileSelect(file);
-                      }}
-                    >
-                      <BsFiletypeJava className="file-icon java" />
-                      <span className="file-name">{file}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
             <div className="editor-wrapper">
               <Editor
                 height="100%"
@@ -180,14 +156,6 @@ function App() {
               />
             </div>
           </div>
-          <MediaControls
-            isPlaying={isPlaying}
-            onPlayPause={handlePlayPause}
-            onSkipBackward={handleSkipBackward}
-            onSkipForward={handleSkipForward}
-            onRestart={handleRestart}
-            onSkipToEnd={handleSkipToEnd}
-          />
         </div>
       </div>
       <PlaybarComponent
@@ -219,6 +187,15 @@ function App() {
                 sessionStartTime.getSeconds() / 3600)
             : 24
         }
+        files={files}
+        activeFile={activeFile}
+        onFileSelect={handleFileSelect}
+        isPlaying={isPlaying}
+        onPlayPause={handlePlayPause}
+        onSkipBackward={handleSkipBackward}
+        onSkipForward={handleSkipForward}
+        onRestart={handleRestart}
+        onSkipToEnd={handleSkipToEnd}
       />
     </div>
   );

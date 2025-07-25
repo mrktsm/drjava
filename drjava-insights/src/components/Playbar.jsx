@@ -1,4 +1,14 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
+import { BsFiletypeJava } from "react-icons/bs";
+import { VscChevronDown } from "react-icons/vsc";
+import {
+  FaPlay,
+  FaPause,
+  FaFastBackward,
+  FaBackward,
+  FaForward,
+  FaFastForward,
+} from "react-icons/fa";
 
 const TimelineTicks = memo(function TimelineTicks({
   sessionStart,
@@ -55,12 +65,24 @@ function PlaybarComponent({
   sessionStart = 0,
   sessionEnd = 24,
   sessionDuration = 24,
+  // File explorer props
+  files = [],
+  activeFile = "",
+  onFileSelect,
+  // Media control props
+  isPlaying = false,
+  onPlayPause,
+  onSkipBackward,
+  onSkipForward,
+  onRestart,
+  onSkipToEnd,
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [playbarWidth, setPlaybarWidth] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1); // Will be updated on mount
   const [scrollLeft, setScrollLeft] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
 
   const containerRef = useRef(null);
   const timelineScrollRef = useRef(null);
@@ -367,12 +389,51 @@ function PlaybarComponent({
     };
   }, [handleWheel]);
 
+  const toggleFileDropdown = () => {
+    setIsFileDropdownOpen(!isFileDropdownOpen);
+  };
+
+  const handleFileSelect = (filename) => {
+    if (onFileSelect) {
+      onFileSelect(filename);
+    }
+    setIsFileDropdownOpen(false);
+  };
+
   const currentPercentage = timeToPercentage(currentTime);
 
   return (
     <div className="playbar-wrapper">
-      {/* Zoom Controls */}
+      {/* Zoom Controls with File Explorer */}
       <div className="zoom-controls">
+        {/* File Explorer */}
+        <div className="file-explorer-controls">
+          <div className="file-selector" onClick={toggleFileDropdown}>
+            <BsFiletypeJava className="file-icon java" />
+            <span className="file-title">{activeFile}</span>
+            <VscChevronDown size={16} className="file-chevron" />
+            {isFileDropdownOpen && (
+              <div className="file-dropdown">
+                {files.map((file, index) => (
+                  <div
+                    key={index}
+                    className={`file-dropdown-item ${
+                      activeFile === file ? "active" : ""
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFileSelect(file);
+                    }}
+                  >
+                    <BsFiletypeJava className="file-icon java" />
+                    <span className="file-name">{file}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         <label htmlFor="zoom-slider">Zoom:</label>
         <input
           id="zoom-slider"
@@ -456,6 +517,41 @@ function PlaybarComponent({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Media Controls */}
+      <div className="media-controls-container">
+        <button className="control-button" onClick={onRestart} title="Restart">
+          <FaFastBackward />
+        </button>
+        <button
+          className="control-button"
+          onClick={onSkipBackward}
+          title="Skip Backward"
+        >
+          <FaBackward />
+        </button>
+        <button
+          className="control-button primary"
+          onClick={onPlayPause}
+          title={isPlaying ? "Pause" : "Play"}
+        >
+          {isPlaying ? <FaPause /> : <FaPlay />}
+        </button>
+        <button
+          className="control-button"
+          onClick={onSkipForward}
+          title="Skip Forward"
+        >
+          <FaForward />
+        </button>
+        <button
+          className="control-button"
+          onClick={onSkipToEnd}
+          title="Skip to End"
+        >
+          <FaFastForward />
+        </button>
       </div>
     </div>
   );

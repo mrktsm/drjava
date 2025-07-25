@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
  * - Calculating and segmenting active coding periods (segments) and application activity periods (activitySegments).
  * - Determining the overall session start and end times based on keystroke logs.
  * - Managing loading and error states during data fetching.
+ * - Extracting unique filenames from the logs.
  *
  * @returns {object} An object containing various states derived from the log data.
  * @property {Array<object>} logs - The complete, sorted array of all log entries.
@@ -18,6 +19,7 @@ import { useState, useEffect } from "react";
  * @property {Array<object>} activitySegments - An array of objects, each representing periods of application activity with `start` and `end` times (in hours).
  * @property {Date|null} sessionStartTime - The timestamp of the first keystroke in the session, or `null` if no keystrokes.
  * @property {Date|null} sessionEndTime - The timestamp of the last keystroke in the session, or `null` if no keystrokes.
+ * @property {Array<string>} files - An array of unique filenames found in the logs.
  * @property {boolean} loading - True if the log data is currently being fetched.
  * @property {Error|null} error - An error object if fetching fails, otherwise `null`.
  */
@@ -28,6 +30,7 @@ export default function useLogs() {
   const [activitySegments, setActivitySegments] = useState([]);
   const [sessionStartTime, setSessionStartTime] = useState(null);
   const [sessionEndTime, setSessionEndTime] = useState(null);
+  const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -136,6 +139,16 @@ export default function useLogs() {
       return activitySegments;
     };
 
+    const extractFilesFromLogs = (logs) => {
+      const fileSet = new Set();
+      logs.forEach((log) => {
+        if (log.filename && log.filename.trim() !== "") {
+          fileSet.add(log.filename.trim());
+        }
+      });
+      return Array.from(fileSet);
+    };
+
     setLoading(true);
     fetch("http://localhost:3001/api/logs")
       .then((res) => res.json())
@@ -144,6 +157,11 @@ export default function useLogs() {
           (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
         );
         setLogs(sortedLogs);
+
+        // Extract unique files from logs
+        const uniqueFiles = extractFilesFromLogs(sortedLogs);
+        setFiles(uniqueFiles);
+
         const keystrokeLogs = sortedLogs.filter(
           (log) => log.type === "insert" || log.type === "delete"
         );
@@ -179,6 +197,7 @@ export default function useLogs() {
     activitySegments,
     sessionStartTime,
     sessionEndTime,
+    files,
     loading,
     error,
   };

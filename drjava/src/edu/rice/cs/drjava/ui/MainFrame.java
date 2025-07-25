@@ -3308,22 +3308,12 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
           if (newActiveWindow == null) {
             // No active window - app is being deactivated
             _unfocusedTimestamp = System.currentTimeMillis();
-            _writeToLogFile("APP_DEACTIVATED: " + _unfocusedTimestamp);
+            _logSystemEvent("APP_DEACTIVATED: " + _unfocusedTimestamp);
           } else if (_unfocusedTimestamp > 0) {
             // An active window exists and we were previously deactivated
             long refocusedTimestamp = System.currentTimeMillis();
-            _writeToLogFile("APP_ACTIVATED: " + refocusedTimestamp);
+            _logSystemEvent("APP_ACTIVATED: " + refocusedTimestamp);
             _unfocusedTimestamp = 0;
-          }
-        }
-        
-        private void _writeToLogFile(String message) {
-          try {
-            java.io.FileWriter writer = new java.io.FileWriter("drjava_text_changes.log", true);
-            writer.write(java.time.LocalDateTime.now() + ": " + message + "\n");
-            writer.close();
-          } catch (java.io.IOException ex) {
-            // Silently ignore log file errors
           }
         }
       }
@@ -10812,12 +10802,20 @@ public class MainFrame extends SwingFrame implements ClipboardOwner, DropTargetL
   }
 
   private void _logSystemEvent(String eventMessage) {
-    String logFilePath = "drjava_text_changes.log";
-    try (PrintWriter writer = new PrintWriter(new FileWriter(logFilePath, true))) {
-        String fullLogMessage = java.time.LocalDateTime.now() + ": " + eventMessage;
-        writer.println(fullLogMessage);
+    try {
+      // Create logs directory if it doesn't exist
+      java.io.File logsDir = new java.io.File("logs");
+      if (!logsDir.exists()) {
+        logsDir.mkdirs();
+      }
+      
+      String logFilePath = "logs/session_events.log";
+      try (PrintWriter writer = new PrintWriter(new FileWriter(logFilePath, true))) {
+          String fullLogMessage = java.time.LocalDateTime.now() + ": " + eventMessage;
+          writer.println(fullLogMessage);
+      }
     } catch (IOException e) {
-        System.err.println("Failed to write to log: " + e.getMessage());
+        System.err.println("Failed to write to session log: " + e.getMessage());
     }
   }
 
