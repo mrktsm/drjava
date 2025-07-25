@@ -40,11 +40,13 @@ public class TextReconstructor {
 
                 Matcher insertMatcher = INSERT_PATTERN.matcher(line);
                 if (insertMatcher.matches()) {
-                    String insertedText = insertMatcher.group(2).replace("\n", "\\n"); // Get text and escape newlines
                     applyInsertion(insertMatcher, document, lineNumber, line);
+                    
+                    // Get the inserted text for display (keep escaped for readability)
+                    String insertedTextForDisplay = insertMatcher.group(2);
 
                     System.out.println("--- After log line " + lineNumber + " ---");
-                    System.out.println("Action: Inserted \"" + insertedText + "\"");
+                    System.out.println("Action: Inserted \"" + insertedTextForDisplay + "\"");
                     System.out.println("Document state:");
                     System.out.println(document.toString());
                     System.out.println("------------------------------------");
@@ -90,7 +92,14 @@ public class TextReconstructor {
     private static void applyInsertion(Matcher matcher, StringBuilder document, int lineNumber, String line) {
         try {
             int position = Integer.parseInt(matcher.group(1));
-            String text = matcher.group(2);
+            String escapedText = matcher.group(2);
+            
+            // Unescape special characters
+            String text = escapedText.replace("\\\"", "\"")    // Unescape quotes
+                                    .replace("\\t", "\t")     // Unescape tabs
+                                    .replace("\\r", "\r")     // Unescape carriage returns
+                                    .replace("\\n", "\n")     // Unescape newlines
+                                    .replace("\\\\", "\\");   // Unescape backslashes (must be last)
 
             // Pad with spaces if trying to insert past the end. This is a simple way to handle
             // what might otherwise be an invalid position after a large deletion.

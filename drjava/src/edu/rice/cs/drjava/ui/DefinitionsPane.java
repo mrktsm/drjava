@@ -346,7 +346,13 @@ public class DefinitionsPane extends AbstractDJPane implements Finalizable<Defin
   private void _logTextInsertion(DocumentEvent e) {
     try {
       String insertedText = e.getDocument().getText(e.getOffset(), e.getLength());
-      String logMessage = "Text inserted at position " + e.getOffset() + ": \"" + insertedText + "\"";
+      // Escape special characters to prevent breaking the log format
+      String escapedText = insertedText.replace("\\", "\\\\")  // Escape backslashes first
+                                      .replace("\n", "\\n")    // Escape newlines
+                                      .replace("\r", "\\r")    // Escape carriage returns
+                                      .replace("\t", "\\t")    // Escape tabs
+                                      .replace("\"", "\\\"");  // Escape quotes
+      String logMessage = "Text inserted at position " + e.getOffset() + ": \"" + escapedText + "\"";
       System.out.println(logMessage);
       _writeToLogFile(logMessage);
     } catch (BadLocationException ex) {

@@ -428,15 +428,26 @@ function PlaybarComponent({
             {/* Activity Bar (Orange) */}
             <div className="activity-bar-container">
               {activitySegments.map((seg, index) => {
-                const left = timeToPercentage(seg.start);
-                const width = timeToPercentage(seg.end) - left;
+                const leftPixels = timeToPixels(seg.start);
+                const rightPixels = timeToPixels(seg.end);
+                const widthPixels = rightPixels - leftPixels;
+                const constrainedLeftPixels = Math.min(
+                  leftPixels,
+                  (containerRef.current?.offsetWidth || timelineWidth) - 3
+                );
+                const constrainedWidthPixels = Math.min(
+                  widthPixels,
+                  (containerRef.current?.offsetWidth || timelineWidth) -
+                    constrainedLeftPixels
+                );
+
                 return (
                   <div
                     key={index}
                     className="segment"
                     style={{
-                      left: `${left}%`,
-                      width: `${width}%`,
+                      left: `${constrainedLeftPixels}px`,
+                      width: `${constrainedWidthPixels}px`,
                       backgroundColor: "orange",
                     }}
                   />

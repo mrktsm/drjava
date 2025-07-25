@@ -1,6 +1,20 @@
 import fs from "fs";
 
 /**
+ * Unescapes special characters in text that was escaped during logging
+ * @param {string} escapedText - The escaped text from the log
+ * @returns {string} - The unescaped text
+ */
+function unescapeText(escapedText) {
+  return escapedText
+    .replace(/\\"/g, '"') // Unescape quotes
+    .replace(/\\t/g, "\t") // Unescape tabs
+    .replace(/\\r/g, "\r") // Unescape carriage returns
+    .replace(/\\n/g, "\n") // Unescape newlines
+    .replace(/\\\\/g, "\\"); // Unescape backslashes (must be last)
+}
+
+/**
  * Reads and parses the log file at the given path.
  * @param {string} logFilePath - Path to the log file.
  * @returns {Promise<Array<Object>>} - Promise resolving to an array of parsed log objects.
@@ -27,12 +41,14 @@ export function readAndParseLogs(logFilePath) {
           // Try to match insertion pattern
           const insertMatch = line.match(insertRegex);
           if (insertMatch) {
+            const escapedText = insertMatch[3];
+            const unescapedText = unescapeText(escapedText);
             return {
               timestamp: insertMatch[1],
               type: "insert",
               offset: parseInt(insertMatch[2], 10),
-              insertedText: insertMatch[3],
-              length: insertMatch[3].length,
+              insertedText: unescapedText,
+              length: unescapedText.length,
             };
           }
 
