@@ -375,6 +375,10 @@
   /* Custom scrollbar styling */
   scrollbar-width: thin;
   scrollbar-color: #6c757d #e9ecef;
+  user-select: none; /* Prevent text selection when dragging */
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE/Edge */
 }
 
 .timeline-scroll-container::-webkit-scrollbar {
@@ -425,6 +429,10 @@
   margin: 0; /* Remove margin since we're using container padding */
   border-radius: 4px; /* Reduced from 8px to make it less rounded */
   overflow: visible; /* Allow cursor to extend beyond container */
+  user-select: none; /* Prevent text selection when dragging */
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE/Edge */
 }
 
 .activity-bar-container {
@@ -506,6 +514,10 @@
   height: 20px; /* Give it some space */
   pointer-events: none;
   margin-bottom: 0; /* Let divider handle spacing */
+  user-select: none; /* Prevent text selection */
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE/Edge */
 }
 
 .timeline-divider {
@@ -536,6 +548,10 @@
   font-size: 11px; /* Slightly smaller font */
   color: #495057; /* Changed from #666 to dark grey */
   font-family: monospace;
+  user-select: none; /* Prevent text selection */
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE/Edge */
 }
 
 /* Info Panel (Right side) */
