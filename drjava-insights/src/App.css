@@ -1,3 +1,21 @@
+/* Remove blue outlines on buttons and interactive elements */
+button:focus,
+button:active,
+input:focus,
+input:active,
+.control-button:focus,
+.control-button:active,
+.file-selector:focus,
+.file-selector:active {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Remove blue outlines from all focusable elements */
+*:focus {
+  outline: none !important;
+}
+
 /* App container */
 .app {
   display: flex;
