@@ -239,42 +239,41 @@ function PlaybarComponent({
         return;
       }
 
-      // Store current state with high precision
+      // Store precise state before any changes
       const scrollContainer = timelineScrollRef.current;
-      const currentScrollLeft = scrollContainer.scrollLeft;
       const containerWidth = scrollContainer.offsetWidth;
+      const currentScrollLeft = scrollContainer.scrollLeft;
 
-      // Use precise cursor time instead of percentage for better accuracy
-      const cursorTime = currentTime;
-
-      // Calculate precise pixel positions
+      // Calculate cursor's viewport position with high precision
       const oldTimelineWidth = baseTimelineWidth * zoomLevel;
+      const cursorTimePercentage =
+        (currentTime - sessionStart) / sessionDuration;
+      const cursorPixelPosition = cursorTimePercentage * oldTimelineWidth;
+      const cursorViewportOffset = cursorPixelPosition - currentScrollLeft;
+
+      // Calculate the exact pixel position where cursor should be after zoom
       const newTimelineWidth = baseTimelineWidth * clampedZoom;
+      const newCursorPixelPosition = cursorTimePercentage * newTimelineWidth;
+      const targetScrollLeft = newCursorPixelPosition - cursorViewportOffset;
 
-      // Calculate cursor position using time-based calculations for precision
-      const timeProgress = (cursorTime - sessionStart) / sessionDuration;
-      const oldCursorPixelPosition = timeProgress * oldTimelineWidth;
-      const newCursorPixelPosition = timeProgress * newTimelineWidth;
-
-      // Calculate the exact viewport offset with sub-pixel precision
-      const viewportOffset = oldCursorPixelPosition - currentScrollLeft;
-
-      // Calculate target scroll position maintaining the exact same visual position
-      const targetScrollLeft = newCursorPixelPosition - viewportOffset;
-
-      // Apply scroll bounds with precise clamping
-      const maxScrollLeft = Math.max(0, newTimelineWidth - containerWidth);
-      const finalScrollLeft = Math.max(
-        0,
-        Math.min(maxScrollLeft, targetScrollLeft)
-      );
-
-      // Update zoom level and playbar width synchronously
+      // Update zoom and scroll together to prevent intermediate states
       setZoomLevel(clampedZoom);
-      setPlaybarWidth(newCursorPixelPosition);
 
-      // Apply scroll position with high precision (avoid rounding)
-      scrollContainer.scrollLeft = finalScrollLeft;
+      // Use RAF for smooth visual update
+      requestAnimationFrame(() => {
+        if (!timelineScrollRef.current) return;
+
+        const maxScrollLeft =
+          timelineScrollRef.current.scrollWidth -
+          timelineScrollRef.current.clientWidth;
+        const clampedScrollLeft = Math.max(
+          0,
+          Math.min(maxScrollLeft, targetScrollLeft)
+        );
+
+        // Round to prevent sub-pixel positioning issues
+        timelineScrollRef.current.scrollLeft = Math.round(clampedScrollLeft);
+      });
     },
     [
       getMinZoom,
@@ -445,7 +444,7 @@ function PlaybarComponent({
           type="range"
           min={getMinZoom()}
           max="10"
-          step="0.05"
+          step="0.1"
           value={zoomLevel}
           onChange={handleZoomChange}
           className="zoom-slider"

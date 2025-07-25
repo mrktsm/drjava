@@ -94,6 +94,30 @@ function App() {
     }
   }, [files, activeFile]);
 
+  // Keyboard shortcuts for font size
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Check for Cmd (Mac) or Ctrl (Windows/Linux)
+      if (event.metaKey || event.ctrlKey) {
+        if (event.key === "=" || event.key === "+") {
+          event.preventDefault();
+          setFontSize((prev) => Math.min(30, prev + 1)); // Max 30px
+        } else if (event.key === "-") {
+          event.preventDefault();
+          setFontSize((prev) => Math.max(10, prev - 1)); // Min 10px
+        }
+      }
+    };
+
+    // Add event listener to document
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Cleanup function
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []); // Empty dependency array since we only want to set this up once
+
   const code = useCodeReconstruction({
     logs,
     keystrokeLogs,
