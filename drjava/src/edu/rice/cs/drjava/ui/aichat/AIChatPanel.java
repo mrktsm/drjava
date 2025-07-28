@@ -105,6 +105,7 @@ public class AIChatPanel extends JPanel {
     _setUpLayout();
     _setUpEventListeners();
     _addWelcomeMessage();
+    // _addShimmerTextForTesting(); // testing the shimmer, remove method once the reading feature is implemented
     
     setPreferredSize(new Dimension(400, 400));
     setMinimumSize(new Dimension(380, 200));
@@ -125,6 +126,29 @@ public class AIChatPanel extends JPanel {
         });
       }
     });
+  }
+  
+  /**
+   * Temporarily add shimmer text for visual testing
+   */
+  private void _addShimmerTextForTesting() {
+    ShimmerText shimmerText = new ShimmerText("Reading");
+    
+    JPanel shimmerPanel = new JPanel(new BorderLayout()) {
+      @Override
+      public Dimension getMaximumSize() {
+        Dimension pref = getPreferredSize();
+        return new Dimension(Integer.MAX_VALUE, pref.height);
+      }
+    };
+    shimmerPanel.setOpaque(false);
+    shimmerPanel.setBorder(new EmptyBorder(8, 0, 8, 0));
+    shimmerPanel.add(shimmerText, BorderLayout.CENTER);
+    
+    _messagesPanel.add(shimmerPanel);
+    _messagesPanel.add(Box.createVerticalStrut(16));
+    _messagesPanel.revalidate();
+    _messagesPanel.repaint();
   }
   
   /**
@@ -2071,7 +2095,7 @@ public class AIChatPanel extends JPanel {
       }
     }
   }
-  
+
   private void _addUserMessage(String message) {
     JPanel messagePanel = _createUserMessagePanel(message);
     _messagesPanel.add(messagePanel);
@@ -2191,7 +2215,7 @@ public class AIChatPanel extends JPanel {
     
     return contextContainer;
   }
-  
+
   private void _addAIMessage(String message) {
     JPanel messagePanel = _createAIMessagePanel(message);
     _messagesPanel.add(messagePanel);
