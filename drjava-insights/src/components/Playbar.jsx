@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
-import { BsFiletypeJava, BsTools, BsPlayCircleFill } from "react-icons/bs";
+import {
+  BsFiletypeJava,
+  BsTools,
+  BsPlayCircleFill,
+  BsExclamationCircleFill,
+} from "react-icons/bs";
 import { VscChevronDown } from "react-icons/vsc";
 import {
   FaPlay,
@@ -75,9 +80,16 @@ const TimelineEvents = memo(function TimelineEvents({ timelineWidth }) {
     const numEvents = Math.floor(Math.random() * 8) + 4; // 4-12 events
 
     for (let i = 0; i < numEvents; i++) {
-      const eventType =
-        eventTypes[Math.floor(Math.random() * eventTypes.length)];
+      let eventType = {
+        ...eventTypes[Math.floor(Math.random() * eventTypes.length)],
+      };
       const position = Math.random() * 90 + 5; // 5% to 95% across timeline
+
+      // Randomly add errors to some compile events
+      if (eventType.type === "compile" && Math.random() < 0.4) {
+        // 40% chance of error
+        eventType.hasError = true;
+      }
 
       randomEvents.push({
         id: i,
@@ -101,9 +113,20 @@ const TimelineEvents = memo(function TimelineEvents({ timelineWidth }) {
               left: `${event.position}%`,
               color: event.color,
             }}
-            title={event.type === "run" ? "Code executed" : "Code compiled"}
+            title={
+              event.hasError
+                ? "Compilation failed"
+                : event.type === "run"
+                ? "Code executed"
+                : "Code compiled"
+            }
           >
             <IconComponent size={16} />
+            {event.hasError && (
+              <div className="error-indicator">
+                <BsExclamationCircleFill size={12} color="#dc3545" />
+              </div>
+            )}
           </div>
         );
       })}
