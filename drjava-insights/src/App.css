@@ -432,7 +432,7 @@ input:active,
   background-color: #cce7ff; /* Pale blue background */
   border: 1px solid #00aaff; /* Blue outline restored */
   padding: 8px 0; /* Add vertical padding */
-  margin: 0; /* Remove margin since we're using container padding */
+  margin: -8px 0 0 0; /* Negative top margin to stick to divider */
   border-radius: 4px; /* Reduced from 8px to make it less rounded */
   overflow: visible; /* Allow cursor to extend beyond container */
   user-select: none; /* Prevent text selection when dragging */
@@ -477,7 +477,7 @@ input:active,
   position: absolute;
   z-index: 999999; /* Increased z-index to appear in front of all elements */
   cursor: pointer;
-  top: -39px; /* Shifted one pixel higher */
+  top: -33px; /* Adjusted from -31px to account for the increased tick bar height */
 }
 
 .cursor::after {
@@ -518,7 +518,7 @@ input:active,
 .time-ticks-container {
   position: relative; /* New container for ticks */
   width: 100%;
-  height: 20px; /* Give it some space */
+  height: 22px; /* Increased from 20px to better center labels */
   pointer-events: none;
   margin-bottom: 0; /* Let divider handle spacing */
   user-select: none; /* Prevent text selection */
@@ -538,21 +538,21 @@ input:active,
   position: absolute;
   top: 0; /* Position ticks at the top of their container */
   width: 1px;
-  height: 10px; /* Height of the tick */
+  height: 7px; /* Reduced from 10px to make smaller */
   border-left: 1px solid; /* Use solid border, color is set in component */
   /* Removed hardcoded background-color, opacity and border color */
 }
 
 .hour-line--small {
-  height: 5px; /* Smaller height for intermediate ticks */
+  height: 4px; /* Reduced from 5px to maintain proportion */
 }
 
 .hour-label {
   position: absolute;
-  top: 10px; /* Position below the main tick */
+  top: 9px; /* Adjusted from 10px to center vertically with smaller ticks */
   left: 50%;
   transform: translateX(-50%);
-  font-size: 11px; /* Slightly smaller font */
+  font-size: 10px; /* Reduced from 11px to make smaller */
   color: #495057; /* Changed from #666 to dark grey */
   font-family: monospace;
   user-select: none; /* Prevent text selection */
