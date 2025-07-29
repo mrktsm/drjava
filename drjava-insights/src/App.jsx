@@ -42,6 +42,7 @@ function App() {
   const {
     isPlaying,
     currentKeystrokeIndex,
+    currentKeystroke,
     setCurrentKeystrokeIndex,
     currentTime,
     // setCurrentTime
@@ -93,6 +94,13 @@ function App() {
       setActiveFile(files[0]);
     }
   }, [files, activeFile]);
+
+  // Update active file based on the current keystroke during playback
+  useEffect(() => {
+    if (currentKeystroke && currentKeystroke.filename) {
+      setActiveFile(currentKeystroke.filename);
+    }
+  }, [currentKeystroke]);
 
   // Keyboard shortcuts for font size
   useEffect(() => {

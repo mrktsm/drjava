@@ -23,6 +23,7 @@ import {
  * @returns {object} An object containing the playback state and control handlers.
  * @property {boolean} isPlaying - True if the playback is currently active.
  * @property {number} currentKeystrokeIndex - The index of the current keystroke in the `keystrokeLogs` array.
+ * @property {object|null} currentKeystroke - The full log object for the current keystroke.
  * @property {function} setCurrentKeystrokeIndex - Function to manually set the keystroke index.
  * @property {number} currentTime - The current position on the timeline, synchronized with playback.
  * @property {function} setCurrentTime - Function to manually set the timeline position.
@@ -50,6 +51,12 @@ export default function useKeystrokePlayback({
   const [playbackStartKeystroke, setPlaybackStartKeystroke] = useState(0);
   const [isUserScrubbing, setIsUserScrubbing] = useState(false);
   const timeoutRef = useRef(null);
+
+  // Derive the current keystroke object from the index
+  const currentKeystroke =
+    keystrokeLogs && keystrokeLogs.length > 0
+      ? keystrokeLogs[currentKeystrokeIndex]
+      : null;
 
   // Schedule the next keystroke with authentic timing
   const scheduleNextKeystroke = () => {
@@ -264,6 +271,7 @@ export default function useKeystrokePlayback({
   return {
     isPlaying,
     currentKeystrokeIndex,
+    currentKeystroke,
     setCurrentKeystrokeIndex,
     currentTime,
     setCurrentTime,
