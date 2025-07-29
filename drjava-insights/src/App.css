@@ -526,6 +526,41 @@ input:active,
   -ms-user-select: none; /* IE/Edge */
 }
 
+/* Timeline Events (Run/Compile indicators) */
+.timeline-events {
+  position: absolute;
+  top: 100%; /* Position at the bottom of the tick container */
+  left: 0;
+  width: 100%;
+  height: 0;
+  pointer-events: none;
+  z-index: 15; /* Above playbar and tick marks */
+}
+
+.timeline-event {
+  position: absolute;
+  top: 0px; /* Moved down from -8px to center on the intersection */
+  transform: translateX(-50%);
+  border-radius: 50%;
+  width: 18px; /* Reduced from 20px to fit inside the green icon */
+  height: 18px; /* Reduced from 20px to fit inside the green icon */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-event--run {
+  /* White background circle for run events */
+  background-color: white;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+}
+
+.timeline-event--compile {
+  /* Text outline for better visibility */
+  -webkit-text-stroke: 1px rgba(0, 0, 0, 0.3);
+  text-stroke: 1px rgba(0, 0, 0, 0.3);
+}
+
 .timeline-divider {
   width: 100%;
   height: 1px;

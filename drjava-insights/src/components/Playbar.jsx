@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
-import { BsFiletypeJava } from "react-icons/bs";
+import { BsFiletypeJava, BsTools, BsPlayCircleFill } from "react-icons/bs";
 import { VscChevronDown } from "react-icons/vsc";
 import {
   FaPlay,
@@ -15,6 +15,7 @@ const TimelineTicks = memo(function TimelineTicks({
   sessionDuration,
   formatTime,
   zoomLevel,
+  timelineWidth,
 }) {
   const spacedLines = useMemo(() => {
     const lines = [];
@@ -53,7 +54,61 @@ const TimelineTicks = memo(function TimelineTicks({
     return lines;
   }, [sessionStart, sessionDuration, formatTime, zoomLevel]);
 
-  return <div className="time-ticks-container">{spacedLines}</div>;
+  return (
+    <div className="time-ticks-container">
+      {spacedLines}
+      <TimelineEvents timelineWidth={timelineWidth} />
+    </div>
+  );
+});
+
+// Component for rendering run and compile events
+const TimelineEvents = memo(function TimelineEvents({ timelineWidth }) {
+  const events = useMemo(() => {
+    // Generate random events for demonstration
+    const eventTypes = [
+      { icon: BsPlayCircleFill, type: "run", color: "#28a745" }, // Green for run
+      { icon: BsTools, type: "compile", color: "#ffc107" }, // Yellow for compile
+    ];
+
+    const randomEvents = [];
+    const numEvents = Math.floor(Math.random() * 8) + 4; // 4-12 events
+
+    for (let i = 0; i < numEvents; i++) {
+      const eventType =
+        eventTypes[Math.floor(Math.random() * eventTypes.length)];
+      const position = Math.random() * 90 + 5; // 5% to 95% across timeline
+
+      randomEvents.push({
+        id: i,
+        position,
+        ...eventType,
+      });
+    }
+
+    return randomEvents.sort((a, b) => a.position - b.position);
+  }, [timelineWidth]);
+
+  return (
+    <div className="timeline-events">
+      {events.map((event) => {
+        const IconComponent = event.icon;
+        return (
+          <div
+            key={event.id}
+            className={`timeline-event timeline-event--${event.type}`}
+            style={{
+              left: `${event.position}%`,
+              color: event.color,
+            }}
+            title={event.type === "run" ? "Code executed" : "Code compiled"}
+          >
+            <IconComponent size={16} />
+          </div>
+        );
+      })}
+    </div>
+  );
 });
 
 // Reactive React Playbar Component
@@ -483,6 +538,7 @@ function PlaybarComponent({
               sessionDuration={sessionDuration}
               formatTime={formatTime}
               zoomLevel={zoomLevel}
+              timelineWidth={timelineWidth}
             />
             <div className="timeline-divider" />
             <div
