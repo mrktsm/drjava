@@ -7,13 +7,13 @@ import {
 } from "react-icons/bs";
 import { VscChevronDown } from "react-icons/vsc";
 import {
-  FaPlay,
-  FaPause,
-  FaFastBackward,
-  FaBackward,
-  FaForward,
-  FaFastForward,
-} from "react-icons/fa";
+  MdPlayArrow,
+  MdPause,
+  MdSkipPrevious,
+  MdFastRewind,
+  MdFastForward,
+  MdSkipNext,
+} from "react-icons/md";
 
 const TimelineTicks = memo(function TimelineTicks({
   sessionStart,
@@ -621,35 +621,35 @@ function PlaybarComponent({
       {/* Media Controls */}
       <div className="media-controls-container">
         <button className="control-button" onClick={onRestart} title="Restart">
-          <FaFastBackward />
+          <MdSkipPrevious size={18} />
         </button>
         <button
           className="control-button"
           onClick={onSkipBackward}
           title="Skip Backward"
         >
-          <FaBackward />
+          <MdFastRewind size={18} />
         </button>
         <button
           className="control-button primary"
           onClick={onPlayPause}
           title={isPlaying ? "Pause" : "Play"}
         >
-          {isPlaying ? <FaPause /> : <FaPlay />}
+          {isPlaying ? <MdPause size={18} /> : <MdPlayArrow size={18} />}
         </button>
         <button
           className="control-button"
           onClick={onSkipForward}
           title="Skip Forward"
         >
-          <FaForward />
+          <MdFastForward size={18} />
         </button>
         <button
           className="control-button"
           onClick={onSkipToEnd}
           title="Skip to End"
         >
-          <FaFastForward />
+          <MdSkipNext size={18} />
         </button>
 
         {/* Playback Speed Control */}
