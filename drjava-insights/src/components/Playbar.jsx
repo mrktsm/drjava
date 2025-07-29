@@ -161,7 +161,8 @@ function PlaybarComponent({
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [playbarWidth, setPlaybarWidth] = useState(0);
-  const [zoomLevel, setZoomLevel] = useState(1); // Will be updated on mount
+  const [zoomLevel, setZoomLevel] = useState(1); // Represents the actual zoom factor
+  const [baseZoom, setBaseZoom] = useState(1); // The zoom factor for "100% fit-to-width"
   const [scrollLeft, setScrollLeft] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
@@ -175,51 +176,49 @@ function PlaybarComponent({
     return baseTimelineWidth * zoomLevel;
   }, [zoomLevel]);
 
-  // Calculate initial zoom to fit container width
-  const calculateInitialZoom = useCallback(() => {
+  // Calculate the zoom level required to make the timeline fit the container width
+  const calculateFitToWidthZoom = useCallback(() => {
     if (!timelineScrollRef.current) return 1;
 
     const containerWidth = timelineScrollRef.current.offsetWidth;
     // Subtract padding (30px total: 15px on each side)
     const availableWidth = containerWidth - 30;
-    const initialZoom = Math.max(0.5, availableWidth / baseTimelineWidth);
+    const fitZoom = Math.max(0.5, availableWidth / baseTimelineWidth);
 
-    return Math.min(10, initialZoom); // Cap at max zoom level
+    return Math.min(10, fitZoom); // Cap at max zoom level
   }, []);
 
-  // Calculate minimum zoom to fit container width
+  // The minimum zoom is the "fit-to-width" zoom
   const getMinZoom = useCallback(() => {
-    if (!timelineScrollRef.current) return 0.5;
-
-    const containerWidth = timelineScrollRef.current.offsetWidth;
-    // Subtract padding (30px total: 15px on each side)
-    const availableWidth = containerWidth - 30;
-    const minZoom = availableWidth / baseTimelineWidth;
-
-    return Math.max(0.5, minZoom); // Still respect absolute minimum of 50%
-  }, []);
+    return baseZoom;
+  }, [baseZoom]);
 
   // Initialize zoom level on mount
   useEffect(() => {
     if (!isInitialized && timelineScrollRef.current) {
-      const initialZoom = calculateInitialZoom();
-      setZoomLevel(initialZoom);
+      const initialFitZoom = calculateFitToWidthZoom();
+      setBaseZoom(initialFitZoom); // Set the reference for 100%
+      setZoomLevel(initialFitZoom); // Set the initial actual zoom to fit-to-width
       setIsInitialized(true);
     }
-  }, [calculateInitialZoom, isInitialized]);
+  }, [calculateFitToWidthZoom, isInitialized]);
 
-  // Recalculate zoom on window resize
+  // Recalculate zoom on window resize while maintaining the relative zoom level
   useEffect(() => {
     const handleResize = () => {
-      if (isInitialized) {
-        const newZoom = calculateInitialZoom();
-        setZoomLevel(newZoom);
+      if (isInitialized && baseZoom > 0) {
+        const newFitZoom = calculateFitToWidthZoom();
+        const oldRelativeZoom = zoomLevel / baseZoom;
+        const newActualZoom = newFitZoom * oldRelativeZoom;
+
+        setBaseZoom(newFitZoom);
+        setZoomLevel(newActualZoom);
       }
     };
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [calculateInitialZoom, isInitialized]);
+  }, [calculateFitToWidthZoom, isInitialized, zoomLevel, baseZoom]);
 
   // Convert decimal hours to time string
   const formatTime = useCallback((decimalHours) => {
@@ -302,12 +301,16 @@ function PlaybarComponent({
     setIsDragging(false);
   }, []);
 
-  // Handle zoom change
+  // Handle zoom change from the slider
   const handleZoomChange = useCallback(
     (e) => {
-      const newZoom = parseFloat(e.target.value);
+      // The slider's value is the *relative* zoom (e.g., 1.5 for 150%)
+      const newRelativeZoom = parseFloat(e.target.value);
+      // Convert it to the *actual* zoom factor for calculations
+      const newActualZoom = baseZoom * newRelativeZoom;
+
       const minZoom = getMinZoom();
-      const clampedZoom = Math.max(minZoom, newZoom);
+      const clampedZoom = Math.max(minZoom, newActualZoom);
 
       if (
         !timelineScrollRef.current ||
@@ -319,10 +322,9 @@ function PlaybarComponent({
 
       // Store precise state before any changes
       const scrollContainer = timelineScrollRef.current;
-      const containerWidth = scrollContainer.offsetWidth;
       const currentScrollLeft = scrollContainer.scrollLeft;
 
-      // Calculate cursor's viewport position with high precision
+      // Calculate cursor's viewport position with high precision based on the old zoom level
       const oldTimelineWidth = baseTimelineWidth * zoomLevel;
       const cursorTimePercentage =
         (currentTime - sessionStart) / sessionDuration;
@@ -334,7 +336,7 @@ function PlaybarComponent({
       const newCursorPixelPosition = cursorTimePercentage * newTimelineWidth;
       const targetScrollLeft = newCursorPixelPosition - cursorViewportOffset;
 
-      // Update zoom and scroll together to prevent intermediate states
+      // Update the actual zoom level in the state
       setZoomLevel(clampedZoom);
 
       // Use RAF for smooth visual update
@@ -354,6 +356,7 @@ function PlaybarComponent({
       });
     },
     [
+      baseZoom,
       getMinZoom,
       currentTime,
       sessionStart,
@@ -520,14 +523,16 @@ function PlaybarComponent({
         <input
           id="zoom-slider"
           type="range"
-          min={getMinZoom()}
-          max="10"
+          min="1"
+          max={baseZoom > 0 ? 10 / baseZoom : 10}
           step="0.1"
-          value={zoomLevel}
+          value={baseZoom > 0 ? zoomLevel / baseZoom : 1}
           onChange={handleZoomChange}
           className="zoom-slider"
         />
-        <span className="zoom-display">{Math.round(zoomLevel * 100)}%</span>
+        <span className="zoom-display">
+          {Math.round((baseZoom > 0 ? zoomLevel / baseZoom : 1) * 100)}%
+        </span>
 
         {/* Font Size Control */}
         <div className="font-size-control">
