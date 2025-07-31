@@ -163,7 +163,10 @@ function PlaybarComponent({
   const [playbarWidth, setPlaybarWidth] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1); // Represents the actual zoom factor
   const [baseZoom, setBaseZoom] = useState(1); // The zoom factor for "100% fit-to-width"
-  const [scrollLeft, setScrollLeft] = useState(0);
+  const [
+    // scrollLeft,
+    setScrollLeft,
+  ] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
 
