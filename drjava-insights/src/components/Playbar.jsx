@@ -479,6 +479,50 @@ function PlaybarComponent({
     };
   }, [handleWheel]);
 
+  // Keyboard shortcuts for media controls
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Only handle keyboard shortcuts if not typing in an input field
+      if (
+        event.target.tagName === "INPUT" ||
+        event.target.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      switch (event.code) {
+        case "Space":
+          event.preventDefault();
+          if (onPlayPause) {
+            onPlayPause();
+          }
+          break;
+        case "ArrowLeft":
+          event.preventDefault();
+          if (onSkipBackward) {
+            onSkipBackward();
+          }
+          break;
+        case "ArrowRight":
+          event.preventDefault();
+          if (onSkipForward) {
+            onSkipForward();
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    // Add event listener to document
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Cleanup function
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onPlayPause, onSkipBackward, onSkipForward]);
+
   const toggleFileDropdown = () => {
     setIsFileDropdownOpen(!isFileDropdownOpen);
   };
