@@ -126,35 +126,28 @@ export default function useKeystrokePlayback({
         const now = Date.now();
         const elapsedSincePlay = now - playbackStartTime;
 
-        // Get the starting keystroke and its timestamp
-        const startingKeystroke = keystrokeLogs[playbackStartKeystroke];
-        const startingKeystrokeTime = new Date(startingKeystroke.timestamp);
-
-        // Calculate the expected current time based on elapsed playback time
-        const sessionElapsedMs = elapsedSincePlay * playbackSpeed;
-        const expectedCurrentTime = new Date(
-          startingKeystrokeTime.getTime() + sessionElapsedMs
-        );
-
-        // Convert to timeline position using authentic timestamp progression
+        // Calculate how much timeline progress should have been made based on elapsed time
         const firstTime = new Date(keystrokeLogs[0].timestamp);
         const lastTime = new Date(
           keystrokeLogs[keystrokeLogs.length - 1].timestamp
         );
         const totalSessionMs = lastTime - firstTime;
 
-        const progressThroughSession = Math.min(
-          1,
-          Math.max(0, (expectedCurrentTime - firstTime) / totalSessionMs)
-        );
+        // Calculate elapsed time in session scale
+        const sessionElapsedMs = elapsedSincePlay * playbackSpeed;
+        const timelineProgressDelta =
+          (sessionElapsedMs / totalSessionMs) * sessionDuration;
 
-        const timelinePosition =
-          sessionStart + progressThroughSession * sessionDuration;
+        // Add progress to the exact starting timeline position where user clicked
+        const timelinePosition = Math.min(
+          sessionStart + sessionDuration,
+          playbackStartTimelinePosition + timelineProgressDelta
+        );
 
         setCurrentTime(timelinePosition);
 
         // Auto-stop when reaching the end
-        if (progressThroughSession >= 1) {
+        if (timelinePosition >= sessionStart + sessionDuration) {
           setIsPlaying(false);
           setCurrentKeystrokeIndex(keystrokeLogs.length - 1);
           setCurrentTime(sessionStart + sessionDuration);
@@ -176,6 +169,7 @@ export default function useKeystrokePlayback({
     isPlaying,
     playbackStartTime,
     playbackStartKeystroke,
+    playbackStartTimelinePosition, // This is now the key - the exact clicked position
     keystrokeLogs,
     sessionStart,
     sessionDuration,
@@ -286,7 +280,7 @@ export default function useKeystrokePlayback({
     setCurrentTime(newTime);
 
     setPlaybackStartKeystroke(newKeystrokeIndex);
-    setPlaybackStartTimelinePosition(newTime); // Use the clicked timeline position
+    setPlaybackStartTimelinePosition(newTime); // Store the exact clicked position
     setPlaybackStartTime(Date.now());
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
