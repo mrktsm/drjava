@@ -60,7 +60,50 @@ export default function useKeystrokePlayback({
       ? keystrokeLogs[currentKeystrokeIndex]
       : null;
 
-  // NOTE: scheduleNextKeystroke function removed since we now use timeline synchronization for keystroke progression
+  // Schedule the next keystroke with authentic timing
+  const scheduleNextKeystroke = () => {
+    if (!isPlaying || currentKeystrokeIndex >= keystrokeLogs.length - 1) {
+      return;
+    }
+    const currentKeystroke = keystrokeLogs[currentKeystrokeIndex];
+    const nextKeystroke = keystrokeLogs[currentKeystrokeIndex + 1];
+    const currentTimeObj = new Date(currentKeystroke.timestamp);
+    const nextTimeObj = new Date(nextKeystroke.timestamp);
+    const actualDelay = nextTimeObj - currentTimeObj;
+    const scaledDelay = actualDelay / playbackSpeed;
+    timeoutRef.current = setTimeout(() => {
+      if (isPlaying && !isUserScrubbing) {
+        setCurrentKeystrokeIndex((prev) => prev + 1);
+      }
+    }, scaledDelay);
+  };
+
+  // Real-time keystroke playback effect - restored for authentic timing
+  useEffect(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (isPlaying && keystrokeLogs.length > 0 && !isUserScrubbing) {
+      if (currentKeystrokeIndex < keystrokeLogs.length - 1) {
+        scheduleNextKeystroke();
+      } else {
+        setIsPlaying(false);
+      }
+    }
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [
+    isPlaying,
+    currentKeystrokeIndex,
+    keystrokeLogs,
+    playbackSpeed,
+    isUserScrubbing,
+  ]);
 
   // Clean up timeout when playback stops
   useEffect(() => {
@@ -70,7 +113,7 @@ export default function useKeystrokePlayback({
     }
   }, [isPlaying]);
 
-  // Timeline synchronization effect
+  // Timeline synchronization effect - smooth authentic timestamp-based progression
   useEffect(() => {
     let animationFrame;
     if (
@@ -83,52 +126,39 @@ export default function useKeystrokePlayback({
         const now = Date.now();
         const elapsedSincePlay = now - playbackStartTime;
 
-        // Calculate linear progression based on elapsed time and speed
-        // Use total session duration for smooth linear movement
+        // Get the starting keystroke and its timestamp
+        const startingKeystroke = keystrokeLogs[playbackStartKeystroke];
+        const startingKeystrokeTime = new Date(startingKeystroke.timestamp);
+
+        // Calculate the expected current time based on elapsed playback time
+        const sessionElapsedMs = elapsedSincePlay * playbackSpeed;
+        const expectedCurrentTime = new Date(
+          startingKeystrokeTime.getTime() + sessionElapsedMs
+        );
+
+        // Convert to timeline position using authentic timestamp progression
         const firstTime = new Date(keystrokeLogs[0].timestamp);
         const lastTime = new Date(
           keystrokeLogs[keystrokeLogs.length - 1].timestamp
         );
         const totalSessionMs = lastTime - firstTime;
 
-        // Calculate how much time should have passed in the session
-        const sessionTimeProgressed = elapsedSincePlay * playbackSpeed;
-
-        // Calculate progress from the starting point using the actual starting timeline position
-        const progressFromStart = sessionTimeProgressed / totalSessionMs;
-        const timelineProgress = progressFromStart * sessionDuration;
-
-        // Add progress to the exact starting timeline position where playback began
-        const timelinePosition = Math.min(
-          sessionStart + sessionDuration,
-          playbackStartTimelinePosition + timelineProgress
+        const progressThroughSession = Math.min(
+          1,
+          Math.max(0, (expectedCurrentTime - firstTime) / totalSessionMs)
         );
+
+        const timelinePosition =
+          sessionStart + progressThroughSession * sessionDuration;
 
         setCurrentTime(timelinePosition);
 
-        // SYNC KEYSTROKE INDEX WITH TIMELINE POSITION
-        // This ensures keystroke index stays aligned with the linear timeline progression
-        const expectedKeystrokeIndex = timelinePositionToKeystrokeIndex(
-          timelinePosition,
-          keystrokeLogs,
-          sessionStart,
-          sessionDuration
-        );
-
-        // Only update if there's a significant difference to avoid constant updates
-        if (Math.abs(expectedKeystrokeIndex - currentKeystrokeIndex) >= 1) {
-          setCurrentKeystrokeIndex(expectedKeystrokeIndex);
-        }
-
         // Auto-stop when reaching the end
-        if (
-          expectedKeystrokeIndex >= keystrokeLogs.length - 1 ||
-          timelinePosition >= sessionStart + sessionDuration
-        ) {
+        if (progressThroughSession >= 1) {
           setIsPlaying(false);
           setCurrentKeystrokeIndex(keystrokeLogs.length - 1);
           setCurrentTime(sessionStart + sessionDuration);
-          return; // Exit the animation loop
+          return;
         }
 
         if (isPlaying) {
@@ -146,13 +176,11 @@ export default function useKeystrokePlayback({
     isPlaying,
     playbackStartTime,
     playbackStartKeystroke,
-    playbackStartTimelinePosition, // Add this dependency
     keystrokeLogs,
     sessionStart,
     sessionDuration,
     playbackSpeed,
     isUserScrubbing,
-    currentKeystrokeIndex, // Add currentKeystrokeIndex as dependency for sync
   ]);
 
   // Playback control handlers
