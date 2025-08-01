@@ -17,6 +17,7 @@ import {
 import {
   getCurrentFileSegment,
   getCurrentTimeInSegment,
+  getLighterColor,
 } from "../utils/fileSegmentUtils";
 
 const TimelineTicks = memo(function TimelineTicks({
@@ -143,6 +144,7 @@ function PlaybarComponent({
   segments = [],
   activitySegments = [], // New prop for activity segments
   fileSegments = [], // New prop for file segments
+  fileColorMap = {}, // New prop for file color mapping
   currentTime,
   currentKeystrokeIndex, // Current keystroke index for accurate file segment detection
   onTimeChange,
@@ -598,6 +600,10 @@ function PlaybarComponent({
                   containerWidth - constrainedStartPixels
                 );
 
+                // Get the file color and lighter version for background
+                const fileColor = fileColorMap[segment.filename] || "#E5E5E5";
+                const lightFileColor = getLighterColor(fileColor);
+
                 return (
                   <div
                     key={`file-bg-segment-${index}`}
@@ -608,8 +614,8 @@ function PlaybarComponent({
                       top: "0px",
                       width: `${constrainedWidth}px`,
                       height: "100%",
-                      backgroundColor: "#E5E5E5", // Light gray background for file segments
-                      border: "1px solid #D0D0D0",
+                      backgroundColor: lightFileColor, // Use lighter version of file color
+                      border: `1px solid ${fileColor}`, // Use main file color for border
                       borderRadius: "2px",
                       zIndex: 1, // Below progress bars but above default background
                     }}
@@ -618,7 +624,7 @@ function PlaybarComponent({
                 );
               })}
 
-              {/* File-based Playbar Segments (blue progress) */}
+              {/* File-based Playbar Segments (colored progress) */}
               {fileSegments.map((segment, index) => {
                 const segmentStartPixels = timeToPixels(segment.start);
                 const segmentEndPixels = timeToPixels(segment.end);
@@ -653,6 +659,9 @@ function PlaybarComponent({
                   containerWidth - constrainedStartPixels
                 );
 
+                // Get the file color
+                const fileColor = fileColorMap[segment.filename] || "#2196F3";
+
                 // Only render if there's progress to show
                 if (constrainedFilledWidth > 0) {
                   return (
@@ -665,7 +674,7 @@ function PlaybarComponent({
                         top: "0px", // Align with the top of the playbar container
                         width: `${constrainedFilledWidth}px`,
                         height: "100%", // Match the height of the main timeline bar
-                        backgroundColor: "#2196F3", // Blue color for file segments
+                        backgroundColor: fileColor, // Use file-specific color
                         borderRadius: "2px",
                         zIndex: 10, // Higher z-index to appear above timeline background
                       }}
@@ -694,6 +703,9 @@ function PlaybarComponent({
                   containerWidth - constrainedStartPixels
                 );
 
+                // Calculate cursor position relative to this segment
+                const cursorPixels = timeToPixels(currentTime);
+
                 // Extract just the filename without path
                 const fileName = segment.filename
                   .split("/")
@@ -702,30 +714,99 @@ function PlaybarComponent({
                   .pop();
 
                 // Only show label if segment is wide enough
-                if (constrainedWidth > 80) {
+                if (constrainedWidth > 100) {
+                  const textStartPixels = constrainedStartPixels + 4 + 18; // Account for left padding + icon width
+
                   return (
                     <div
                       key={`file-label-${index}`}
                       style={{
                         position: "absolute",
                         left: `${constrainedStartPixels + 4}px`,
-                        top: "2px",
-                        fontSize: "10px",
+                        top: "4px",
+                        fontSize: "12px",
                         fontWeight: "600",
-                        color: "#666",
-                        backgroundColor: "rgba(255, 255, 255, 0.9)",
-                        padding: "1px 4px",
-                        borderRadius: "2px",
-                        border: "1px solid #CCC",
                         maxWidth: `${constrainedWidth - 10}px`,
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        zIndex: 15, // Higher than progress bars (10) to stay visible
-                        pointerEvents: "none", // Don't interfere with timeline interactions
+                        zIndex: 15,
+                        pointerEvents: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
                       }}
                     >
-                      {fileName}
+                      <BsFiletypeJava
+                        size={14}
+                        style={{
+                          color: "#dc3545",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          display: "flex",
+                          overflow: "hidden",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {fileName.split("").map((char, charIndex) => {
+                          // Estimate character width (trying 6.5px per character for better alignment)
+                          const charWidth = 5.5;
+                          const charStartPixels =
+                            textStartPixels + charIndex * charWidth;
+                          const charEndPixels = charStartPixels + charWidth;
+
+                          // Determine character color based on cursor position
+                          let charColor = "#333"; // Default dark color
+
+                          if (cursorPixels >= charEndPixels) {
+                            // Cursor has passed this character completely
+                            charColor = "#fff";
+                          } else if (
+                            cursorPixels >= charStartPixels &&
+                            cursorPixels <= charEndPixels
+                          ) {
+                            // Cursor is within this character - smooth transition
+                            const charProgress =
+                              (cursorPixels - charStartPixels) / charWidth;
+                            const opacity = Math.min(
+                              1,
+                              Math.max(0, charProgress)
+                            );
+
+                            // Interpolate between dark and light
+                            const darkColor = { r: 51, g: 51, b: 51 };
+                            const lightColor = { r: 255, g: 255, b: 255 };
+
+                            const r = Math.round(
+                              darkColor.r +
+                                (lightColor.r - darkColor.r) * opacity
+                            );
+                            const g = Math.round(
+                              darkColor.g +
+                                (lightColor.g - darkColor.g) * opacity
+                            );
+                            const b = Math.round(
+                              darkColor.b +
+                                (lightColor.b - darkColor.b) * opacity
+                            );
+
+                            charColor = `rgb(${r}, ${g}, ${b})`;
+                          }
+
+                          return (
+                            <span
+                              key={charIndex}
+                              style={{
+                                color: charColor,
+                                transition: "color 0.05s ease", // Faster transition for individual characters
+                              }}
+                            >
+                              {char}
+                            </span>
+                          );
+                        })}
+                      </span>
                     </div>
                   );
                 }

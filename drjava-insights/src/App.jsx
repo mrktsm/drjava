@@ -11,6 +11,7 @@ import {
   calculateFileSegments,
   getCurrentFileSegment,
   getCurrentTimeInSegment,
+  createFileColorMap,
 } from "./utils/fileSegmentUtils";
 
 /**
@@ -61,6 +62,11 @@ function App() {
   const fileSegments = useMemo(() => {
     return calculateFileSegments(keystrokeLogs, sessionStart, sessionDuration);
   }, [keystrokeLogs, sessionStart, sessionDuration]);
+
+  // Create color mapping for files
+  const fileColorMap = useMemo(() => {
+    return createFileColorMap(files);
+  }, [files]);
 
   // Playback logic extracted to hook
   const {
@@ -205,6 +211,7 @@ function App() {
         segments={segments}
         activitySegments={activitySegments}
         fileSegments={fileSegments}
+        fileColorMap={fileColorMap}
         currentTime={currentTime}
         currentKeystrokeIndex={currentKeystrokeIndex}
         onTimeChange={handleTimelineChange}
