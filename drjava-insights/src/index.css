@@ -1,4 +1,13 @@
 /* Global styles for DrJava Insights */
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100vh;
+  height: 100%; /* Ensure full height for layout calculations */
+  overflow: hidden; /* Prevent scrolling on the entire page */
+}
+
 * {
   box-sizing: border-box;
 }
@@ -16,15 +25,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-}
-
-#root {
-  min-height: 100vh;
 }
 
 /* Remove button default styles */
