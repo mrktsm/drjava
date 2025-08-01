@@ -221,18 +221,22 @@ export default function useKeystrokePlayback({
   };
 
   const handleSkipBackward = () => {
-    const skipAmount = Math.max(1, Math.floor(keystrokeLogs.length * 0.1));
-    const newIndex = Math.max(0, currentKeystrokeIndex - skipAmount);
-    const newTime = keystrokeIndexToTimelinePosition(
-      newIndex,
+    // Skip backward by 10 seconds (converted to timeline units)
+    // Since timeline is in hours, 10 seconds = 10/3600 hours
+    const skipTimeInterval = 10 / 3600; // 10 seconds in hours
+    const newTime = Math.max(sessionStart, currentTime - skipTimeInterval);
+
+    const newIndex = timelinePositionToKeystrokeIndex(
+      newTime,
       keystrokeLogs,
       sessionStart,
       sessionDuration
     );
+
     setCurrentKeystrokeIndex(newIndex);
     setCurrentTime(newTime);
     setPlaybackStartKeystroke(newIndex);
-    setPlaybackStartTimelinePosition(newTime); // Use the new timeline position
+    setPlaybackStartTimelinePosition(newTime);
     setPlaybackStartTime(Date.now());
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -241,21 +245,22 @@ export default function useKeystrokePlayback({
   };
 
   const handleSkipForward = () => {
-    const skipAmount = Math.max(1, Math.floor(keystrokeLogs.length * 0.1));
-    const newIndex = Math.min(
-      keystrokeLogs.length - 1,
-      currentKeystrokeIndex + skipAmount
-    );
-    const newTime = keystrokeIndexToTimelinePosition(
-      newIndex,
+    // Skip forward by 10 seconds (converted to timeline units)
+    // Since timeline is in hours, 10 seconds = 10/3600 hours
+    const skipTimeInterval = 10 / 3600; // 10 seconds in hours
+    const newTime = Math.min(sessionEnd, currentTime + skipTimeInterval);
+
+    const newIndex = timelinePositionToKeystrokeIndex(
+      newTime,
       keystrokeLogs,
       sessionStart,
       sessionDuration
     );
+
     setCurrentKeystrokeIndex(newIndex);
     setCurrentTime(newTime);
     setPlaybackStartKeystroke(newIndex);
-    setPlaybackStartTimelinePosition(newTime); // Use the new timeline position
+    setPlaybackStartTimelinePosition(newTime);
     setPlaybackStartTime(Date.now());
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);

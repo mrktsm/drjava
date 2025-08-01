@@ -445,27 +445,97 @@ function PlaybarComponent({
   }, []);
 
   // Prevent wheel events from causing overscroll
-  const handleWheel = useCallback((e) => {
-    const scrollContainer = timelineScrollRef.current;
-    if (!scrollContainer) return;
+  const handleWheel = useCallback(
+    (e) => {
+      const scrollContainer = timelineScrollRef.current;
+      if (!scrollContainer) return;
 
-    const maxScrollLeft =
-      scrollContainer.scrollWidth - scrollContainer.clientWidth;
-    const currentScrollLeft = scrollContainer.scrollLeft;
+      // Check if Command key (Mac) or Ctrl key (Windows/Linux) is pressed for zoom
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault();
 
-    // Check if wheel would cause overscroll
-    const deltaX = e.deltaX;
-    const newScrollLeft = currentScrollLeft + deltaX;
+        // Determine zoom direction and magnitude based on wheel delta
+        const deltaY = Math.abs(e.deltaY);
+        const zoomDirection = e.deltaY < 0 ? 1 : -1; // Scroll up = zoom in, scroll down = zoom out
 
-    if (newScrollLeft < 0 || newScrollLeft > maxScrollLeft) {
-      e.preventDefault(); // Prevent the overscroll
-      // Clamp to boundaries
-      scrollContainer.scrollLeft = Math.max(
-        0,
-        Math.min(maxScrollLeft, newScrollLeft)
-      );
-    }
-  }, []);
+        // Dynamic zoom step based on scroll magnitude for more natural feel
+        const baseZoomStep = 0.02;
+        const zoomStep = Math.min(0.1, baseZoomStep * (deltaY / 100 + 1));
+
+        // Calculate new relative zoom
+        const currentRelativeZoom = baseZoom > 0 ? zoomLevel / baseZoom : 1;
+        const newRelativeZoom = Math.max(
+          1,
+          Math.min(10, currentRelativeZoom + zoomDirection * zoomStep)
+        );
+
+        // Convert to actual zoom factor
+        const newActualZoom = baseZoom * newRelativeZoom;
+        const minZoom = getMinZoom();
+        const clampedZoom = Math.max(minZoom, newActualZoom);
+
+        if (Math.abs(clampedZoom - zoomLevel) < 0.001) {
+          return; // No change needed
+        }
+
+        // Get mouse position relative to the scroll container
+        const scrollRect = scrollContainer.getBoundingClientRect();
+        const mouseX = e.clientX - scrollRect.left;
+
+        // Store precise state before any changes
+        const currentScrollLeft = scrollContainer.scrollLeft;
+        const oldTimelineWidth = baseTimelineWidth * zoomLevel;
+
+        // Calculate mouse position in the timeline (including scroll offset)
+        const mouseTimelineX = mouseX + currentScrollLeft - 15; // Subtract 15px padding
+        const mouseViewportOffset = mouseX; // Distance from left edge of viewport
+
+        // Update zoom level
+        setZoomLevel(clampedZoom);
+
+        // Calculate new scroll position to keep mouse position stable
+        requestAnimationFrame(() => {
+          const newTimelineWidth = baseTimelineWidth * clampedZoom;
+          const zoomRatio = newTimelineWidth / oldTimelineWidth;
+
+          // Calculate where the mouse timeline position should be after zoom
+          const newMouseTimelineX = mouseTimelineX * zoomRatio;
+
+          // Calculate the target scroll position to keep mouse at same viewport position
+          const targetScrollLeft = newMouseTimelineX - mouseViewportOffset + 15; // Add back 15px padding
+
+          const maxScrollLeft =
+            scrollContainer.scrollWidth - scrollContainer.clientWidth;
+          const clampedScrollLeft = Math.max(
+            0,
+            Math.min(maxScrollLeft, targetScrollLeft)
+          );
+          scrollContainer.scrollLeft = Math.round(clampedScrollLeft);
+        });
+
+        return; // Exit early for zoom, don't handle scroll
+      }
+
+      // Original scroll handling for non-zoom wheel events
+      const maxScrollLeft =
+        scrollContainer.scrollWidth - scrollContainer.clientWidth;
+      const currentScrollLeft = scrollContainer.scrollLeft;
+
+      // Check if wheel would cause overscroll
+      const deltaX = e.deltaX;
+      const newScrollLeft = currentScrollLeft + deltaX;
+
+      if (newScrollLeft < 0 || newScrollLeft > maxScrollLeft) {
+        e.preventDefault(); // Prevent the overscroll
+        // Clamp to boundaries
+        scrollContainer.scrollLeft = Math.max(
+          0,
+          Math.min(maxScrollLeft, newScrollLeft)
+        );
+      }
+    },
+    [baseZoom, zoomLevel, getMinZoom, baseTimelineWidth]
+  );
 
   // Add wheel event listener to prevent overscroll
   useEffect(() => {
