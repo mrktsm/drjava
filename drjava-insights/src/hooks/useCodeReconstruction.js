@@ -50,14 +50,28 @@ export default function useCodeReconstruction({
         }
 
         if (log.type === "insert") {
+          const beforeContent = fileContent;
           fileContent =
             fileContent.slice(0, log.offset) +
             log.insertedText +
             fileContent.slice(log.offset);
+          console.log(`INSERT at ${log.offset}: "${log.insertedText}"`);
+          console.log(`Before: "${beforeContent}"`);
+          console.log(`After: "${fileContent}"`);
         } else if (log.type === "delete") {
+          const beforeContent = fileContent;
+          const deletedText = fileContent.slice(
+            log.offset,
+            log.offset + log.length
+          );
           fileContent =
             fileContent.slice(0, log.offset) +
             fileContent.slice(log.offset + log.length);
+          console.log(
+            `DELETE at ${log.offset} (length: ${log.length}): "${deletedText}"`
+          );
+          console.log(`Before: "${beforeContent}"`);
+          console.log(`After: "${fileContent}"`);
         }
       }
     }

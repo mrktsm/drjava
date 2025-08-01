@@ -16,13 +16,13 @@ function unescapeText(escapedText) {
 }
 
 /**
- * Extracts filename from a log filename (e.g., "file1.java__.log" -> "file1.java")
+ * Extracts filename from a log filename (e.g., "file1.java.log" -> "file1.java")
  * @param {string} logFilename - The log filename
  * @returns {string} - The extracted filename
  */
 function extractFilename(logFilename) {
-  // Remove the __.log suffix
-  return logFilename.replace(/__.log$/, "");
+  // Remove the .log suffix
+  return logFilename.replace(/\.log$/, "");
 }
 
 /**
@@ -45,17 +45,17 @@ function readSessionEvents(sessionEventsPath) {
 
       // Regex patterns for session events
       const appActivatedRegex =
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): APP_ACTIVATED: (\d+)(?: \(away for (\d+)ms\))?/;
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): APP_ACTIVATED: (\d+)(?: \(away for (\d+)ms\))?/;
       const appDeactivatedRegex =
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): APP_DEACTIVATED: (\d+)/;
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): APP_DEACTIVATED: (\d+)/;
       const fileOpenedRegex =
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): FILE_OPENED: (.+)/;
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): FILE_OPENED: (.+)/;
       const compileStartedRegex =
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): COMPILE_STARTED: (\d+)/;
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): COMPILE_STARTED: (\d+)/;
       const compileEndedRegex =
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): COMPILE_ENDED: (\d+)/;
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): COMPILE_ENDED: (\d+)/;
       const androidRunStartedRegex =
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): ANDROID_RUN_STARTED: (.+) at (\d+)/;
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): ANDROID_RUN_STARTED: (.+) at (\d+)/;
 
       const sessionEvents = lines
         .map((line) => {
@@ -147,12 +147,30 @@ function readTextChanges(filePath, filename) {
 
       // Regex patterns for text changes
       const insertRegex =
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): Text inserted at position (\d+): "(.*)"/;
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): Text inserted at position (\d+): "(.*)"/;
+      const initialContentRegex =
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): Initial file content inserted at position (\d+): "(.*)"/;
       const deleteRegex =
-        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): Text deleted at position (\d+) \(length: (\d+)\)/;
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?): Text deleted at position (\d+) \(length: (\d+)\)/;
 
       const textChanges = lines
         .map((line) => {
+          // Try to match initial content insertion pattern first
+          const initialContentMatch = line.match(initialContentRegex);
+          if (initialContentMatch) {
+            const escapedText = initialContentMatch[3];
+            const unescapedText = unescapeText(escapedText);
+            return {
+              timestamp: initialContentMatch[1],
+              type: "insert",
+              offset: parseInt(initialContentMatch[2], 10),
+              insertedText: unescapedText,
+              length: unescapedText.length,
+              filename: filename,
+              isInitialContent: true, // Flag to distinguish initial content
+            };
+          }
+
           // Try to match insertion pattern
           const insertMatch = line.match(insertRegex);
           if (insertMatch) {
