@@ -102,8 +102,9 @@ export function calculateFileSegments(
           sessionStart,
           sessionDuration
         );
+        // End the segment exactly at the current keystroke position (no gap)
         const segmentEndTime = keystrokeIndexToTimelinePosition(
-          i - 1,
+          i,
           keystrokeLogs,
           sessionStart,
           sessionDuration

@@ -586,7 +586,12 @@ function PlaybarComponent({
               {fileSegments.map((segment, index) => {
                 const segmentStartPixels = timeToPixels(segment.start);
                 const segmentEndPixels = timeToPixels(segment.end);
-                const segmentWidth = segmentEndPixels - segmentStartPixels;
+                let segmentWidth = segmentEndPixels - segmentStartPixels;
+
+                // Add a fixed 3-pixel gap between segments (except the last one)
+                if (index < fileSegments.length - 1) {
+                  segmentWidth = Math.max(0, segmentWidth - 3);
+                }
 
                 // Constrain positions to container boundaries
                 const containerWidth =
@@ -628,9 +633,9 @@ function PlaybarComponent({
               {fileSegments.map((segment, index) => {
                 const segmentStartPixels = timeToPixels(segment.start);
                 const segmentEndPixels = timeToPixels(segment.end);
-                const segmentWidth = segmentEndPixels - segmentStartPixels;
+                const fullSegmentWidth = segmentEndPixels - segmentStartPixels;
 
-                // Calculate how much of this segment should be filled
+                // Calculate how much of this segment should be filled (based on full width)
                 let segmentProgress = 0;
                 if (
                   currentTime >= segment.start &&
@@ -645,7 +650,19 @@ function PlaybarComponent({
                   segmentProgress = 1;
                 }
 
-                const filledWidth = segmentWidth * segmentProgress;
+                const fullFilledWidth = fullSegmentWidth * segmentProgress;
+
+                // Apply the gap to the display width (for visual separation)
+                let displaySegmentWidth = fullSegmentWidth;
+                if (index < fileSegments.length - 1) {
+                  displaySegmentWidth = Math.max(0, fullSegmentWidth - 3);
+                }
+
+                // The progress width should be proportional to the display width
+                const filledWidth = Math.min(
+                  fullFilledWidth,
+                  displaySegmentWidth
+                );
 
                 // Constrain positions to container boundaries
                 const containerWidth =
@@ -689,7 +706,12 @@ function PlaybarComponent({
               {fileSegments.map((segment, index) => {
                 const segmentStartPixels = timeToPixels(segment.start);
                 const segmentEndPixels = timeToPixels(segment.end);
-                const segmentWidth = segmentEndPixels - segmentStartPixels;
+                let segmentWidth = segmentEndPixels - segmentStartPixels;
+
+                // Add a fixed 3-pixel gap between segments (except the last one)
+                if (index < fileSegments.length - 1) {
+                  segmentWidth = Math.max(0, segmentWidth - 3);
+                }
 
                 // Constrain positions to container boundaries
                 const containerWidth =

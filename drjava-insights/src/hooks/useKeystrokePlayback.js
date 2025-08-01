@@ -49,6 +49,8 @@ export default function useKeystrokePlayback({
   const [currentTime, setCurrentTime] = useState(sessionStart);
   const [playbackStartTime, setPlaybackStartTime] = useState(null);
   const [playbackStartKeystroke, setPlaybackStartKeystroke] = useState(0);
+  const [playbackStartTimelinePosition, setPlaybackStartTimelinePosition] =
+    useState(sessionStart); // NEW: Track starting timeline position
   const [isUserScrubbing, setIsUserScrubbing] = useState(false);
   const timeoutRef = useRef(null);
 
@@ -58,50 +60,15 @@ export default function useKeystrokePlayback({
       ? keystrokeLogs[currentKeystrokeIndex]
       : null;
 
-  // Schedule the next keystroke with authentic timing
-  const scheduleNextKeystroke = () => {
-    if (!isPlaying || currentKeystrokeIndex >= keystrokeLogs.length - 1) {
-      return;
-    }
-    const currentKeystroke = keystrokeLogs[currentKeystrokeIndex];
-    const nextKeystroke = keystrokeLogs[currentKeystrokeIndex + 1];
-    const currentTimeObj = new Date(currentKeystroke.timestamp);
-    const nextTimeObj = new Date(nextKeystroke.timestamp);
-    const actualDelay = nextTimeObj - currentTimeObj;
-    const scaledDelay = actualDelay / playbackSpeed;
-    timeoutRef.current = setTimeout(() => {
-      if (isPlaying && !isUserScrubbing) {
-        setCurrentKeystrokeIndex((prev) => prev + 1);
-      }
-    }, scaledDelay);
-  };
+  // NOTE: scheduleNextKeystroke function removed since we now use timeline synchronization for keystroke progression
 
-  // Real-time keystroke playback effect
+  // Clean up timeout when playback stops
   useEffect(() => {
-    if (timeoutRef.current) {
+    if (!isPlaying && timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
-    if (isPlaying && keystrokeLogs.length > 0 && !isUserScrubbing) {
-      if (currentKeystrokeIndex < keystrokeLogs.length - 1) {
-        scheduleNextKeystroke();
-      } else {
-        setIsPlaying(false);
-      }
-    }
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-    };
-  }, [
-    isPlaying,
-    currentKeystrokeIndex,
-    keystrokeLogs,
-    playbackSpeed,
-    isUserScrubbing,
-  ]);
+  }, [isPlaying]);
 
   // Timeline synchronization effect
   useEffect(() => {
@@ -115,23 +82,55 @@ export default function useKeystrokePlayback({
       const updateTimeline = () => {
         const now = Date.now();
         const elapsedSincePlay = now - playbackStartTime;
-        const currentKeystroke = keystrokeLogs[playbackStartKeystroke];
-        const sessionElapsedMs = elapsedSincePlay * playbackSpeed;
-        const currentKeystrokeTime = new Date(currentKeystroke.timestamp);
-        const expectedCurrentTime = new Date(
-          currentKeystrokeTime.getTime() + sessionElapsedMs
+
+        // Calculate linear progression based on elapsed time and speed
+        // Use total session duration for smooth linear movement
+        const firstTime = new Date(keystrokeLogs[0].timestamp);
+        const lastTime = new Date(
+          keystrokeLogs[keystrokeLogs.length - 1].timestamp
         );
-        const totalSessionMs =
-          new Date(keystrokeLogs[keystrokeLogs.length - 1].timestamp) -
-          new Date(keystrokeLogs[0].timestamp);
-        const progressThroughSession = Math.min(
-          1,
-          (expectedCurrentTime - new Date(keystrokeLogs[0].timestamp)) /
-            totalSessionMs
+        const totalSessionMs = lastTime - firstTime;
+
+        // Calculate how much time should have passed in the session
+        const sessionTimeProgressed = elapsedSincePlay * playbackSpeed;
+
+        // Calculate progress from the starting point using the actual starting timeline position
+        const progressFromStart = sessionTimeProgressed / totalSessionMs;
+        const timelineProgress = progressFromStart * sessionDuration;
+
+        // Add progress to the exact starting timeline position where playback began
+        const timelinePosition = Math.min(
+          sessionStart + sessionDuration,
+          playbackStartTimelinePosition + timelineProgress
         );
-        const timelinePosition =
-          sessionStart + progressThroughSession * sessionDuration;
+
         setCurrentTime(timelinePosition);
+
+        // SYNC KEYSTROKE INDEX WITH TIMELINE POSITION
+        // This ensures keystroke index stays aligned with the linear timeline progression
+        const expectedKeystrokeIndex = timelinePositionToKeystrokeIndex(
+          timelinePosition,
+          keystrokeLogs,
+          sessionStart,
+          sessionDuration
+        );
+
+        // Only update if there's a significant difference to avoid constant updates
+        if (Math.abs(expectedKeystrokeIndex - currentKeystrokeIndex) >= 1) {
+          setCurrentKeystrokeIndex(expectedKeystrokeIndex);
+        }
+
+        // Auto-stop when reaching the end
+        if (
+          expectedKeystrokeIndex >= keystrokeLogs.length - 1 ||
+          timelinePosition >= sessionStart + sessionDuration
+        ) {
+          setIsPlaying(false);
+          setCurrentKeystrokeIndex(keystrokeLogs.length - 1);
+          setCurrentTime(sessionStart + sessionDuration);
+          return; // Exit the animation loop
+        }
+
         if (isPlaying) {
           animationFrame = requestAnimationFrame(updateTimeline);
         }
@@ -147,11 +146,13 @@ export default function useKeystrokePlayback({
     isPlaying,
     playbackStartTime,
     playbackStartKeystroke,
+    playbackStartTimelinePosition, // Add this dependency
     keystrokeLogs,
     sessionStart,
     sessionDuration,
     playbackSpeed,
     isUserScrubbing,
+    currentKeystrokeIndex, // Add currentKeystrokeIndex as dependency for sync
   ]);
 
   // Playback control handlers
@@ -169,6 +170,7 @@ export default function useKeystrokePlayback({
       }
       setPlaybackStartTime(Date.now());
       setPlaybackStartKeystroke(currentKeystrokeIndex);
+      setPlaybackStartTimelinePosition(currentTime); // Use current timeline position
       setIsPlaying(true);
     }
   };
@@ -178,6 +180,7 @@ export default function useKeystrokePlayback({
     setCurrentKeystrokeIndex(0);
     setCurrentTime(sessionStart);
     setPlaybackStartKeystroke(0);
+    setPlaybackStartTimelinePosition(sessionStart); // Reset to start
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -186,7 +189,8 @@ export default function useKeystrokePlayback({
 
   const handleSkipToEnd = () => {
     setIsPlaying(false);
-    setCurrentKeystrokeIndex(keystrokeLogs.length - 1);
+    const endIndex = keystrokeLogs.length - 1;
+    setCurrentKeystrokeIndex(endIndex);
     setCurrentTime(sessionEnd);
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -197,16 +201,16 @@ export default function useKeystrokePlayback({
   const handleSkipBackward = () => {
     const skipAmount = Math.max(1, Math.floor(keystrokeLogs.length * 0.1));
     const newIndex = Math.max(0, currentKeystrokeIndex - skipAmount);
-    setCurrentKeystrokeIndex(newIndex);
-    setCurrentTime(
-      keystrokeIndexToTimelinePosition(
-        newIndex,
-        keystrokeLogs,
-        sessionStart,
-        sessionDuration
-      )
+    const newTime = keystrokeIndexToTimelinePosition(
+      newIndex,
+      keystrokeLogs,
+      sessionStart,
+      sessionDuration
     );
+    setCurrentKeystrokeIndex(newIndex);
+    setCurrentTime(newTime);
     setPlaybackStartKeystroke(newIndex);
+    setPlaybackStartTimelinePosition(newTime); // Use the new timeline position
     setPlaybackStartTime(Date.now());
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -220,16 +224,16 @@ export default function useKeystrokePlayback({
       keystrokeLogs.length - 1,
       currentKeystrokeIndex + skipAmount
     );
-    setCurrentKeystrokeIndex(newIndex);
-    setCurrentTime(
-      keystrokeIndexToTimelinePosition(
-        newIndex,
-        keystrokeLogs,
-        sessionStart,
-        sessionDuration
-      )
+    const newTime = keystrokeIndexToTimelinePosition(
+      newIndex,
+      keystrokeLogs,
+      sessionStart,
+      sessionDuration
     );
+    setCurrentKeystrokeIndex(newIndex);
+    setCurrentTime(newTime);
     setPlaybackStartKeystroke(newIndex);
+    setPlaybackStartTimelinePosition(newTime); // Use the new timeline position
     setPlaybackStartTime(Date.now());
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -249,8 +253,12 @@ export default function useKeystrokePlayback({
       sessionDuration
     );
     setCurrentKeystrokeIndex(newKeystrokeIndex);
+
+    // Use the clicked position directly to allow positioning anywhere on timeline
     setCurrentTime(newTime);
+
     setPlaybackStartKeystroke(newKeystrokeIndex);
+    setPlaybackStartTimelinePosition(newTime); // Use the clicked timeline position
     setPlaybackStartTime(Date.now());
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
