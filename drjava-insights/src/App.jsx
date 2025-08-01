@@ -102,6 +102,9 @@ function App() {
   // Font size state
   const [fontSize, setFontSize] = useState(18); // Default font size
 
+  // Auto-switch files state
+  const [autoSwitchFiles, setAutoSwitchFiles] = useState(true);
+
   // Update active file when files are loaded
   useEffect(() => {
     if (files.length > 0 && !activeFile) {
@@ -109,12 +112,12 @@ function App() {
     }
   }, [files, activeFile]);
 
-  // Update active file based on the current keystroke during playback
+  // Update active file based on the current keystroke during playback (only if auto-switch is enabled)
   useEffect(() => {
-    if (currentKeystroke && currentKeystroke.filename) {
+    if (autoSwitchFiles && currentKeystroke && currentKeystroke.filename) {
       setActiveFile(currentKeystroke.filename);
     }
-  }, [currentKeystroke]);
+  }, [currentKeystroke, autoSwitchFiles]);
 
   // Keyboard shortcuts for font size
   useEffect(() => {
@@ -231,6 +234,8 @@ function App() {
         onSetPlaybackSpeed={setPlaybackSpeed}
         fontSize={fontSize}
         onSetFontSize={setFontSize}
+        autoSwitchFiles={autoSwitchFiles}
+        onToggleAutoSwitchFiles={() => setAutoSwitchFiles(!autoSwitchFiles)}
       />
     </div>
   );

@@ -155,6 +155,8 @@ function PlaybarComponent({
   files = [],
   activeFile = "",
   onFileSelect,
+  autoSwitchFiles = true, // New prop for controlling automatic file switching
+  onToggleAutoSwitchFiles, // New prop for toggling auto-switch behavior
   // Media control props
   isPlaying = false,
   onPlayPause,
@@ -524,6 +526,24 @@ function PlaybarComponent({
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Auto-switch Files Checkbox */}
+          <div className="auto-switch-control">
+            <input
+              type="checkbox"
+              id="auto-switch-files"
+              checked={autoSwitchFiles}
+              onChange={(e) => {
+                if (onToggleAutoSwitchFiles) {
+                  onToggleAutoSwitchFiles(e.target.checked);
+                }
+              }}
+              className="auto-switch-checkbox"
+            />
+            <label htmlFor="auto-switch-files" className="auto-switch-label">
+              Auto-switch files
+            </label>
           </div>
         </div>
 

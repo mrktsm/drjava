@@ -278,6 +278,66 @@ input:active,
 .file-explorer-controls {
   margin-right: 20px; /* Changed from margin-left to margin-right */
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Auto-switch Files Control */
+.auto-switch-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #495057;
+  font-weight: 500;
+}
+
+.auto-switch-checkbox {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #ced4da;
+  border-radius: 3px;
+  background-color: #fff;
+  cursor: pointer;
+  position: relative;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+.auto-switch-checkbox:checked {
+  background-color: #007acc;
+  border-color: #007acc;
+}
+
+.auto-switch-checkbox:checked::after {
+  content: "✓";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.auto-switch-checkbox:hover {
+  border-color: #007acc;
+}
+
+.auto-switch-label {
+  font-weight: 500;
+  color: #6c757d;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.auto-switch-label:hover {
+  color: #495057;
 }
 
 .file-selector {
