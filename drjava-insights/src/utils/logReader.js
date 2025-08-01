@@ -50,6 +50,12 @@ function readSessionEvents(sessionEventsPath) {
         /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): APP_DEACTIVATED: (\d+)/;
       const fileOpenedRegex =
         /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): FILE_OPENED: (.+)/;
+      const compileStartedRegex =
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): COMPILE_STARTED: (\d+)/;
+      const compileEndedRegex =
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): COMPILE_ENDED: (\d+)/;
+      const androidRunStartedRegex =
+        /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+): ANDROID_RUN_STARTED: (.+) at (\d+)/;
 
       const sessionEvents = lines
         .map((line) => {
@@ -83,6 +89,37 @@ function readSessionEvents(sessionEventsPath) {
               timestamp: fileOpenedMatch[1],
               type: "file_opened",
               filePath: fileOpenedMatch[2],
+            };
+          }
+
+          // Try to match compile started pattern
+          const compileStartedMatch = line.match(compileStartedRegex);
+          if (compileStartedMatch) {
+            return {
+              timestamp: compileStartedMatch[1],
+              type: "compile_started",
+              epochTime: parseInt(compileStartedMatch[2], 10),
+            };
+          }
+
+          // Try to match compile ended pattern
+          const compileEndedMatch = line.match(compileEndedRegex);
+          if (compileEndedMatch) {
+            return {
+              timestamp: compileEndedMatch[1],
+              type: "compile_ended",
+              epochTime: parseInt(compileEndedMatch[2], 10),
+            };
+          }
+
+          // Try to match android run started pattern
+          const androidRunStartedMatch = line.match(androidRunStartedRegex);
+          if (androidRunStartedMatch) {
+            return {
+              timestamp: androidRunStartedMatch[1],
+              type: "android_run_started",
+              filename: androidRunStartedMatch[2],
+              epochTime: parseInt(androidRunStartedMatch[3], 10),
             };
           }
 

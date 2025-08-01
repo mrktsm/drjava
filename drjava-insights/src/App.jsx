@@ -40,6 +40,8 @@ function App() {
     sessionStartTime,
     sessionEndTime,
     files,
+    compileEvents,
+    runEvents,
     // loading, // Loading state for the logs, could be used to show a loading screen
     // error, // Error state for the logs, could be used to show an error screen
   } = useLogs();
@@ -236,6 +238,8 @@ function App() {
         onSetFontSize={setFontSize}
         autoSwitchFiles={autoSwitchFiles}
         onToggleAutoSwitchFiles={() => setAutoSwitchFiles(!autoSwitchFiles)}
+        compileEvents={compileEvents}
+        runEvents={runEvents}
       />
     </div>
   );

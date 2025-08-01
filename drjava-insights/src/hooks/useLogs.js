@@ -33,6 +33,8 @@ export default function useLogs() {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [compileEvents, setCompileEvents] = useState([]);
+  const [runEvents, setRunEvents] = useState([]);
 
   useEffect(() => {
     const processLogsIntoSegments = (sortedLogs) => {
@@ -166,6 +168,20 @@ export default function useLogs() {
           (log) => log.type === "insert" || log.type === "delete"
         );
         setKeystrokeLogs(keystrokeLogs);
+
+        // Extract compile events (compile_started and compile_ended)
+        const compileEventLogs = sortedLogs.filter(
+          (log) =>
+            log.type === "compile_started" || log.type === "compile_ended"
+        );
+        setCompileEvents(compileEventLogs);
+
+        // Extract run events (android_run_started)
+        const runEventLogs = sortedLogs.filter(
+          (log) => log.type === "android_run_started"
+        );
+        setRunEvents(runEventLogs);
+
         const processedSegments = processLogsIntoSegments(sortedLogs);
         setSegments(processedSegments);
         if (keystrokeLogs.length > 0) {
@@ -200,5 +216,7 @@ export default function useLogs() {
     files,
     loading,
     error,
+    compileEvents,
+    runEvents,
   };
 }

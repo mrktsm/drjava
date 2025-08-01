@@ -26,6 +26,8 @@ const TimelineTicks = memo(function TimelineTicks({
   formatTime,
   zoomLevel,
   timelineWidth,
+  compileEvents = [],
+  runEvents = [],
 }) {
   const spacedLines = useMemo(() => {
     const lines = [];
@@ -67,44 +69,82 @@ const TimelineTicks = memo(function TimelineTicks({
   return (
     <div className="time-ticks-container">
       {spacedLines}
-      <TimelineEvents timelineWidth={timelineWidth} />
+      <TimelineEvents
+        timelineWidth={timelineWidth}
+        compileEvents={compileEvents}
+        runEvents={runEvents}
+        sessionStart={sessionStart}
+        sessionDuration={sessionDuration}
+      />
     </div>
   );
 });
 
 // Component for rendering run and compile events
-const TimelineEvents = memo(function TimelineEvents({ timelineWidth }) {
+const TimelineEvents = memo(function TimelineEvents({
+  timelineWidth,
+  compileEvents = [],
+  runEvents = [],
+  sessionStart,
+  sessionDuration,
+}) {
   const events = useMemo(() => {
-    // Generate random events for demonstration
-    const eventTypes = [
-      { icon: BsPlayCircleFill, type: "run", color: "#28a745" }, // Green for run
-      { icon: BsTools, type: "compile", color: "#ffc107" }, // Yellow for compile
-    ];
+    const allEvents = [];
 
-    const randomEvents = [];
-    const numEvents = Math.floor(Math.random() * 8) + 4; // 4-12 events
+    // Process compile events
+    compileEvents.forEach((event, index) => {
+      // Convert timestamp to session time
+      const eventTime = new Date(event.timestamp);
+      const eventHours =
+        eventTime.getHours() +
+        eventTime.getMinutes() / 60 +
+        eventTime.getSeconds() / 3600;
 
-    for (let i = 0; i < numEvents; i++) {
-      let eventType = {
-        ...eventTypes[Math.floor(Math.random() * eventTypes.length)],
-      };
-      const position = Math.random() * 90 + 5; // 5% to 95% across timeline
+      // Calculate position as percentage across timeline
+      const position = ((eventHours - sessionStart) / sessionDuration) * 100;
 
-      // Randomly add errors to some compile events
-      if (eventType.type === "compile" && Math.random() < 0.4) {
-        // 40% chance of error
-        eventType.hasError = true;
+      // Only add events that fall within the session timeline
+      if (position >= 0 && position <= 100) {
+        allEvents.push({
+          id: `compile-${index}`,
+          position,
+          icon: BsTools,
+          type: "compile",
+          color: "#ffc107", // Yellow for compile
+          timestamp: event.timestamp,
+          hasError: false, // Will implement error detection later
+        });
       }
+    });
 
-      randomEvents.push({
-        id: i,
-        position,
-        ...eventType,
-      });
-    }
+    // Process run events
+    runEvents.forEach((event, index) => {
+      // Convert timestamp to session time
+      const eventTime = new Date(event.timestamp);
+      const eventHours =
+        eventTime.getHours() +
+        eventTime.getMinutes() / 60 +
+        eventTime.getSeconds() / 3600;
 
-    return randomEvents.sort((a, b) => a.position - b.position);
-  }, [timelineWidth]);
+      // Calculate position as percentage across timeline
+      const position = ((eventHours - sessionStart) / sessionDuration) * 100;
+
+      // Only add events that fall within the session timeline
+      if (position >= 0 && position <= 100) {
+        allEvents.push({
+          id: `run-${index}`,
+          position,
+          icon: BsPlayCircleFill,
+          type: "run",
+          color: "#28a745", // Green for run
+          timestamp: event.timestamp,
+          filename: event.filename,
+        });
+      }
+    });
+
+    return allEvents.sort((a, b) => a.position - b.position);
+  }, [compileEvents, runEvents, sessionStart, sessionDuration]);
 
   return (
     <div className="timeline-events">
@@ -168,6 +208,9 @@ function PlaybarComponent({
   onSetPlaybackSpeed,
   fontSize,
   onSetFontSize,
+  // Event props
+  compileEvents = [],
+  runEvents = [],
 }) {
   const [isDragging, setIsDragging] = useState(false);
   // Remove playbarWidth state since we now use file segments
@@ -709,6 +752,8 @@ function PlaybarComponent({
               formatTime={formatTime}
               zoomLevel={zoomLevel}
               timelineWidth={timelineWidth}
+              compileEvents={compileEvents}
+              runEvents={runEvents}
             />
             <div className="timeline-divider" />
             <div
