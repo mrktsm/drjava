@@ -676,6 +676,62 @@ function PlaybarComponent({
                 return null;
               })}
 
+              {/* Filename Labels - separate layer with highest z-index */}
+              {fileSegments.map((segment, index) => {
+                const segmentStartPixels = timeToPixels(segment.start);
+                const segmentEndPixels = timeToPixels(segment.end);
+                const segmentWidth = segmentEndPixels - segmentStartPixels;
+
+                // Constrain positions to container boundaries
+                const containerWidth =
+                  containerRef.current?.offsetWidth || timelineWidth;
+                const constrainedStartPixels = Math.min(
+                  segmentStartPixels,
+                  containerWidth - 3
+                );
+                const constrainedWidth = Math.min(
+                  segmentWidth,
+                  containerWidth - constrainedStartPixels
+                );
+
+                // Extract just the filename without path
+                const fileName = segment.filename
+                  .split("/")
+                  .pop()
+                  .split("\\")
+                  .pop();
+
+                // Only show label if segment is wide enough
+                if (constrainedWidth > 80) {
+                  return (
+                    <div
+                      key={`file-label-${index}`}
+                      style={{
+                        position: "absolute",
+                        left: `${constrainedStartPixels + 4}px`,
+                        top: "2px",
+                        fontSize: "10px",
+                        fontWeight: "600",
+                        color: "#666",
+                        backgroundColor: "rgba(255, 255, 255, 0.9)",
+                        padding: "1px 4px",
+                        borderRadius: "2px",
+                        border: "1px solid #CCC",
+                        maxWidth: `${constrainedWidth - 10}px`,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        zIndex: 15, // Higher than progress bars (10) to stay visible
+                        pointerEvents: "none", // Don't interfere with timeline interactions
+                      }}
+                    >
+                      {fileName}
+                    </div>
+                  );
+                }
+                return null;
+              })}
+
               {/* Cursor - positioned based on current time */}
               <div
                 className="cursor"
