@@ -280,7 +280,7 @@ input:active,
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 12px; /* Re-added gap for proper spacing */
 }
 
 /* Auto-switch Files Control */
@@ -341,6 +341,7 @@ input:active,
 }
 
 .file-selector {
+  position: relative; /* Make it a positioning context for the dropdown */
   display: flex;
   align-items: center;
   gap: 4px;
@@ -386,7 +387,7 @@ input:active,
   position: absolute;
   top: calc(100% + 5px); /* Position below the selector with a small gap */
   left: 0;
-  width: 100%;
+  width: 100%; /* Make it take the width of its parent (.file-selector) */
   background-color: #f8f9fa;
   border: 1px solid #ced4da;
   border-radius: 4px;
@@ -394,6 +395,11 @@ input:active,
   max-height: 200px; /* Limit height and allow scrolling */
   overflow-y: auto;
   z-index: 1000000; /* Ensure it's above the cursor */
+}
+
+/* Ensure the dropdown respects the width of its direct parent .file-selector */
+.file-selector .file-dropdown {
+  width: 100%;
 }
 
 .file-explorer-controls .file-dropdown-item {
