@@ -14,6 +14,10 @@ import {
   MdFastForward,
   MdSkipNext,
 } from "react-icons/md";
+import {
+  getCurrentFileSegment,
+  getCurrentTimeInSegment,
+} from "../utils/fileSegmentUtils";
 
 const TimelineTicks = memo(function TimelineTicks({
   sessionStart,
@@ -138,7 +142,9 @@ const TimelineEvents = memo(function TimelineEvents({ timelineWidth }) {
 function PlaybarComponent({
   segments = [],
   activitySegments = [], // New prop for activity segments
+  fileSegments = [], // New prop for file segments
   currentTime,
+  currentKeystrokeIndex, // Current keystroke index for accurate file segment detection
   onTimeChange,
   sessionStart = 0,
   sessionEnd = 24,
@@ -160,7 +166,8 @@ function PlaybarComponent({
   onSetFontSize,
 }) {
   const [isDragging, setIsDragging] = useState(false);
-  const [playbarWidth, setPlaybarWidth] = useState(0);
+  // Remove playbarWidth state since we now use file segments
+  // const [playbarWidth, setPlaybarWidth] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1); // Represents the actual zoom factor
   const [baseZoom, setBaseZoom] = useState(1); // The zoom factor for "100% fit-to-width"
   const [
@@ -404,21 +411,12 @@ function PlaybarComponent({
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Update playbar width based on current time
-  useEffect(() => {
-    const cursorPixelPosition = timeToPixels(currentTime);
-    setPlaybarWidth(cursorPixelPosition);
-  }, [currentTime, timeToPixels]);
-
-  // Calculate constrained cursor position to prevent overflow
-  const constrainedPlaybarWidth = useMemo(() => {
-    if (!containerRef.current) return playbarWidth;
-
-    // Get the actual container width minus any borders/padding
-    const containerWidth = containerRef.current.offsetWidth;
-    // Constrain the playbar width to not exceed container boundaries
-    return Math.min(playbarWidth, containerWidth - 3); // -3px for cursor width
-  }, [playbarWidth, containerRef.current?.offsetWidth]);
+  // Remove old playbar width calculation since we now use file segments
+  // const constrainedPlaybarWidth = useMemo(() => {
+  //   if (!containerRef.current) return playbarWidth;
+  //   const containerWidth = containerRef.current.offsetWidth;
+  //   return Math.min(playbarWidth, containerWidth - 3);
+  // }, [playbarWidth, containerRef.current?.offsetWidth]);
 
   // Auto-scroll when playing
   useEffect(() => {
@@ -489,6 +487,11 @@ function PlaybarComponent({
   };
 
   const currentPercentage = timeToPercentage(currentTime);
+
+  // Get current file segment and progress within that segment
+  const currentFileSegment = useMemo(() => {
+    return getCurrentFileSegment(fileSegments, currentKeystrokeIndex || 0);
+  }, [fileSegments, currentKeystrokeIndex]);
 
   return (
     <div className="playbar-wrapper">
@@ -577,18 +580,112 @@ function PlaybarComponent({
               className="playbar-container"
               onMouseDown={handleMouseDown}
             >
-              {/* Playbar (blue progress) */}
-              <div
-                className="playbar"
-                style={{ width: `${constrainedPlaybarWidth}px` }}
-              />
+              {/* File-based Background Segments - divide the timeline background by files */}
+              {fileSegments.map((segment, index) => {
+                const segmentStartPixels = timeToPixels(segment.start);
+                const segmentEndPixels = timeToPixels(segment.end);
+                const segmentWidth = segmentEndPixels - segmentStartPixels;
 
-              {/* Cursor - moved out of playbar to respect z-index */}
+                // Constrain positions to container boundaries
+                const containerWidth =
+                  containerRef.current?.offsetWidth || timelineWidth;
+                const constrainedStartPixels = Math.min(
+                  segmentStartPixels,
+                  containerWidth - 3
+                );
+                const constrainedWidth = Math.min(
+                  segmentWidth,
+                  containerWidth - constrainedStartPixels
+                );
+
+                return (
+                  <div
+                    key={`file-bg-segment-${index}`}
+                    className="file-background-segment"
+                    style={{
+                      position: "absolute",
+                      left: `${constrainedStartPixels}px`,
+                      top: "0px",
+                      width: `${constrainedWidth}px`,
+                      height: "100%",
+                      backgroundColor: "#E5E5E5", // Light gray background for file segments
+                      border: "1px solid #D0D0D0",
+                      borderRadius: "2px",
+                      zIndex: 1, // Below progress bars but above default background
+                    }}
+                    title={`File: ${segment.filename}`}
+                  />
+                );
+              })}
+
+              {/* File-based Playbar Segments (blue progress) */}
+              {fileSegments.map((segment, index) => {
+                const segmentStartPixels = timeToPixels(segment.start);
+                const segmentEndPixels = timeToPixels(segment.end);
+                const segmentWidth = segmentEndPixels - segmentStartPixels;
+
+                // Calculate how much of this segment should be filled
+                let segmentProgress = 0;
+                if (
+                  currentTime >= segment.start &&
+                  currentTime <= segment.end
+                ) {
+                  // Currently in this segment
+                  segmentProgress =
+                    (currentTime - segment.start) /
+                    (segment.end - segment.start);
+                } else if (currentTime > segment.end) {
+                  // Past this segment
+                  segmentProgress = 1;
+                }
+
+                const filledWidth = segmentWidth * segmentProgress;
+
+                // Constrain positions to container boundaries
+                const containerWidth =
+                  containerRef.current?.offsetWidth || timelineWidth;
+                const constrainedStartPixels = Math.min(
+                  segmentStartPixels,
+                  containerWidth - 3
+                );
+                const constrainedFilledWidth = Math.min(
+                  filledWidth,
+                  containerWidth - constrainedStartPixels
+                );
+
+                // Only render if there's progress to show
+                if (constrainedFilledWidth > 0) {
+                  return (
+                    <div
+                      key={`file-segment-${index}`}
+                      className="file-playbar-segment"
+                      style={{
+                        position: "absolute",
+                        left: `${constrainedStartPixels}px`,
+                        top: "0px", // Align with the top of the playbar container
+                        width: `${constrainedFilledWidth}px`,
+                        height: "100%", // Match the height of the main timeline bar
+                        backgroundColor: "#2196F3", // Blue color for file segments
+                        borderRadius: "2px",
+                        zIndex: 10, // Higher z-index to appear above timeline background
+                      }}
+                      title={`File: ${segment.filename} (Progress)`}
+                    />
+                  );
+                }
+                return null;
+              })}
+
+              {/* Cursor - positioned based on current time */}
               <div
                 className="cursor"
                 style={{
-                  left: `${constrainedPlaybarWidth}px`,
+                  left: `${Math.min(
+                    timeToPixels(currentTime),
+                    (containerRef.current?.offsetWidth || timelineWidth) - 3
+                  )}px`,
                   cursor: isDragging ? "grabbing" : "grab",
+                  zIndex: 20, // Highest z-index to appear above everything
                 }}
               />
             </div>

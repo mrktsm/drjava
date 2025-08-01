@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Editor from "@monaco-editor/react";
 import "./App.css";
 import { BsFiletypeJava } from "react-icons/bs";
@@ -7,6 +7,11 @@ import PlaybarComponent from "./components/Playbar";
 import useLogs from "./hooks/useLogs";
 import useKeystrokePlayback from "./hooks/useKeystrokePlayback";
 import useCodeReconstruction from "./hooks/useCodeReconstruction";
+import {
+  calculateFileSegments,
+  getCurrentFileSegment,
+  getCurrentTimeInSegment,
+} from "./utils/fileSegmentUtils";
 
 /**
  * DrJava Insights: A web-based tool for visualizing and replaying student coding sessions.
@@ -38,6 +43,25 @@ function App() {
     // error, // Error state for the logs, could be used to show an error screen
   } = useLogs();
 
+  // Calculate session start/end/duration for timeline
+  const sessionStart = sessionStartTime
+    ? sessionStartTime.getHours() +
+      sessionStartTime.getMinutes() / 60 +
+      sessionStartTime.getSeconds() / 3600
+    : 0;
+  const sessionEnd = sessionEndTime
+    ? sessionEndTime.getHours() +
+      sessionEndTime.getMinutes() / 60 +
+      sessionEndTime.getSeconds() / 3600
+    : 24;
+  const sessionDuration =
+    sessionStartTime && sessionEndTime ? sessionEnd - sessionStart : 24;
+
+  // Calculate file segments from keystroke logs
+  const fileSegments = useMemo(() => {
+    return calculateFileSegments(keystrokeLogs, sessionStart, sessionDuration);
+  }, [keystrokeLogs, sessionStart, sessionDuration]);
+
   // Playback logic extracted to hook
   const {
     isPlaying,
@@ -58,25 +82,9 @@ function App() {
     // setIsUserScrubbing,
   } = useKeystrokePlayback({
     keystrokeLogs,
-    sessionStart: sessionStartTime
-      ? sessionStartTime.getHours() +
-        sessionStartTime.getMinutes() / 60 +
-        sessionStartTime.getSeconds() / 3600
-      : 0,
-    sessionEnd: sessionEndTime
-      ? sessionEndTime.getHours() +
-        sessionEndTime.getMinutes() / 60 +
-        sessionEndTime.getSeconds() / 3600
-      : 24,
-    sessionDuration:
-      sessionStartTime && sessionEndTime
-        ? sessionEndTime.getHours() +
-          sessionEndTime.getMinutes() / 60 +
-          sessionEndTime.getSeconds() / 3600 -
-          (sessionStartTime.getHours() +
-            sessionStartTime.getMinutes() / 60 +
-            sessionStartTime.getSeconds() / 3600)
-        : 24,
+    sessionStart,
+    sessionEnd,
+    sessionDuration,
   });
 
   // File dropdown state
@@ -196,32 +204,13 @@ function App() {
       <PlaybarComponent
         segments={segments}
         activitySegments={activitySegments}
+        fileSegments={fileSegments}
         currentTime={currentTime}
+        currentKeystrokeIndex={currentKeystrokeIndex}
         onTimeChange={handleTimelineChange}
-        sessionStart={
-          sessionStartTime
-            ? sessionStartTime.getHours() +
-              sessionStartTime.getMinutes() / 60 +
-              sessionStartTime.getSeconds() / 3600
-            : 0
-        }
-        sessionEnd={
-          sessionEndTime
-            ? sessionEndTime.getHours() +
-              sessionEndTime.getMinutes() / 60 +
-              sessionEndTime.getSeconds() / 3600
-            : 24
-        }
-        sessionDuration={
-          sessionStartTime && sessionEndTime
-            ? sessionEndTime.getHours() +
-              sessionEndTime.getMinutes() / 60 +
-              sessionEndTime.getSeconds() / 3600 -
-              (sessionStartTime.getHours() +
-                sessionStartTime.getMinutes() / 60 +
-                sessionStartTime.getSeconds() / 3600)
-            : 24
-        }
+        sessionStart={sessionStart}
+        sessionEnd={sessionEnd}
+        sessionDuration={sessionDuration}
         files={files}
         activeFile={activeFile}
         onFileSelect={handleFileSelect}

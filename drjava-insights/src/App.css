@@ -428,8 +428,8 @@ input:active,
 .playbar-container {
   position: relative;
   height: 100px; /* Increased from 80px */
-  background-color: #cce7ff; /* Pale blue background */
-  border: 1px solid #00aaff; /* Blue outline restored */
+  background-color: transparent; /* Changed from #cce7ff to transparent */
+  border: none; /* Removed blue outline */
   padding: 8px 0; /* Add vertical padding */
   margin: -8px 0 0 0; /* Negative top margin to stick to divider */
   border-radius: 4px; /* Reduced from 8px to make it less rounded */
@@ -452,15 +452,19 @@ input:active,
 }
 
 .playbar {
+  /* Hide the old continuous playbar since we now use file-based segments */
+  display: none;
+  /*
   position: absolute;
   top: 0;
   left: 0;
   height: 100%;
   width: 0;
   background-color: #00aaff;
-  border-radius: 4px 0 0 4px; /* Reduced from 8px to match container */
+  border-radius: 4px 0 0 4px;
   z-index: 1;
-  max-width: 100%; /* Prevent playbar from overflowing */
+  max-width: 100%;
+  */
 }
 
 .segment {
@@ -575,7 +579,7 @@ input:active,
 .timeline-divider {
   width: 100%;
   height: 1px;
-  background-color: #ced4da; /* Light grey divider */
+  background-color: transparent; /* Changed from #ced4da to transparent */
   margin: 8px 0;
 }
 
