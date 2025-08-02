@@ -955,6 +955,10 @@ function PlaybarComponent({
                 // Only show label if segment is wide enough (in percentage terms)
                 if (constrainedWidthPercentage > 8) {
                   // Roughly equivalent to 100px at base zoom
+
+                  // Calculate letter-by-letter color changes based on playhead position
+                  const letters = fileName.split("");
+
                   return (
                     <div
                       key={`file-label-${index}`}
@@ -986,20 +990,127 @@ function PlaybarComponent({
                           display: "flex",
                           overflow: "hidden",
                           whiteSpace: "nowrap",
-                          color:
-                            currentPercentage >= leftPercentage &&
-                            currentPercentage <= rightPercentage
-                              ? `rgba(255, 255, 255, ${Math.min(
-                                  1,
-                                  (currentPercentage - leftPercentage) /
-                                    widthPercentage
-                                )})`
-                              : currentPercentage > rightPercentage
-                              ? "#fff"
-                              : "#333",
                         }}
                       >
-                        {fileName}
+                        {letters.map((letter, letterIndex) => {
+                          // Calculate the horizontal position of this letter within the segment
+                          // Account for the icon (14px + 4px gap = 18px) and padding (4px) = 22px total offset
+                          const iconAndPaddingOffset = 22; // pixels
+                          const iconOffsetPercentage =
+                            (iconAndPaddingOffset / timelineWidth) * 100;
+
+                          // More accurate character width mapping for 12px font
+                          const getCharWidth = (char) => {
+                            const charWidths = {
+                              ".": 3, // period is very narrow
+                              ",": 3, // comma is narrow
+                              ":": 3, // colon is narrow
+                              ";": 3, // semicolon is narrow
+                              i: 3, // i is narrow
+                              l: 3, // l is narrow
+                              j: 4, // j is narrow
+                              f: 4, // f is narrow
+                              t: 4, // t is narrow
+                              r: 4, // r is narrow
+                              I: 2, // uppercase I is very narrow
+                              " ": 4, // space
+                              w: 9, // w is wide
+                              m: 9, // m is wide
+                              W: 10, // uppercase W is very wide
+                              M: 9, // uppercase M is wide
+                              A: 8, // most uppercase letters are wider
+                              B: 7,
+                              C: 7,
+                              D: 8,
+                              E: 6,
+                              F: 6,
+                              G: 8,
+                              H: 8,
+                              J: 5,
+                              K: 7,
+                              L: 6,
+                              N: 8,
+                              O: 8,
+                              P: 6,
+                              Q: 8,
+                              R: 7,
+                              S: 6,
+                              T: 6,
+                              U: 8,
+                              V: 8,
+                              X: 7,
+                              Y: 7,
+                              Z: 6,
+                            };
+                            return charWidths[char] || 7; // default to 7px for unlisted characters
+                          };
+
+                          // Calculate cumulative width up to this letter
+                          let cumulativeWidth = 0;
+                          for (let i = 0; i < letterIndex; i++) {
+                            cumulativeWidth += getCharWidth(letters[i]);
+                          }
+
+                          const letterWidth = getCharWidth(letter);
+                          const letterWidthPercentage =
+                            (letterWidth / timelineWidth) * 100;
+                          const cumulativeWidthPercentage =
+                            (cumulativeWidth / timelineWidth) * 100;
+
+                          // Calculate this letter's actual horizontal position
+                          const letterStartPercentage =
+                            constrainedLeftPercentage +
+                            iconOffsetPercentage +
+                            cumulativeWidthPercentage;
+
+                          // Simple approach: start transition a fixed amount early, regardless of letter position
+                          const earlyStartOffset = letterWidthPercentage * 0.5; // Always start 0.5 char early
+                          const transitionStartPercentage =
+                            letterStartPercentage - earlyStartOffset;
+                          const transitionEndPercentage =
+                            letterStartPercentage + letterWidthPercentage;
+                          const transitionWidth =
+                            letterWidthPercentage + earlyStartOffset;
+
+                          // Calculate gradual color transition as playhead passes through this letter
+                          let letterOpacity = 0;
+                          if (currentPercentage >= transitionEndPercentage) {
+                            // Playhead has completely passed this letter
+                            letterOpacity = 1;
+                          } else if (
+                            currentPercentage >= transitionStartPercentage
+                          ) {
+                            // Playhead is currently passing through this letter
+                            letterOpacity =
+                              (currentPercentage - transitionStartPercentage) /
+                              transitionWidth;
+                          }
+                          // If currentPercentage < transitionStartPercentage, letterOpacity stays 0
+
+                          return (
+                            <span
+                              key={letterIndex}
+                              style={{
+                                color: `rgba(255, 255, 255, ${letterOpacity})`,
+                                transition: "color 0.05s ease-out",
+                                position: "relative",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 0,
+                                  color: "#333",
+                                  zIndex: -1,
+                                }}
+                              >
+                                {letter}
+                              </span>
+                              {letter}
+                            </span>
+                          );
+                        })}
                       </span>
                     </div>
                   );
