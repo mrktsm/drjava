@@ -83,9 +83,48 @@ export default function useLogs() {
       ) {
         return [];
       }
+
+      // Filter keystroke logs to get session boundaries
+      const keystrokeLogs = sortedLogs.filter(
+        (log) => log.type === "insert" || log.type === "delete"
+      );
+
+      if (keystrokeLogs.length === 0) {
+        return [];
+      }
+
       const activityLogs = sortedLogs.filter(
         (log) => log.type === "app_activated" || log.type === "app_deactivated"
       );
+
+      // Use the same time calculation system as keystroke positioning
+      const firstKeystrokeTime = new Date(keystrokeLogs[0].timestamp);
+      const lastKeystrokeTime = new Date(
+        keystrokeLogs[keystrokeLogs.length - 1].timestamp
+      );
+
+      // Find the actual session boundaries including both keystrokes and activity
+      let actualSessionStart = firstKeystrokeTime;
+      let actualSessionEnd = lastKeystrokeTime;
+
+      if (activityLogs.length > 0) {
+        const firstActivityTime = new Date(activityLogs[0].timestamp);
+        const lastActivityTime = new Date(
+          activityLogs[activityLogs.length - 1].timestamp
+        );
+
+        // Expand session boundaries to include all relevant events
+        actualSessionStart = new Date(
+          Math.min(firstKeystrokeTime, firstActivityTime)
+        );
+        actualSessionEnd = new Date(
+          Math.max(lastKeystrokeTime, lastActivityTime)
+        );
+      }
+
+      const totalSessionMs = actualSessionEnd - actualSessionStart;
+
+      // Calculate session start/end using same logic as keystroke system
       const sessionStartHours =
         sessionStartTime.getHours() +
         sessionStartTime.getMinutes() / 60 +
@@ -94,11 +133,33 @@ export default function useLogs() {
         sessionEndTime.getHours() +
         sessionEndTime.getMinutes() / 60 +
         sessionEndTime.getSeconds() / 3600;
+      const sessionDuration = sessionEndHours - sessionStartHours;
+
+      // Helper function to convert activity timestamp to timeline position
+      const activityTimeToTimelinePosition = (timestamp) => {
+        const activityTime = new Date(timestamp);
+
+        // Use KEYSTROKE session boundaries for timeline calculation, not expanded boundaries
+        // This ensures activity segments align with the keystroke-based timeline
+        const keystrokeSessionMs = lastKeystrokeTime - firstKeystrokeTime;
+
+        if (keystrokeSessionMs === 0) {
+          return sessionStartHours;
+        }
+
+        // Calculate progress relative to keystroke session boundaries
+        const progressThroughSession =
+          (activityTime - firstKeystrokeTime) / keystrokeSessionMs;
+        return sessionStartHours + progressThroughSession * sessionDuration;
+      };
+
       const activitySegments = [];
       let currentActiveStart = null;
       const sortedActivityLogs = activityLogs.sort(
         (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
       );
+
+      // Check if app was active at session start
       let wasActiveAtStart = false;
       for (let i = sortedActivityLogs.length - 1; i >= 0; i--) {
         const log = sortedActivityLogs[i];
@@ -108,37 +169,74 @@ export default function useLogs() {
           break;
         }
       }
+
       if (wasActiveAtStart) {
         currentActiveStart = sessionStartHours;
       }
+
       sortedActivityLogs.forEach((log) => {
-        const logTime = new Date(log.timestamp);
-        const timeInHours =
-          logTime.getHours() +
-          logTime.getMinutes() / 60 +
-          logTime.getSeconds() / 3600;
-        if (timeInHours < sessionStartHours || timeInHours > sessionEndHours) {
+        const timelinePosition = activityTimeToTimelinePosition(log.timestamp);
+
+        // Skip events outside session boundaries
+        if (
+          timelinePosition < sessionStartHours ||
+          timelinePosition > sessionEndHours
+        ) {
           return;
         }
+
         if (log.type === "app_deactivated") {
           if (currentActiveStart !== null) {
-            activitySegments.push({
+            const segment = {
               start: Math.max(currentActiveStart, sessionStartHours),
-              end: Math.min(timeInHours, sessionEndHours),
-            });
+              end: Math.min(timelinePosition, sessionEndHours),
+            };
+
+            // Always add the segment - we'll filter later based on the gap duration
+            activitySegments.push(segment);
             currentActiveStart = null;
           }
         } else if (log.type === "app_activated") {
-          currentActiveStart = Math.max(timeInHours, sessionStartHours);
+          currentActiveStart = Math.max(timelinePosition, sessionStartHours);
         }
       });
+
+      // Close any remaining active segment
       if (currentActiveStart !== null) {
-        activitySegments.push({
+        const finalSegment = {
           start: currentActiveStart,
           end: sessionEndHours,
-        });
+        };
+        activitySegments.push(finalSegment);
       }
-      return activitySegments;
+
+      // Post-process: merge segments with very short gaps between them
+      // This removes brief unfocus periods (like popup dialogs) while preserving actual activity patterns
+      const MIN_GAP_DURATION_SECONDS = 2;
+      const mergedSegments = [];
+
+      for (let i = 0; i < activitySegments.length; i++) {
+        const currentSegment = activitySegments[i];
+
+        if (mergedSegments.length === 0) {
+          mergedSegments.push({ ...currentSegment });
+          continue;
+        }
+
+        const lastMergedSegment = mergedSegments[mergedSegments.length - 1];
+        const gapDurationHours = currentSegment.start - lastMergedSegment.end;
+        const gapDurationSeconds = gapDurationHours * 3600;
+
+        // If the gap is very short, merge with the previous segment
+        if (gapDurationSeconds < MIN_GAP_DURATION_SECONDS) {
+          lastMergedSegment.end = currentSegment.end;
+        } else {
+          // Gap is significant, keep as separate segment
+          mergedSegments.push({ ...currentSegment });
+        }
+      }
+
+      return mergedSegments;
     };
 
     const extractFilesFromLogs = (logs) => {

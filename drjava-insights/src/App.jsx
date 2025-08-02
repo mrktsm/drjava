@@ -114,12 +114,19 @@ function App() {
     }
   }, [files, activeFile]);
 
-  // Update active file based on the current keystroke during playback (only if auto-switch is enabled)
+  // Update active file based on the current timeline position and file segments (only if auto-switch is enabled)
   useEffect(() => {
-    if (autoSwitchFiles && currentKeystroke && currentKeystroke.filename) {
-      setActiveFile(currentKeystroke.filename);
+    if (autoSwitchFiles && fileSegments.length > 0) {
+      // Find which file segment the current time falls into
+      const currentSegment = fileSegments.find(
+        (segment) => currentTime >= segment.start && currentTime <= segment.end
+      );
+
+      if (currentSegment && currentSegment.filename) {
+        setActiveFile(currentSegment.filename);
+      }
     }
-  }, [currentKeystroke, autoSwitchFiles]);
+  }, [currentTime, autoSwitchFiles, fileSegments]);
 
   // Keyboard shortcuts for font size
   useEffect(() => {

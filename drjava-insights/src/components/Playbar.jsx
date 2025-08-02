@@ -309,19 +309,32 @@ function PlaybarComponent({
       if (!containerRef.current || !timelineScrollRef.current)
         return sessionStart;
 
-      // Get the scroll container's position (this is what's visible)
+      // Get the scroll container's position and dimensions
       const scrollRect = timelineScrollRef.current.getBoundingClientRect();
       const scrollContainer = timelineScrollRef.current;
 
-      // Calculate mouse position relative to the scrollable area
-      // Account for scroll position and padding (15px on left)
-      const relativeX =
-        clientX - scrollRect.left - 15 + scrollContainer.scrollLeft;
+      // At minimum zoom, the timeline width might be smaller than container width
+      // In this case, CSS centers the timeline and padding behaves differently
+      const containerWidth = scrollRect.width;
 
-      // Convert to percentage of total timeline width
+      let relativeX, usableWidth;
+
+      if (timelineWidth <= containerWidth) {
+        // Timeline fits in container - CSS centers it with padding
+        // Calculate position relative to the centered timeline
+        const timelineStartX = (containerWidth - timelineWidth) / 2;
+        relativeX = clientX - scrollRect.left - timelineStartX;
+        usableWidth = timelineWidth;
+      } else {
+        // Timeline is larger than container - normal scrolling behavior
+        relativeX = clientX - scrollRect.left + scrollContainer.scrollLeft - 15;
+        usableWidth = timelineWidth - 30;
+      }
+
+      // Convert to percentage of usable timeline width
       const percentage = Math.max(
         0,
-        Math.min(100, (relativeX / timelineWidth) * 100)
+        Math.min(100, (relativeX / usableWidth) * 100)
       );
 
       return sessionStart + (percentage / 100) * sessionDuration;
@@ -530,7 +543,7 @@ function PlaybarComponent({
         const oldTimelineWidth = baseTimelineWidth * zoomLevel;
 
         // Calculate mouse position in the timeline (including scroll offset)
-        const mouseTimelineX = mouseX + currentScrollLeft - 15; // Subtract 15px padding
+        const mouseTimelineX = mouseX + currentScrollLeft;
         const mouseViewportOffset = mouseX; // Distance from left edge of viewport
 
         // Update zoom level
@@ -545,7 +558,7 @@ function PlaybarComponent({
           const newMouseTimelineX = mouseTimelineX * zoomRatio;
 
           // Calculate the target scroll position to keep mouse at same viewport position
-          const targetScrollLeft = newMouseTimelineX - mouseViewportOffset + 15; // Add back 15px padding
+          const targetScrollLeft = newMouseTimelineX - mouseViewportOffset;
 
           const maxScrollLeft =
             scrollContainer.scrollWidth - scrollContainer.clientWidth;
@@ -763,25 +776,34 @@ function PlaybarComponent({
             >
               {/* File-based Background Segments - divide the timeline background by files */}
               {fileSegments.map((segment, index) => {
-                const segmentStartPixels = timeToPixels(segment.start);
-                const segmentEndPixels = timeToPixels(segment.end);
-                let segmentWidth = segmentEndPixels - segmentStartPixels;
+                const leftPercentage =
+                  ((segment.start - sessionStart) / sessionDuration) * 100;
+                const rightPercentage =
+                  ((segment.end - sessionStart) / sessionDuration) * 100;
+                const widthPercentage = rightPercentage - leftPercentage;
 
                 // Add a fixed 3-pixel gap between segments (except the last one)
+                let adjustedWidthPercentage = widthPercentage;
                 if (index < fileSegments.length - 1) {
-                  segmentWidth = Math.max(0, segmentWidth - 3);
+                  // Convert 3 pixels to percentage based on current timeline width
+                  const gapPercentage = (3 / timelineWidth) * 100;
+                  adjustedWidthPercentage = Math.max(
+                    0,
+                    widthPercentage - gapPercentage
+                  );
                 }
 
-                // Constrain positions to container boundaries
-                const containerWidth =
-                  containerRef.current?.offsetWidth || timelineWidth;
-                const constrainedStartPixels = Math.min(
-                  segmentStartPixels,
-                  containerWidth - 3
+                // Constrain to timeline boundaries (respecting CSS padding)
+                const constrainedLeftPercentage = Math.max(
+                  0,
+                  Math.min(leftPercentage, 100)
                 );
-                const constrainedWidth = Math.min(
-                  segmentWidth,
-                  containerWidth - constrainedStartPixels
+                const constrainedWidthPercentage = Math.max(
+                  0,
+                  Math.min(
+                    adjustedWidthPercentage,
+                    100 - constrainedLeftPercentage
+                  )
                 );
 
                 // Get the file color and lighter version for background
@@ -794,9 +816,9 @@ function PlaybarComponent({
                     className="file-background-segment"
                     style={{
                       position: "absolute",
-                      left: `${constrainedStartPixels}px`,
+                      left: `${constrainedLeftPercentage}%`,
                       top: "0px",
-                      width: `${constrainedWidth}px`,
+                      width: `${constrainedWidthPercentage}%`,
                       height: "100%",
                       backgroundColor: lightFileColor, // Use lighter version of file color
                       border: `1px solid ${fileColor}`, // Use main file color for border
@@ -810,11 +832,14 @@ function PlaybarComponent({
 
               {/* File-based Playbar Segments (colored progress) */}
               {fileSegments.map((segment, index) => {
-                const segmentStartPixels = timeToPixels(segment.start);
-                const segmentEndPixels = timeToPixels(segment.end);
-                const fullSegmentWidth = segmentEndPixels - segmentStartPixels;
+                const leftPercentage =
+                  ((segment.start - sessionStart) / sessionDuration) * 100;
+                const rightPercentage =
+                  ((segment.end - sessionStart) / sessionDuration) * 100;
+                const fullSegmentWidthPercentage =
+                  rightPercentage - leftPercentage;
 
-                // Calculate how much of this segment should be filled (based on full width)
+                // Calculate how much of this segment should be filled
                 let segmentProgress = 0;
                 if (
                   currentTime >= segment.start &&
@@ -829,46 +854,53 @@ function PlaybarComponent({
                   segmentProgress = 1;
                 }
 
-                const fullFilledWidth = fullSegmentWidth * segmentProgress;
+                const fullFilledWidthPercentage =
+                  fullSegmentWidthPercentage * segmentProgress;
 
                 // Apply the gap to the display width (for visual separation)
-                let displaySegmentWidth = fullSegmentWidth;
+                let displaySegmentWidthPercentage = fullSegmentWidthPercentage;
                 if (index < fileSegments.length - 1) {
-                  displaySegmentWidth = Math.max(0, fullSegmentWidth - 3);
+                  // Convert 3 pixels to percentage based on current timeline width
+                  const gapPercentage = (3 / timelineWidth) * 100;
+                  displaySegmentWidthPercentage = Math.max(
+                    0,
+                    fullSegmentWidthPercentage - gapPercentage
+                  );
                 }
 
                 // The progress width should be proportional to the display width
-                const filledWidth = Math.min(
-                  fullFilledWidth,
-                  displaySegmentWidth
+                const filledWidthPercentage = Math.min(
+                  fullFilledWidthPercentage,
+                  displaySegmentWidthPercentage
                 );
 
-                // Constrain positions to container boundaries
-                const containerWidth =
-                  containerRef.current?.offsetWidth || timelineWidth;
-                const constrainedStartPixels = Math.min(
-                  segmentStartPixels,
-                  containerWidth - 3
+                // Constrain to timeline boundaries (respecting CSS padding)
+                const constrainedLeftPercentage = Math.max(
+                  0,
+                  Math.min(leftPercentage, 100)
                 );
-                const constrainedFilledWidth = Math.min(
-                  filledWidth,
-                  containerWidth - constrainedStartPixels
+                const constrainedFilledWidthPercentage = Math.max(
+                  0,
+                  Math.min(
+                    filledWidthPercentage,
+                    100 - constrainedLeftPercentage
+                  )
                 );
 
                 // Get the file color
                 const fileColor = fileColorMap[segment.filename] || "#2196F3";
 
                 // Only render if there's progress to show
-                if (constrainedFilledWidth > 0) {
+                if (constrainedFilledWidthPercentage > 0) {
                   return (
                     <div
                       key={`file-segment-${index}`}
                       className="file-playbar-segment"
                       style={{
                         position: "absolute",
-                        left: `${constrainedStartPixels}px`,
+                        left: `${constrainedLeftPercentage}%`,
                         top: "0px", // Align with the top of the playbar container
-                        width: `${constrainedFilledWidth}px`,
+                        width: `${constrainedFilledWidthPercentage}%`,
                         height: "100%", // Match the height of the main timeline bar
                         backgroundColor: fileColor, // Use file-specific color
                         borderRadius: "2px",
@@ -883,29 +915,35 @@ function PlaybarComponent({
 
               {/* Filename Labels - separate layer with highest z-index */}
               {fileSegments.map((segment, index) => {
-                const segmentStartPixels = timeToPixels(segment.start);
-                const segmentEndPixels = timeToPixels(segment.end);
-                let segmentWidth = segmentEndPixels - segmentStartPixels;
+                const leftPercentage =
+                  ((segment.start - sessionStart) / sessionDuration) * 100;
+                const rightPercentage =
+                  ((segment.end - sessionStart) / sessionDuration) * 100;
+                const widthPercentage = rightPercentage - leftPercentage;
 
                 // Add a fixed 3-pixel gap between segments (except the last one)
+                let adjustedWidthPercentage = widthPercentage;
                 if (index < fileSegments.length - 1) {
-                  segmentWidth = Math.max(0, segmentWidth - 3);
+                  // Convert 3 pixels to percentage based on current timeline width
+                  const gapPercentage = (3 / timelineWidth) * 100;
+                  adjustedWidthPercentage = Math.max(
+                    0,
+                    widthPercentage - gapPercentage
+                  );
                 }
 
-                // Constrain positions to container boundaries
-                const containerWidth =
-                  containerRef.current?.offsetWidth || timelineWidth;
-                const constrainedStartPixels = Math.min(
-                  segmentStartPixels,
-                  containerWidth - 3
+                // Constrain to timeline boundaries (respecting CSS padding)
+                const constrainedLeftPercentage = Math.max(
+                  0,
+                  Math.min(leftPercentage, 100)
                 );
-                const constrainedWidth = Math.min(
-                  segmentWidth,
-                  containerWidth - constrainedStartPixels
+                const constrainedWidthPercentage = Math.max(
+                  0,
+                  Math.min(
+                    adjustedWidthPercentage,
+                    100 - constrainedLeftPercentage
+                  )
                 );
-
-                // Calculate cursor position relative to this segment
-                const cursorPixels = timeToPixels(currentTime);
 
                 // Extract just the filename without path
                 const fileName = segment.filename
@@ -914,26 +952,26 @@ function PlaybarComponent({
                   .split("\\")
                   .pop();
 
-                // Only show label if segment is wide enough
-                if (constrainedWidth > 100) {
-                  const textStartPixels = constrainedStartPixels + 4 + 18; // Account for left padding + icon width
-
+                // Only show label if segment is wide enough (in percentage terms)
+                if (constrainedWidthPercentage > 8) {
+                  // Roughly equivalent to 100px at base zoom
                   return (
                     <div
                       key={`file-label-${index}`}
                       style={{
                         position: "absolute",
-                        left: `${constrainedStartPixels + 4}px`,
+                        left: `${constrainedLeftPercentage}%`,
                         top: "4px",
                         fontSize: "12px",
                         fontWeight: "600",
-                        maxWidth: `${constrainedWidth - 10}px`,
+                        width: `${constrainedWidthPercentage}%`,
                         overflow: "hidden",
                         zIndex: 15,
                         pointerEvents: "none",
                         display: "flex",
                         alignItems: "center",
                         gap: "4px",
+                        paddingLeft: "4px",
                       }}
                     >
                       <BsFiletypeJava
@@ -948,65 +986,20 @@ function PlaybarComponent({
                           display: "flex",
                           overflow: "hidden",
                           whiteSpace: "nowrap",
+                          color:
+                            currentPercentage >= leftPercentage &&
+                            currentPercentage <= rightPercentage
+                              ? `rgba(255, 255, 255, ${Math.min(
+                                  1,
+                                  (currentPercentage - leftPercentage) /
+                                    widthPercentage
+                                )})`
+                              : currentPercentage > rightPercentage
+                              ? "#fff"
+                              : "#333",
                         }}
                       >
-                        {fileName.split("").map((char, charIndex) => {
-                          // Estimate character width (trying 6.5px per character for better alignment)
-                          const charWidth = 5.5;
-                          const charStartPixels =
-                            textStartPixels + charIndex * charWidth;
-                          const charEndPixels = charStartPixels + charWidth;
-
-                          // Determine character color based on cursor position
-                          let charColor = "#333"; // Default dark color
-
-                          if (cursorPixels >= charEndPixels) {
-                            // Cursor has passed this character completely
-                            charColor = "#fff";
-                          } else if (
-                            cursorPixels >= charStartPixels &&
-                            cursorPixels <= charEndPixels
-                          ) {
-                            // Cursor is within this character - smooth transition
-                            const charProgress =
-                              (cursorPixels - charStartPixels) / charWidth;
-                            const opacity = Math.min(
-                              1,
-                              Math.max(0, charProgress)
-                            );
-
-                            // Interpolate between dark and light
-                            const darkColor = { r: 51, g: 51, b: 51 };
-                            const lightColor = { r: 255, g: 255, b: 255 };
-
-                            const r = Math.round(
-                              darkColor.r +
-                                (lightColor.r - darkColor.r) * opacity
-                            );
-                            const g = Math.round(
-                              darkColor.g +
-                                (lightColor.g - darkColor.g) * opacity
-                            );
-                            const b = Math.round(
-                              darkColor.b +
-                                (lightColor.b - darkColor.b) * opacity
-                            );
-
-                            charColor = `rgb(${r}, ${g}, ${b})`;
-                          }
-
-                          return (
-                            <span
-                              key={charIndex}
-                              style={{
-                                color: charColor,
-                                transition: "color 0.05s ease", // Faster transition for individual characters
-                              }}
-                            >
-                              {char}
-                            </span>
-                          );
-                        })}
+                        {fileName}
                       </span>
                     </div>
                   );
@@ -1018,10 +1011,7 @@ function PlaybarComponent({
               <div
                 className="cursor"
                 style={{
-                  left: `${Math.min(
-                    timeToPixels(currentTime),
-                    (containerRef.current?.offsetWidth || timelineWidth) - 3
-                  )}px`,
+                  left: `${currentPercentage}%`,
                   cursor: isDragging ? "grabbing" : "grab",
                   zIndex: 20, // Highest z-index to appear above everything
                 }}
@@ -1031,17 +1021,20 @@ function PlaybarComponent({
             {/* Activity Bar (Orange) */}
             <div className="activity-bar-container">
               {activitySegments.map((seg, index) => {
-                const leftPixels = timeToPixels(seg.start);
-                const rightPixels = timeToPixels(seg.end);
-                const widthPixels = rightPixels - leftPixels;
-                const constrainedLeftPixels = Math.min(
-                  leftPixels,
-                  (containerRef.current?.offsetWidth || timelineWidth) - 3
+                const leftPercentage =
+                  ((seg.start - sessionStart) / sessionDuration) * 100;
+                const rightPercentage =
+                  ((seg.end - sessionStart) / sessionDuration) * 100;
+                const widthPercentage = rightPercentage - leftPercentage;
+
+                // Constrain to timeline boundaries (respecting CSS padding)
+                const constrainedLeftPercentage = Math.max(
+                  0,
+                  Math.min(leftPercentage, 100)
                 );
-                const constrainedWidthPixels = Math.min(
-                  widthPixels,
-                  (containerRef.current?.offsetWidth || timelineWidth) -
-                    constrainedLeftPixels
+                const constrainedWidthPercentage = Math.max(
+                  0,
+                  Math.min(widthPercentage, 100 - constrainedLeftPercentage)
                 );
 
                 return (
@@ -1049,8 +1042,8 @@ function PlaybarComponent({
                     key={index}
                     className="segment"
                     style={{
-                      left: `${constrainedLeftPixels}px`,
-                      width: `${constrainedWidthPixels}px`,
+                      left: `${constrainedLeftPercentage}%`,
+                      width: `${constrainedWidthPercentage}%`,
                       backgroundColor: "orange",
                     }}
                   />

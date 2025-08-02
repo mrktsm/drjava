@@ -476,7 +476,8 @@ input:active,
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: 0 15px;
+  padding: 0 15px; /* Added padding for a balanced look */
+  box-sizing: border-box; /* Ensures padding is included in the width */
   /* Removed transition to eliminate lag during zoom */
 }
 
@@ -555,7 +556,7 @@ input:active,
   height: 16px; /* Made taller for better visibility */
   background-color: #495057; /* Changed to dark grey for outline */
   position: absolute;
-  top: 0px; /* Positioned at the very top of the cursor */
+  top: 1px; /* Moved down 1 pixel from 0px */
   left: -3.5px; /* Adjusted to center the narrower head */
   clip-path: polygon(
     0% 0%,
@@ -572,7 +573,7 @@ input:active,
   height: 12px; /* Smaller height for inner shape */
   background-color: white; /* White interior to match slider toggles */
   position: absolute;
-  top: 2px; /* Slightly offset from top */
+  top: 3px; /* Moved down 1 pixel from 2px to match outer shape */
   left: -2px; /* Adjusted to center the narrower inner shape */
   clip-path: polygon(
     0% 0%,

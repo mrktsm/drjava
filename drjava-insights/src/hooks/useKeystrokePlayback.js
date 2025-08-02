@@ -78,7 +78,9 @@ export default function useKeystrokePlayback({
     }, scaledDelay);
   };
 
-  // Real-time keystroke playback effect - restored for authentic timing
+  // Real-time keystroke playback effect - DISABLED in favor of smooth timeline progression
+  // The timeline effect now handles both time progression and keystroke index updates
+  /*
   useEffect(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -104,6 +106,7 @@ export default function useKeystrokePlayback({
     playbackSpeed,
     isUserScrubbing,
   ]);
+  */
 
   // Clean up timeout when playback stops
   useEffect(() => {
@@ -112,6 +115,22 @@ export default function useKeystrokePlayback({
       timeoutRef.current = null;
     }
   }, [isPlaying]);
+
+  // Sync currentKeystrokeIndex with currentTime changes during playback
+  useEffect(() => {
+    if (keystrokeLogs.length > 0) {
+      const syncedKeystrokeIndex = timelinePositionToKeystrokeIndex(
+        currentTime,
+        keystrokeLogs,
+        sessionStart,
+        sessionDuration
+      );
+      // Only update if the index actually changed to avoid unnecessary re-renders
+      if (syncedKeystrokeIndex !== currentKeystrokeIndex) {
+        setCurrentKeystrokeIndex(syncedKeystrokeIndex);
+      }
+    }
+  }, [currentTime, keystrokeLogs, sessionStart, sessionDuration]);
 
   // Timeline synchronization effect - smooth authentic timestamp-based progression
   useEffect(() => {
@@ -169,7 +188,7 @@ export default function useKeystrokePlayback({
     isPlaying,
     playbackStartTime,
     playbackStartKeystroke,
-    playbackStartTimelinePosition, // This is now the key - the exact clicked position
+    playbackStartTimelinePosition,
     keystrokeLogs,
     sessionStart,
     sessionDuration,
