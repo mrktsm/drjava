@@ -31,8 +31,12 @@ import java.util.concurrent.CompletableFuture;
 // Add imports for conversation history
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import edu.rice.cs.drjava.model.SingleDisplayModel;
 import edu.rice.cs.drjava.model.OpenDefinitionsDocument;
+// Add import for ShimmerText
+import edu.rice.cs.drjava.ui.aichat.ShimmerText;
 
 /**
  * A modern AI chat panel for DrJava with Cursor-inspired clean design.
@@ -83,6 +87,9 @@ public class AIChatPanel extends JPanel {
   
   // Reference to DrJava's model for accessing current document
   private final SingleDisplayModel _model;
+  
+  // Add field to track active shimmer components
+  private Map<String, ShimmerText> _activeShimmerComponents = new HashMap<>();
   
   // Inner class to represent a chat message
   public static class ChatMessage {
@@ -1433,34 +1440,101 @@ public class AIChatPanel extends JPanel {
                   
                   // Handle different event types
                   if ("tool_use".equals(eventType)) {
-                    // Tool usage event - show what tool is being executed with specific details
+                    // Tool usage event - add ShimmerText to the streaming panel
                     String toolName = _extractJsonField(jsonData, "tool");
                     String toolArgs = _extractJsonField(jsonData, "args");
                     
-                    String toolMessage = formatToolUsageMessage(toolName, toolArgs);
-                    fullContent.append("\n" + toolMessage + "\n");
+                    String shimmerMessage = getShimmerMessage(toolName, toolArgs);
+                    String toolId = toolName + "_" + System.currentTimeMillis();
                     
                     SwingUtilities.invokeLater(() -> {
-                      _updateStreamingMessage(streamingPanel, fullContent.toString(), false);
+                      // Replace the center component with a vertical container if needed
+                      Component centerComponent = ((BorderLayout) streamingPanel.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+                      
+                      JPanel contentPanel;
+                      if (centerComponent instanceof JPanel && ((JPanel) centerComponent).getLayout() instanceof BoxLayout) {
+                        // Already a vertical container
+                        contentPanel = (JPanel) centerComponent;
+                      } else {
+                        // Create a new vertical container
+                        contentPanel = new JPanel();
+                        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+                        contentPanel.setOpaque(false);
+                        streamingPanel.remove(centerComponent); // Remove the typing label
+                        streamingPanel.add(contentPanel, BorderLayout.CENTER);
+                      }
+                      
+                      // Create and add ShimmerText
+                      ShimmerText shimmerText = new ShimmerText(shimmerMessage);
+                      shimmerText.setAlignmentX(Component.LEFT_ALIGNMENT);
+                      _activeShimmerComponents.put(toolId, shimmerText);
+                      
+                      contentPanel.add(shimmerText);
+                      contentPanel.add(Box.createVerticalStrut(8));
+                      
+                      streamingPanel.revalidate();
+                      streamingPanel.repaint();
+                      _scrollToBottom();
                     });
                     
                   } else if ("tool_result".equals(eventType)) {
-                    // Tool result event - show brief result with success indicator
+                    // Tool result event - update ShimmerText to static result and add typing indicator
                     String result = _extractJsonField(jsonData, "result");
                     if (result != null && !result.trim().isEmpty()) {
                       String resultMessage = formatToolResultMessage(result);
-                      fullContent.append(resultMessage + "\n\n");
                       
-                      SwingUtilities.invokeLater(() -> {
-                        _updateStreamingMessage(streamingPanel, fullContent.toString(), false);
+                      Timer delayTimer = new Timer(1200, e -> {
+                        SwingUtilities.invokeLater(() -> {
+                          // Update shimmer components to static text but keep them visible
+                          for (ShimmerText shimmerText : _activeShimmerComponents.values()) {
+                            shimmerText.stopAnimation();
+                            shimmerText.setText(resultMessage);
+                          }
+                          
+                          // Add typing animation below the tool result to show AI is thinking
+                          Component centerComponent = ((BorderLayout) streamingPanel.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+                          if (centerComponent instanceof JPanel) {
+                            JPanel contentPanel = (JPanel) centerComponent;
+                            
+                            // Set streaming state on the content panel for animation to work
+                            contentPanel.putClientProperty("isStreaming", true);
+                            
+                            // Create and add typing indicator
+                            JLabel typingLabel = new JLabel(".");
+                            typingLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                            typingLabel.setForeground(SECONDARY_TEXT_COLOR);
+                            typingLabel.setBorder(new EmptyBorder(8, 0, 0, 0));
+                            typingLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+                            
+                            contentPanel.add(typingLabel);
+                            streamingPanel.putClientProperty("typingLabel", typingLabel);
+                            
+                            // Start typing animation
+                            _startTypingAnimation(typingLabel);
+                            
+                            streamingPanel.revalidate();
+                            streamingPanel.repaint();
+                            _scrollToBottom();
+                          }
+                          // Don't clear the components - keep them visible as indicators
+                        });
                       });
+                      delayTimer.setRepeats(false);
+                      delayTimer.start();
                     }
                     
                   } else if ("text".equals(eventType) || eventType == null) {
-                    // Regular text content (handle both explicit "text" type and legacy format)
+                    // Regular text content - appears below the tool indicators
                     if (chunk != null && !chunk.isEmpty()) {
                       fullContent.append(chunk);
                       final String currentContent = fullContent.toString();
+                      
+                      // Clear the shimmer components when actual text starts (they served their purpose)
+                      if (!_activeShimmerComponents.isEmpty()) {
+                        SwingUtilities.invokeLater(() -> {
+                          _activeShimmerComponents.clear(); // Clear tracking but components stay in UI
+                        });
+                      }
                       
                       // Batch updates to reduce jitter
                       long currentTime = System.currentTimeMillis();
@@ -1544,9 +1618,34 @@ public class AIChatPanel extends JPanel {
       streamingPanel.putClientProperty("typingLabel", null); // Clear reference
     }
     
+    // Preserve any ShimmerText components before removing content
+    List<ShimmerText> preservedShimmerComponents = new ArrayList<>();
+    Component centerComponent = ((BorderLayout) streamingPanel.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+    if (centerComponent instanceof JPanel) {
+      JPanel contentPanel = (JPanel) centerComponent;
+      for (Component comp : contentPanel.getComponents()) {
+        if (comp instanceof ShimmerText) {
+          preservedShimmerComponents.add((ShimmerText) comp);
+        }
+      }
+    }
+    
     // Remove existing content
     streamingPanel.removeAll();
     
+    // Create new content panel structure
+    JPanel contentPanel = new JPanel();
+    contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+    contentPanel.setOpaque(false);
+    
+    // Re-add preserved ShimmerText components first
+    for (ShimmerText shimmerText : preservedShimmerComponents) {
+      shimmerText.setAlignmentX(Component.LEFT_ALIGNMENT);
+      contentPanel.add(shimmerText);
+      contentPanel.add(Box.createVerticalStrut(8));
+    }
+    
+    // Add the streaming text content below the shimmer components
     if (isComplete) {
       // Final message - remove any cursor characters and use full AI message panel
       String finalContent = content.replaceAll("▊", ""); // Remove cursor characters
@@ -1561,71 +1660,14 @@ public class AIChatPanel extends JPanel {
       if (hasCodeBlocks) {
         JComponent contentComponent = _createMixedContentPanel(finalContent);
         contentComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
-        JPanel wrapper = new JPanel(new BorderLayout()) {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            return pref;
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
-          }
-        };
-        wrapper.setOpaque(false);
-        wrapper.add(contentComponent, BorderLayout.CENTER);
-        
-        streamingPanel.add(wrapper, BorderLayout.CENTER);
+        contentPanel.add(contentComponent);
       } else {
-        JEditorPane messageText = new JEditorPane("text/html", _convertMarkdownToHTML(finalContent));
-        messageText.setContentType("text/html");
-        messageText.setEditable(false);
-        messageText.setOpaque(false);
-        messageText.setBorder(new EmptyBorder(0, 0, 0, 0));
-        
-        // Don't honor display properties to ensure HTML uses our CSS sizes
-        messageText.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.FALSE);
-        
-        // Wrap in a panel with responsive width constraint to force CSS wrapping
-        JPanel textWrapper = new JPanel(new BorderLayout()) {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            int maxWidth = getResponsiveMaxWidth();
-            return new Dimension(Math.min(maxWidth, pref.width), pref.height);
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            Dimension pref = getPreferredSize();
-            int maxWidth = getResponsiveMaxWidth();
-            return new Dimension(Math.min(maxWidth, pref.width), pref.height);
-          }
-          
-          private int getResponsiveMaxWidth() {
-            Container parent = getParent();
-            while (parent != null && !(parent instanceof JScrollPane)) {
-              parent = parent.getParent();
-            }
-            if (parent != null) {
-              JScrollPane scrollPane = (JScrollPane) parent;
-              int availableWidth = scrollPane.getViewport().getWidth();
-              if (availableWidth > 100) {
-                // Use 95% of available width, with reasonable minimum but no restrictive maximum
-                return Math.max(300, (int)(availableWidth * 0.95));
-              }
-            }
-            return 400; // Fallback to fixed width
-          }
-        };
-        textWrapper.setOpaque(false);
-        textWrapper.add(messageText, BorderLayout.CENTER);
-        
-        streamingPanel.add(textWrapper, BorderLayout.CENTER);
+        JComponent textComponent = _createStableStreamingTextPane(finalContent, true);
+        textComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(textComponent);
       }
       
+      streamingPanel.add(contentPanel, BorderLayout.CENTER);
       streamingPanel.putClientProperty("isStreaming", false);
     } else {
       // Streaming in progress - check if we have any code blocks (complete or incomplete)
@@ -1633,33 +1675,17 @@ public class AIChatPanel extends JPanel {
       
       if (hasAnyCodeBlocks) {
         // We have code blocks - use mixed content panel to show what we have so far
-        // This handles both incomplete code blocks and newly completed ones
         JComponent contentComponent = _createStreamingMixedContentPanel(content);
         contentComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
-        JPanel wrapper = new JPanel(new BorderLayout()) {
-          @Override
-          public Dimension getPreferredSize() {
-            Dimension pref = super.getPreferredSize();
-            return pref;
-          }
-          
-          @Override
-          public Dimension getMaximumSize() {
-            return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
-          }
-        };
-        wrapper.setOpaque(false);
-        wrapper.add(contentComponent, BorderLayout.CENTER);
-        
-        streamingPanel.add(wrapper, BorderLayout.CENTER);
+        contentPanel.add(contentComponent);
       } else {
         // No code blocks at all - show as regular streaming text
-        JComponent streamingTextComponent = _createStableStreamingTextPane(content + "▊", true); // Enable markdown for streaming text
+        JComponent streamingTextComponent = _createStableStreamingTextPane(content + "▊", true);
         streamingTextComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
-        streamingPanel.add(streamingTextComponent, BorderLayout.CENTER);
+        contentPanel.add(streamingTextComponent);
       }
+      
+      streamingPanel.add(contentPanel, BorderLayout.CENTER);
     }
     
     streamingPanel.revalidate();
@@ -2813,7 +2839,7 @@ public class AIChatPanel extends JPanel {
    */
   private String formatToolResultMessage(String result) {
     if (result == null || result.trim().isEmpty()) {
-      return "✓ Complete";
+      return "Complete";
     }
     
     try {
@@ -2823,32 +2849,32 @@ public class AIChatPanel extends JPanel {
         String[] lines = result.split("\n");
         if (lines.length > 0) {
           String firstLine = lines[0]; // "File: filename.java (X lines)"
-          return "✓ " + firstLine.replace("File: ", "Read ");
+          return firstLine.replace("File: ", "Read ");
         }
-        return "✓ File read successfully";
+        return "File read successfully";
         
       } else if (result.startsWith("Directory:")) {
         // list_directory result
         String[] lines = result.split("\n");
         int fileCount = Math.max(0, lines.length - 3); // Subtract header lines
-        return "✓ Found " + fileCount + " items in directory";
+        return "Found " + fileCount + " items in directory";
         
       } else if (result.startsWith("Found")) {
         // search_files result
         String[] lines = result.split("\n");
         if (lines.length > 0) {
-          return "✓ " + lines[0]; // "Found X files matching 'pattern'"
+          return lines[0]; // "Found X files matching 'pattern'"
         }
-        return "✓ Search completed";
+        return "Search completed";
         
       } else {
         // Generic result - show truncated version
         String summary = result.length() > 100 ? 
                         result.substring(0, 100) + "..." : result;
-        return "✓ " + summary;
+        return summary;
       }
     } catch (Exception e) {
-      return "✓ Complete";
+      return "Complete";
     }
   }
   
@@ -2871,6 +2897,68 @@ public class AIChatPanel extends JPanel {
       return argsJson.substring(startIndex, endIndex);
     } catch (Exception e) {
       return null;
+    }
+  }
+  
+  /**
+   * Get shimmer message for tool usage (shorter, more appropriate for shimmer effect)
+   */
+  private String getShimmerMessage(String toolName, String toolArgs) {
+    if (toolName == null) return "Processing...";
+    
+    try {
+      switch (toolName) {
+        case "read_file":
+          String filePath = extractArgValue(toolArgs, "path");
+          if (filePath != null) {
+            String fileName = filePath.contains("/") ? 
+                            filePath.substring(filePath.lastIndexOf("/") + 1) : filePath;
+            return "Reading " + fileName + "...";
+          }
+          return "Reading file...";
+          
+        case "list_directory":
+          return "Listing directory...";
+          
+        case "search_files":
+          String pattern = extractArgValue(toolArgs, "pattern");
+          if (pattern != null) {
+            return "Searching '" + pattern + "'...";
+          }
+          return "Searching files...";
+          
+        default:
+          return "Processing...";
+      }
+    } catch (Exception e) {
+      return "Processing...";
+    }
+  }
+  
+  /**
+   * Add ShimmerText component to the streaming panel
+   */
+  private void addShimmerToStreamingPanel(JPanel streamingPanel, ShimmerText shimmerText, String toolId) {
+    // Find the content panel within the streaming panel
+    Component[] components = streamingPanel.getComponents();
+    for (Component comp : components) {
+      if (comp instanceof JPanel) {
+        JPanel contentPanel = (JPanel) comp;
+        
+        // Add the shimmer text component
+        shimmerText.setAlignmentX(Component.LEFT_ALIGNMENT);
+        contentPanel.add(shimmerText);
+        contentPanel.add(Box.createVerticalStrut(8)); // Small spacing
+        
+        // Store reference for later access
+        shimmerText.putClientProperty("toolId", toolId);
+        
+        // Refresh the display
+        contentPanel.revalidate();
+        contentPanel.repaint();
+        _scrollToBottom();
+        break;
+      }
     }
   }
 } 

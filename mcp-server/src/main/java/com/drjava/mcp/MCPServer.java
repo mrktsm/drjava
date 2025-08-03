@@ -287,22 +287,22 @@ public class MCPServer {
         sseData.addProperty("tool", toolName);
         sseData.add("args", args);
         sseData.addProperty("done", false);
-        
+                    
         String sseEvent = "data: " + gson.toJson(sseData) + "\n\n";
         responseBody.write(sseEvent.getBytes(StandardCharsets.UTF_8));
         responseBody.flush();
     }
     
     private void sendSseToolResult(OutputStream responseBody, String result) throws IOException {
-        JsonObject sseData = new JsonObject();
+                    JsonObject sseData = new JsonObject();
         sseData.addProperty("type", "tool_result");
         sseData.addProperty("result", result.length() > 200 ? result.substring(0, 200) + "..." : result);
-        sseData.addProperty("done", false);
-        
-        String sseEvent = "data: " + gson.toJson(sseData) + "\n\n";
-        responseBody.write(sseEvent.getBytes(StandardCharsets.UTF_8));
-        responseBody.flush();
-    }
+                    sseData.addProperty("done", false);
+                    
+                    String sseEvent = "data: " + gson.toJson(sseData) + "\n\n";
+                    responseBody.write(sseEvent.getBytes(StandardCharsets.UTF_8));
+                    responseBody.flush();
+                }
     
     /**
      * Stream text to client word by word to maintain streaming effect
@@ -579,7 +579,7 @@ public class MCPServer {
                 if (name.startsWith(".") || name.equals("node_modules") || 
                     name.equals("target") || name.equals("build") || name.equals("out")) {
                     return FileVisitResult.SKIP_SUBTREE;
-                }
+            }
                 return FileVisitResult.CONTINUE;
             }
         });
