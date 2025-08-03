@@ -32,11 +32,11 @@ public class MCPServer {
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
 
     public MCPServer() {
-        Dotenv dotenv = Dotenv.configure().directory("./mcp-server").ignoreIfMissing().load();
+        Dotenv dotenv = Dotenv.configure().directory(".").ignoreIfMissing().load();
         apiKey = dotenv.get("GEMINI_API_KEY");
         if (apiKey == null || apiKey.trim().isEmpty()) {
-            System.err.println("FATAL: GEMINI_API_KEY not found in mcp-server/.env file or as an environment variable.");
-            System.err.println("Please create a .env file in the 'mcp-server' directory with your API key.");
+            System.err.println("FATAL: GEMINI_API_KEY not found in .env file or as an environment variable.");
+            System.err.println("Please create a .env file in the current directory with your API key.");
             System.exit(1);
         }
     }
