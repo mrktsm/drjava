@@ -153,7 +153,7 @@ public class AIChatPanel extends JPanel {
   
   /**
    * Gets context information about the currently active document
-   * @return A formatted string with current file info and content, or null if no document is active
+   * @return A formatted string with current file info and limited content, or null if no document is active
    */
   private String _getCurrentDocumentContext() {
     if (_model == null) return null;
@@ -164,28 +164,36 @@ public class AIChatPanel extends JPanel {
       
       // Get file information
       String fileName = "Untitled";
+      String filePath = null;
       try {
         java.io.File file = activeDoc.getFile();
         if (file != null) {
           fileName = file.getName();
+          filePath = file.getAbsolutePath();
         }
       } catch (Exception e) {
         // File might not be saved yet, use default name
       }
       
-      // Get document text
-      String text = activeDoc.getText();
-      if (text == null || text.trim().isEmpty()) {
-        return null; // Don't include empty documents
+      // For tool calling, just provide file context without the full content
+      // The AI can use read_file tool if it needs to see the content
+      StringBuilder context = new StringBuilder();
+      context.append("Current file: ").append(fileName);
+      if (filePath != null) {
+        context.append(" (").append(filePath).append(")");
       }
       
-      // Create formatted context
-      StringBuilder context = new StringBuilder();
-      context.append("Current file: ").append(fileName).append("\n");
-      context.append("Content:\n");
-      context.append("```java\n");
-      context.append(text);
-      context.append("\n```");
+      // Only include a small snippet if the file is very short
+      String text = activeDoc.getText();
+      if (text != null && text.trim().length() > 0 && text.length() < 200) {
+        context.append("\nContent:\n```java\n");
+        context.append(text);
+        context.append("\n```");
+      } else if (text != null && text.trim().length() > 0) {
+        // For longer files, just mention that it exists and the AI can read it
+        context.append("\n(File contains ").append(text.split("\n").length)
+               .append(" lines - use read_file tool to view content)");
+      }
       
       return context.toString();
     } catch (Exception e) {
@@ -1149,7 +1157,23 @@ public class AIChatPanel extends JPanel {
     // Get automatic current document context
     String currentDocContext = _getCurrentDocumentContext();
     
-    // Prepare message for server - combine context, current document, and input
+    // Get current working directory and file path context
+    String workingDirectory = System.getProperty("user.dir");
+    String currentFilePath = null;
+    try {
+      if (_model != null) {
+        OpenDefinitionsDocument activeDoc = _model.getActiveDocument();
+        if (activeDoc != null) {
+          java.io.File file = activeDoc.getFile();
+          if (file != null) {
+            currentFilePath = file.getAbsolutePath();
+          }
+        }
+      }
+    } catch (Exception e) {
+      // Ignore errors getting file path
+    }
+
     String messageForServer;
     String messageForDisplay;
     if (contextFileName != null) {
@@ -1205,8 +1229,8 @@ public class AIChatPanel extends JPanel {
     _messagesPanel.repaint();
     _scrollToBottom();
     
-    // Call MCP server with streaming and full conversation history
-    _callMCPServerStreamAsync(_conversationHistory, streamingMessagePanel);
+    // Call MCP server with streaming and full conversation history, including context
+    _callMCPServerStreamAsync(_conversationHistory, streamingMessagePanel, workingDirectory, currentFilePath);
   }
   
   private JPanel _createLoadingMessage() {
@@ -1323,7 +1347,7 @@ public class AIChatPanel extends JPanel {
     }
   }
   
-  private void _callMCPServerStreamAsync(List<ChatMessage> conversationHistory, JPanel streamingPanel) {
+  private void _callMCPServerStreamAsync(List<ChatMessage> conversationHistory, JPanel streamingPanel, String workingDirectory, String currentFilePath) {
     CompletableFuture.runAsync(() -> {
       try {
         // Create request JSON with conversation history
@@ -1342,7 +1366,22 @@ public class AIChatPanel extends JPanel {
         }
         messagesJson.append("]");
         
-        String requestJson = "{\"messages\": " + messagesJson.toString() + "}";
+        String requestJson = "{\"messages\": " + messagesJson.toString();
+        
+        // Add context information if available
+        if (workingDirectory != null || currentFilePath != null) {
+          requestJson += ", \"context\": {";
+          if (workingDirectory != null) {
+            requestJson += "\"workingDirectory\": \"" + workingDirectory.replace("\"", "\\\"").replace("\\", "\\\\") + "\"";
+          }
+          if (currentFilePath != null) {
+            if (workingDirectory != null) requestJson += ", ";
+            requestJson += "\"currentFile\": \"" + currentFilePath.replace("\"", "\\\"").replace("\\", "\\\\") + "\"";
+          }
+          requestJson += "}";
+        }
+        
+        requestJson += "}";
         System.out.println("Frontend sending JSON: " + requestJson);
         
         // Build HTTP request for streaming
@@ -1386,23 +1425,62 @@ public class AIChatPanel extends JPanel {
                 }
                 
                 try {
-                  // Simple JSON parsing for chunk
+                  // Enhanced JSON parsing for different event types
+                  String eventType = _extractJsonField(jsonData, "type");
                   String chunk = _extractJsonField(jsonData, "chunk");
                   boolean isDone = _extractJsonField(jsonData, "done") != null && 
                                    _extractJsonField(jsonData, "done").equals("true");
                   
-                  if (chunk != null && !chunk.isEmpty()) {
-                    fullContent.append(chunk);
-                    final String currentContent = fullContent.toString();
+                  // Handle different event types
+                  if ("tool_use".equals(eventType)) {
+                    // Tool usage event - show what tool is being executed
+                    String toolName = _extractJsonField(jsonData, "tool");
+                    String toolArgs = _extractJsonField(jsonData, "args");
                     
-                    // Batch updates to reduce jitter
-                    long currentTime = System.currentTimeMillis();
-                    if (isDone || currentTime - lastUpdateTime >= UPDATE_INTERVAL_MS) {
-                      lastUpdateTime = currentTime;
+                    String toolMessage = "🔧 Using " + (toolName != null ? toolName : "tool") + "...";
+                    fullContent.append("\n" + toolMessage + "\n");
+                    
+                    SwingUtilities.invokeLater(() -> {
+                      _updateStreamingMessage(streamingPanel, fullContent.toString(), false);
+                    });
+                    
+                  } else if ("tool_result".equals(eventType)) {
+                    // Tool result event - show brief result  
+                    String result = _extractJsonField(jsonData, "result");
+                    if (result != null && !result.trim().isEmpty()) {
+                      String resultMessage = "✓ " + (result.length() > 100 ? result.substring(0, 100) + "..." : result);
+                      fullContent.append(resultMessage + "\n\n");
+                      
                       SwingUtilities.invokeLater(() -> {
-                        _updateStreamingMessage(streamingPanel, currentContent, false);
+                        _updateStreamingMessage(streamingPanel, fullContent.toString(), false);
                       });
                     }
+                    
+                  } else if ("text".equals(eventType) || eventType == null) {
+                    // Regular text content (handle both explicit "text" type and legacy format)
+                    if (chunk != null && !chunk.isEmpty()) {
+                      fullContent.append(chunk);
+                      final String currentContent = fullContent.toString();
+                      
+                      // Batch updates to reduce jitter
+                      long currentTime = System.currentTimeMillis();
+                      if (isDone || currentTime - lastUpdateTime >= UPDATE_INTERVAL_MS) {
+                        lastUpdateTime = currentTime;
+                        SwingUtilities.invokeLater(() -> {
+                          _updateStreamingMessage(streamingPanel, currentContent, false);
+                        });
+                      }
+                    }
+                    
+                  } else if ("error".equals(eventType)) {
+                    // Error event
+                    String errorMsg = chunk != null ? chunk : "Unknown error occurred";
+                    fullContent.append("\n❌ Error: " + errorMsg + "\n");
+                    SwingUtilities.invokeLater(() -> {
+                      _updateStreamingMessage(streamingPanel, fullContent.toString(), true);
+                    });
+                    streamCompleted = true;
+                    break;
                   }
                   
                   if (isDone) {

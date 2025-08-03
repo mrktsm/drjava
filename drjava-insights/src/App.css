@@ -783,13 +783,13 @@ input:active,
   background: transparent;
   border: none;
   border-radius: 0; /* Removed border radius */
-  padding: 2px; /* Reduced from 6px for tighter spacing */
+  padding: 0px; /* Reduced from 2px to compensate for larger button size */
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px; /* Reduced from 28px */
-  height: 24px; /* Reduced from 28px */
+  min-width: 32px; /* Increased from 24px */
+  height: 32px; /* Increased from 24px */
   font-size: 14px; /* Reduced from 16px */
   color: #495057;
   transition: color 0.2s ease; /* Only transition color, not background */
@@ -797,8 +797,8 @@ input:active,
 
 /* Make icons fill the button space more completely */
 .playbar-wrapper .control-button svg {
-  width: 20px !important;
-  height: 20px !important;
+  width: 24px !important; /* Increased from 20px */
+  height: 24px !important; /* Increased from 20px */
   display: block;
 }
 
@@ -811,19 +811,18 @@ input:active,
 }
 
 .playbar-wrapper .control-button.primary {
-  background: transparent; /* Removed blue background */
   color: #495057; /* Same color as other buttons */
   font-size: 16px; /* Reduced from 18px */
-  min-width: 28px; /* Reduced from 32px */
-  height: 28px; /* Reduced from 32px */
+  min-width: 36px; /* Increased from 28px */
+  height: 36px; /* Increased from 28px */
   border-radius: 0; /* Removed border radius */
-  padding: 2px; /* Reduced padding for tighter spacing */
+  padding: 0px; /* Reduced from 2px to compensate for larger size */
 }
 
 /* Make primary button icon slightly larger */
 .playbar-wrapper .control-button.primary svg {
-  width: 24px !important;
-  height: 24px !important;
+  width: 28px !important; /* Increased from 24px */
+  height: 28px !important; /* Increased from 24px */
   display: block;
 }
 

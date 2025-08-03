@@ -54,7 +54,7 @@ import edu.rice.cs.util.swing.Utilities;
 import edu.rice.cs.drjava.model.definitions.indent.Indenter;
 import edu.rice.cs.drjava.model.OpenDefinitionsDocument;
 import edu.rice.cs.drjava.model.*;
-import edu.rice.cs.drjava.model.TextChangeLogger;
+// import edu.rice.cs.drjava.model.TextChangeLogger;
 
 import static edu.rice.cs.drjava.model.definitions.reducedmodel.ReducedModelStates.*;
 
@@ -104,7 +104,7 @@ public class DefinitionsDocument extends AbstractDJDocument implements Finalizab
   
   private volatile CompoundUndoManager _undoManager;
   
-  private volatile TextChangeLogger _textChangeLogger;
+  // private volatile TextChangeLogger _textChangeLogger;
   
   /** Keeps track of the listeners to this model. */
   private final GlobalEventNotifier _notifier;
@@ -135,7 +135,7 @@ public class DefinitionsDocument extends AbstractDJDocument implements Finalizab
     _notifier = notifier;
     _editor = new DefinitionsEditorKit(notifier);
     _undoManager = undoManager;
-    _textChangeLogger = new TextChangeLogger();
+    // _textChangeLogger = new TextChangeLogger();
   }
   
   /** Convenience constructor used ?? 
@@ -295,7 +295,7 @@ public class DefinitionsDocument extends AbstractDJDocument implements Finalizab
       final String str = getText(offset, length);
       
       System.out.println("LOG: Text inserted at offset " + offset + ": '" + str + "'");
-      _textChangeLogger.logInsertion(offset, str);
+      // _textChangeLogger.logInsertion(offset, str);
     }
     catch (BadLocationException e) {
       // Should not happen since we just inserted this text
@@ -319,7 +319,7 @@ public class DefinitionsDocument extends AbstractDJDocument implements Finalizab
       final String deletedText = getText(offset, length);
       
       System.out.println("LOG: Text deleted at offset " + offset + ": '" + deletedText + "'");
-      _textChangeLogger.logDeletion(offset, deletedText);
+      // _textChangeLogger.logDeletion(offset, deletedText);
     }
     catch (BadLocationException e) {
       // Should not happen

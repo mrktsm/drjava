@@ -1168,35 +1168,35 @@ function PlaybarComponent({
       {/* Media Controls */}
       <div className="media-controls-container">
         <button className="control-button" onClick={onRestart} title="Restart">
-          <MdSkipPrevious size={18} />
+          <MdSkipPrevious size={24} />
         </button>
         <button
           className="control-button"
           onClick={onSkipBackward}
           title="Skip Backward"
         >
-          <MdFastRewind size={18} />
+          <MdFastRewind size={24} />
         </button>
         <button
           className="control-button primary"
           onClick={onPlayPause}
           title={isPlaying ? "Pause" : "Play"}
         >
-          {isPlaying ? <MdPause size={18} /> : <MdPlayArrow size={18} />}
+          {isPlaying ? <MdPause size={28} /> : <MdPlayArrow size={28} />}
         </button>
         <button
           className="control-button"
           onClick={onSkipForward}
           title="Skip Forward"
         >
-          <MdFastForward size={18} />
+          <MdFastForward size={24} />
         </button>
         <button
           className="control-button"
           onClick={onSkipToEnd}
           title="Skip to End"
         >
-          <MdSkipNext size={18} />
+          <MdSkipNext size={24} />
         </button>
 
         {/* Playback Speed Control */}
