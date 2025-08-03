@@ -5,7 +5,7 @@ import java.awt.*;
 import java.awt.geom.Rectangle2D;
 
 /**
- * A component that displays text with a shimmer animation effect
+ * A component that displays text with a shimmer animation effect and an eye icon
  */
 public class ShimmerText extends JComponent {
   private String _text;
@@ -15,12 +15,17 @@ public class ShimmerText extends JComponent {
   private Timer _animationTimer;
   private float _shimmerPosition = 0.0f;
   private final float _shimmerWidth = 0.8f; // Much wider shimmer effect (was 0.3f)
+  private Icon _eyeIcon;
+  private final int _iconTextGap = 4; // Gap between icon and text (reduced from 6)
   
   public ShimmerText(String text) {
-    _text = text;
+    _text = text != null ? text : "Reading..."; // Default to "Reading..." if no text provided
     _font = new Font("Segoe UI", Font.PLAIN, 13);
     _baseColor = new Color(101, 109, 118); // Secondary text color
     _shimmerColor = new Color(200, 200, 200); // Much lighter shimmer color
+    
+    // Load the LieEye.png icon
+    _eyeIcon = loadEyeIcon();
     
     setOpaque(false);
     
@@ -46,6 +51,64 @@ public class ShimmerText extends JComponent {
     _animationTimer.start();
   }
   
+  /**
+   * Loads the LieEye.png icon from the icons directory
+   */
+  private Icon loadEyeIcon() {
+    try {
+      java.net.URL iconURL = getClass().getResource("/edu/rice/cs/drjava/ui/icons/LieEye.png");
+      if (iconURL != null) {
+        ImageIcon originalIcon = new ImageIcon(iconURL);
+        Image originalImage = originalIcon.getImage();
+        
+        // Get original dimensions
+        int originalWidth = originalIcon.getIconWidth();
+        int originalHeight = originalIcon.getIconHeight();
+        
+        // Calculate scaled dimensions while preserving aspect ratio
+        // Target height of 8 pixels (half the previous size)
+        int targetHeight = 12;
+        int targetWidth = (originalWidth * targetHeight) / originalHeight;
+        
+        // Use SCALE_AREA_AVERAGING for better quality when scaling down
+        Image scaledImage = originalImage.getScaledInstance(targetWidth, targetHeight, Image.SCALE_AREA_AVERAGING);
+        return new ImageIcon(scaledImage);
+      }
+    } catch (Exception e) {
+      // Fall back to programmatic icon if loading fails
+      System.err.println("Could not load LieEye.png, using fallback icon: " + e.getMessage());
+    }
+    
+    // Fallback to programmatic icon
+    return createFallbackEyeIcon();
+  }
+  
+  /**
+   * Creates a simple eye icon programmatically as fallback
+   */
+  private Icon createFallbackEyeIcon() {
+    return new Icon() {
+      @Override
+      public void paintIcon(Component c, Graphics g, int x, int y) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setColor(_baseColor); // Match the base text color
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Draw simple eye shape (smaller size - 12x8)
+        g2d.drawOval(x, y + 2, 12, 6); // Eye outline
+        g2d.fillOval(x + 4, y + 3, 4, 4); // Pupil
+        
+        g2d.dispose();
+      }
+      
+      @Override
+      public int getIconWidth() { return 16; }
+      
+      @Override
+      public int getIconHeight() { return 16; }
+    };
+  }
+  
   @Override
   protected void paintComponent(Graphics g) {
     super.paintComponent(g);
@@ -54,19 +117,25 @@ public class ShimmerText extends JComponent {
     g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
     
+    // Draw the eye icon on the left
+    int iconY = (getHeight() - _eyeIcon.getIconHeight()) / 2 + 1; // Move down by 1 pixel
+    _eyeIcon.paintIcon(this, g2d, 0, iconY);
+    
+    // Calculate text position (after icon + gap)
+    int textStartX = _eyeIcon.getIconWidth() + _iconTextGap;
+    
     g2d.setFont(_font);
     FontMetrics fm = g2d.getFontMetrics();
     
     int textWidth = fm.stringWidth(_text);
     int textHeight = fm.getHeight();
     
-    // Center the text
-    int x = (getWidth() - textWidth) / 2;
-    int y = (getHeight() + fm.getAscent()) / 2;
+    // Position text vertically centered
+    int textY = (getHeight() + fm.getAscent()) / 2;
     
     // Draw base text
     g2d.setColor(_baseColor);
-    g2d.drawString(_text, x, y);
+    g2d.drawString(_text, textStartX, textY);
     
     // Calculate shimmer effect
     float shimmerStart = _shimmerPosition - _shimmerWidth / 2;
@@ -78,26 +147,26 @@ public class ShimmerText extends JComponent {
     
     // Draw shimmer effect
     if (shimmerStartPixel < textWidth && shimmerEndPixel > 0) {
-      int gradientStart = Math.max(0, shimmerStartPixel) + x;
-      int gradientEnd = Math.min(textWidth, shimmerEndPixel) + x;
+      int gradientStart = Math.max(0, shimmerStartPixel) + textStartX;
+      int gradientEnd = Math.min(textWidth, shimmerEndPixel) + textStartX;
       
       if (gradientEnd > gradientStart) {
         // Create clipping area for the shimmer effect
-        Rectangle clipArea = new Rectangle(gradientStart, y - fm.getAscent(), gradientEnd - gradientStart, textHeight);
+        Rectangle clipArea = new Rectangle(gradientStart, textY - fm.getAscent(), gradientEnd - gradientStart, textHeight);
         Shape oldClip = g2d.getClip();
         g2d.setClip(clipArea);
         
         // Create a gradient for smoother shimmer effect
         int centerX = (gradientStart + gradientEnd) / 2;
         GradientPaint shimmerGradient = new GradientPaint(
-          (float)gradientStart, (float)y, new Color(_shimmerColor.getRed(), _shimmerColor.getGreen(), _shimmerColor.getBlue(), 0),
-          (float)centerX, (float)y, new Color(_shimmerColor.getRed(), _shimmerColor.getGreen(), _shimmerColor.getBlue(), 255),
+          (float)gradientStart, (float)textY, new Color(_shimmerColor.getRed(), _shimmerColor.getGreen(), _shimmerColor.getBlue(), 0),
+          (float)centerX, (float)textY, new Color(_shimmerColor.getRed(), _shimmerColor.getGreen(), _shimmerColor.getBlue(), 255),
           true // cyclic
         );
         g2d.setPaint(shimmerGradient);
         
         // Draw shimmer text with gradient
-        g2d.drawString(_text, x, y);
+        g2d.drawString(_text, textStartX, textY);
         
         g2d.setClip(oldClip);
       }
@@ -109,8 +178,13 @@ public class ShimmerText extends JComponent {
   @Override
   public Dimension getPreferredSize() {
     FontMetrics fm = getFontMetrics(_font);
-    int width = fm.stringWidth(_text) + 20; // Add some padding
-    int height = fm.getHeight() + 10; // Add some padding
+    int textWidth = fm.stringWidth(_text);
+    int textHeight = fm.getHeight();
+    
+    // Total width = icon width + gap + text width + padding
+    int width = _eyeIcon.getIconWidth() + _iconTextGap + textWidth + 20;
+    int height = Math.max(_eyeIcon.getIconHeight(), textHeight) + 10;
+    
     return new Dimension(width, height);
   }
   
@@ -124,5 +198,13 @@ public class ShimmerText extends JComponent {
     if (_animationTimer != null && !_animationTimer.isRunning()) {
       _animationTimer.start();
     }
+  }
+  
+  /**
+   * Updates the text and restarts the animation
+   */
+  public void setText(String text) {
+    _text = text != null ? text : "Reading...";
+    repaint();
   }
 } 
