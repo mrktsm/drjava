@@ -183,9 +183,90 @@ public class MCPServer {
             conversationHistory.add(content);
         }
         
-        // Call Gemini API with tools and stream the response
-        String geminiPayload = buildGeminiPayloadWithTools(conversationHistory);
-        callGeminiApiStreaming(geminiPayload, responseBody, contextWorkingDirectory);
+        // Process conversation with potential tool calls (max 3 iterations to prevent loops)
+        for (int iteration = 0; iteration < 3; iteration++) {
+            String geminiPayload = buildGeminiPayloadWithTools(conversationHistory);
+            JsonObject response = callGeminiApiNonStreaming(geminiPayload);
+            
+            if (response == null) {
+                sendSseEvent(responseBody, "error", "Failed to get response from Gemini API", true);
+                return;
+            }
+            
+            JsonArray candidates = response.getAsJsonArray("candidates");
+            if (candidates == null || candidates.isEmpty()) {
+                sendSseEvent(responseBody, "error", "No candidates in response", true);
+                return;
+            }
+            
+            JsonObject candidate = candidates.get(0).getAsJsonObject();
+            JsonObject content = candidate.getAsJsonObject("content");
+            if (content == null) {
+                sendSseEvent(responseBody, "error", "No content in response", true);
+                return;
+            }
+            
+            // Add model response to conversation history
+            conversationHistory.add(content);
+            
+            JsonArray parts = content.getAsJsonArray("parts");
+            if (parts == null) continue;
+            
+            boolean hasToolCalls = false;
+            boolean hasTextResponse = false;
+            
+            for (JsonElement partEl : parts) {
+                JsonObject part = partEl.getAsJsonObject();
+                
+                if (part.has("functionCall")) {
+                    hasToolCalls = true;
+                    JsonObject functionCall = part.getAsJsonObject("functionCall");
+                    String functionName = functionCall.get("name").getAsString();
+                    JsonObject args = functionCall.getAsJsonObject("args");
+                    
+                    // Send tool usage event
+                    sendSseToolUse(responseBody, functionName, args);
+                    
+                    // Execute the tool
+                    String toolResult = executeToolCall(functionName, args, contextWorkingDirectory);
+                    
+                    // Send tool result event  
+                    sendSseToolResult(responseBody, toolResult);
+                    
+                    // Add tool result to conversation as function response
+                    JsonObject functionResponse = new JsonObject();
+                    functionResponse.addProperty("name", functionName);
+                    JsonObject functionResult = new JsonObject();
+                    functionResult.addProperty("result", toolResult);
+                    functionResponse.add("response", functionResult);
+                    
+                    JsonObject toolPart = new JsonObject();
+                    toolPart.add("functionResponse", functionResponse);
+                    
+                    JsonObject toolContent = new JsonObject();
+                    toolContent.add("parts", new JsonArray());
+                    toolContent.getAsJsonArray("parts").add(toolPart);
+                    toolContent.addProperty("role", "user");
+                    
+                    conversationHistory.add(toolContent);
+                    
+                } else if (part.has("text")) {
+                    hasTextResponse = true;
+                    String text = part.get("text").getAsString();
+                    if (!text.trim().isEmpty()) {
+                        sendSseEvent(responseBody, "text", text, false);
+                    }
+                }
+            }
+            
+            // If we have both tool calls and text response, or just text response, we're done
+            if (hasTextResponse) {
+                break;
+            }
+            
+            // If we only had tool calls, continue to get the model's response with tool results
+            // This will happen in the next iteration
+        }
     }
     
     private void sendSseEvent(OutputStream responseBody, String type, String content, boolean done) throws IOException {
@@ -222,7 +303,7 @@ public class MCPServer {
         responseBody.flush();
     }
     
-    private void callGeminiApiStreaming(String payload, OutputStream responseBody, String contextWorkingDirectory) throws IOException {
+    private JsonObject callGeminiApiNonStreaming(String payload) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(GEMINI_API_URL + "?key=" + apiKey).openConnection();
         connection.setRequestMethod("POST");
         connection.setRequestProperty("Content-Type", "application/json");
@@ -232,60 +313,85 @@ public class MCPServer {
             os.write(payload.getBytes(StandardCharsets.UTF_8));
         }
 
-        try (JsonReader reader = new JsonReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-            reader.setLenient(true);
-            reader.beginArray();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+            String response = reader.lines().collect(Collectors.joining("\n"));
+            System.out.println("Gemini API Response: " + response);
             
-            StringBuilder fullTextResponse = new StringBuilder();
-            boolean hasToolCalls = false;
-            
-            while (reader.hasNext()) {
-                JsonObject responseJson = gson.fromJson(reader, JsonObject.class);
+            // Handle Gemini's streaming response format
+            JsonElement responseElement = gson.fromJson(response, JsonElement.class);
+            if (responseElement.isJsonArray()) {
+                JsonArray responseArray = responseElement.getAsJsonArray();
                 
-                JsonElement candidatesEl = responseJson.get("candidates");
-                if (candidatesEl == null || !candidatesEl.isJsonArray()) continue;
+                // Concatenate all text parts from the streaming response
+                StringBuilder fullText = new StringBuilder();
+                JsonObject finalResponse = new JsonObject();
+                JsonArray finalCandidates = new JsonArray();
+                JsonObject finalCandidate = new JsonObject();
+                JsonObject finalContent = new JsonObject();
+                JsonArray finalParts = new JsonArray();
                 
-                JsonArray candidates = candidatesEl.getAsJsonArray();
-                if (candidates.isEmpty()) continue;
+                boolean hasFunction = false;
+                JsonObject functionCall = null;
                 
-                JsonObject candidate = candidates.get(0).getAsJsonObject();
-                JsonObject content = candidate.getAsJsonObject("content");
-                if (content == null) continue;
-
-                JsonArray parts = content.getAsJsonArray("parts");
-                if (parts == null) continue;
-                
-                for (JsonElement partEl : parts) {
-                    JsonObject part = partEl.getAsJsonObject();
+                for (JsonElement element : responseArray) {
+                    JsonObject responseObj = element.getAsJsonObject();
+                    JsonArray candidates = responseObj.getAsJsonArray("candidates");
                     
-                    if (part.has("functionCall")) {
-                        hasToolCalls = true;
-                        JsonObject functionCall = part.getAsJsonObject("functionCall");
-                        String functionName = functionCall.get("name").getAsString();
-                        JsonObject args = functionCall.getAsJsonObject("args");
+                    if (candidates != null && !candidates.isEmpty()) {
+                        JsonObject candidate = candidates.get(0).getAsJsonObject();
+                        JsonObject content = candidate.getAsJsonObject("content");
                         
-                        // Send tool usage event
-                        sendSseToolUse(responseBody, functionName, args);
-                        
-                        // Execute the tool
-                        String toolResult = executeToolCall(functionName, args, 
-                                                          contextWorkingDirectory); // Use working directory
-                        
-                        // Send tool result event  
-                        sendSseToolResult(responseBody, toolResult);
-                        
-                    } else if (part.has("text")) {
-                        String text = part.get("text").getAsString();
-                        fullTextResponse.append(text);
-                        
-                        // Send text chunk immediately for real streaming effect
-                        sendSseEvent(responseBody, "text", text, false);
+                        if (content != null) {
+                            JsonArray parts = content.getAsJsonArray("parts");
+                            if (parts != null) {
+                                for (JsonElement partEl : parts) {
+                                    JsonObject part = partEl.getAsJsonObject();
+                                    
+                                    if (part.has("text")) {
+                                        fullText.append(part.get("text").getAsString());
+                                    } else if (part.has("functionCall")) {
+                                        hasFunction = true;
+                                        functionCall = part.getAsJsonObject("functionCall");
+                                    }
+                                }
+                            }
+                            
+                            // Copy other properties from the last candidate
+                            finalCandidate = candidate;
+                        }
                     }
                 }
+                
+                // Build the final response
+                if (hasFunction && functionCall != null) {
+                    // If there's a function call, use that
+                    JsonObject functionPart = new JsonObject();
+                    functionPart.add("functionCall", functionCall);
+                    finalParts.add(functionPart);
+                } else if (fullText.length() > 0) {
+                    // If there's text, use the concatenated text
+                    JsonObject textPart = new JsonObject();
+                    textPart.addProperty("text", fullText.toString());
+                    finalParts.add(textPart);
+                }
+                
+                finalContent.add("parts", finalParts);
+                finalContent.addProperty("role", "model");
+                finalCandidate.add("content", finalContent);
+                
+                // Copy safety ratings and other properties if they exist
+                if (finalCandidate.has("safetyRatings")) {
+                    // Keep existing safety ratings
+                }
+                
+                finalCandidates.add(finalCandidate);
+                finalResponse.add("candidates", finalCandidates);
+                
+                return finalResponse;
+                
+            } else {
+                return responseElement.getAsJsonObject();
             }
-        } catch (IOException e) {
-            System.err.println("IOException during Gemini stream processing: " + e.getMessage());
-            sendSseEvent(responseBody, "error", "Streaming error: " + e.getMessage(), true);
         }
     }
     
@@ -309,15 +415,29 @@ public class MCPServer {
     }
     
     private String readFile(String relativePath, String contextWorkingDirectory) throws IOException {
-        Path filePath = Paths.get(contextWorkingDirectory, relativePath).normalize();
+        Path filePath;
         
-        // Security check - ensure path is within workspace
-        if (!filePath.startsWith(contextWorkingDirectory)) {
+        // Handle both absolute and relative paths
+        if (Paths.get(relativePath).isAbsolute()) {
+            filePath = Paths.get(relativePath).normalize();
+        } else {
+            filePath = Paths.get(contextWorkingDirectory, relativePath).normalize();
+        }
+        
+        // Security check - ensure path is within workspace or is the current file being edited
+        Path workspaceRoot = Paths.get(this.workspaceRoot);
+        if (!filePath.startsWith(workspaceRoot)) {
             throw new SecurityException("Access denied: path outside workspace");
         }
         
         if (!Files.exists(filePath)) {
-            throw new IOException("File not found: " + relativePath);
+            // If file doesn't exist with the given path, try to find it relative to the original workspace
+            Path alternativePath = workspaceRoot.resolve(relativePath).normalize();
+            if (Files.exists(alternativePath) && alternativePath.startsWith(workspaceRoot)) {
+                filePath = alternativePath;
+            } else {
+                throw new IOException("File not found: " + relativePath + " (tried: " + filePath + ")");
+            }
         }
         
         if (Files.isDirectory(filePath)) {
@@ -331,7 +451,8 @@ public class MCPServer {
         }
         
         String content = Files.readString(filePath);
-        return String.format("File: %s (%d lines)\n```\n%s\n```", relativePath, 
+        String relativePathForDisplay = workspaceRoot.relativize(filePath).toString();
+        return String.format("File: %s (%d lines)\n```\n%s\n```", relativePathForDisplay, 
                             content.split("\n").length, content);
     }
     
@@ -339,8 +460,9 @@ public class MCPServer {
         Path dirPath = relativePath.isEmpty() ? Paths.get(contextWorkingDirectory) : 
                        Paths.get(contextWorkingDirectory, relativePath).normalize();
         
-        // Security check
-        if (!dirPath.startsWith(contextWorkingDirectory)) {
+        // Security check - ensure path is within workspace
+        Path workspaceRoot = Paths.get(this.workspaceRoot);
+        if (!dirPath.startsWith(workspaceRoot)) {
             throw new SecurityException("Access denied: path outside workspace");
         }
         
@@ -353,7 +475,10 @@ public class MCPServer {
         }
         
         StringBuilder result = new StringBuilder();
-        result.append("Directory: ").append(relativePath.isEmpty() ? "/" : relativePath).append("\n\n");
+        String displayPath = relativePath.isEmpty() ? 
+                            workspaceRoot.relativize(dirPath).toString() : relativePath;
+        if (displayPath.isEmpty()) displayPath = ".";
+        result.append("Directory: ").append(displayPath).append("\n\n");
         
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dirPath)) {
             List<String> entries = new ArrayList<>();
@@ -377,8 +502,9 @@ public class MCPServer {
         Path searchRoot = directory.isEmpty() ? Paths.get(contextWorkingDirectory) : 
                          Paths.get(contextWorkingDirectory, directory).normalize();
         
-        // Security check
-        if (!searchRoot.startsWith(contextWorkingDirectory)) {
+        // Security check - ensure path is within workspace
+        Path workspaceRoot = Paths.get(this.workspaceRoot);
+        if (!searchRoot.startsWith(workspaceRoot)) {
             throw new SecurityException("Access denied: path outside workspace");
         }
         
@@ -392,7 +518,7 @@ public class MCPServer {
         Files.walkFileTree(searchRoot, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                String relativePath = Paths.get(contextWorkingDirectory).relativize(file).toString();
+                String relativePath = workspaceRoot.relativize(file).toString();
                 if (filePattern.matcher(file.getFileName().toString()).matches()) {
                     matches.add(relativePath);
                 }

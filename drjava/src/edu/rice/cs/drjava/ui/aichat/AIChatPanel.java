@@ -1433,11 +1433,11 @@ public class AIChatPanel extends JPanel {
                   
                   // Handle different event types
                   if ("tool_use".equals(eventType)) {
-                    // Tool usage event - show what tool is being executed
+                    // Tool usage event - show what tool is being executed with specific details
                     String toolName = _extractJsonField(jsonData, "tool");
                     String toolArgs = _extractJsonField(jsonData, "args");
                     
-                    String toolMessage = "🔧 Using " + (toolName != null ? toolName : "tool") + "...";
+                    String toolMessage = formatToolUsageMessage(toolName, toolArgs);
                     fullContent.append("\n" + toolMessage + "\n");
                     
                     SwingUtilities.invokeLater(() -> {
@@ -1445,10 +1445,10 @@ public class AIChatPanel extends JPanel {
                     });
                     
                   } else if ("tool_result".equals(eventType)) {
-                    // Tool result event - show brief result  
+                    // Tool result event - show brief result with success indicator
                     String result = _extractJsonField(jsonData, "result");
                     if (result != null && !result.trim().isEmpty()) {
-                      String resultMessage = "✓ " + (result.length() > 100 ? result.substring(0, 100) + "..." : result);
+                      String resultMessage = formatToolResultMessage(result);
                       fullContent.append(resultMessage + "\n\n");
                       
                       SwingUtilities.invokeLater(() -> {
@@ -2767,5 +2767,110 @@ public class AIChatPanel extends JPanel {
     _contextText = null;
     revalidate();
     repaint();
+  }
+  
+  /**
+   * Format tool usage message based on tool type and arguments
+   */
+  private String formatToolUsageMessage(String toolName, String toolArgs) {
+    if (toolName == null) return "🔧 Using tool...";
+    
+    try {
+      switch (toolName) {
+        case "read_file":
+          String filePath = extractArgValue(toolArgs, "path");
+          if (filePath != null) {
+            String fileName = filePath.contains("/") ? 
+                            filePath.substring(filePath.lastIndexOf("/") + 1) : filePath;
+            return "📖 Reading " + fileName + "...";
+          }
+          return "📖 Reading file...";
+          
+        case "list_directory":
+          String dirPath = extractArgValue(toolArgs, "path");
+          if (dirPath != null && !dirPath.trim().isEmpty()) {
+            return "📂 Listing directory " + dirPath + "...";
+          }
+          return "📂 Listing current directory...";
+          
+        case "search_files":
+          String pattern = extractArgValue(toolArgs, "pattern");
+          if (pattern != null) {
+            return "🔍 Searching for files matching '" + pattern + "'...";
+          }
+          return "🔍 Searching files...";
+          
+        default:
+          return "🔧 Using " + toolName + "...";
+      }
+    } catch (Exception e) {
+      return "🔧 Using " + toolName + "...";
+    }
+  }
+  
+  /**
+   * Format tool result message with success indicator and summary
+   */
+  private String formatToolResultMessage(String result) {
+    if (result == null || result.trim().isEmpty()) {
+      return "✓ Complete";
+    }
+    
+    try {
+      // Extract meaningful information from different tool results
+      if (result.startsWith("File:")) {
+        // read_file result
+        String[] lines = result.split("\n");
+        if (lines.length > 0) {
+          String firstLine = lines[0]; // "File: filename.java (X lines)"
+          return "✓ " + firstLine.replace("File: ", "Read ");
+        }
+        return "✓ File read successfully";
+        
+      } else if (result.startsWith("Directory:")) {
+        // list_directory result
+        String[] lines = result.split("\n");
+        int fileCount = Math.max(0, lines.length - 3); // Subtract header lines
+        return "✓ Found " + fileCount + " items in directory";
+        
+      } else if (result.startsWith("Found")) {
+        // search_files result
+        String[] lines = result.split("\n");
+        if (lines.length > 0) {
+          return "✓ " + lines[0]; // "Found X files matching 'pattern'"
+        }
+        return "✓ Search completed";
+        
+      } else {
+        // Generic result - show truncated version
+        String summary = result.length() > 100 ? 
+                        result.substring(0, 100) + "..." : result;
+        return "✓ " + summary;
+      }
+    } catch (Exception e) {
+      return "✓ Complete";
+    }
+  }
+  
+  /**
+   * Extract argument value from JSON args string
+   */
+  private String extractArgValue(String argsJson, String argName) {
+    if (argsJson == null) return null;
+    
+    try {
+      // Simple extraction for {"path":"value"} format
+      String searchPattern = "\"" + argName + "\":\"";
+      int startIndex = argsJson.indexOf(searchPattern);
+      if (startIndex == -1) return null;
+      
+      startIndex += searchPattern.length();
+      int endIndex = argsJson.indexOf("\"", startIndex);
+      if (endIndex == -1) return null;
+      
+      return argsJson.substring(startIndex, endIndex);
+    } catch (Exception e) {
+      return null;
+    }
   }
 } 
