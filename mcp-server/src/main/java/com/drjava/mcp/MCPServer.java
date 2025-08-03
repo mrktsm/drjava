@@ -254,7 +254,8 @@ public class MCPServer {
                     hasTextResponse = true;
                     String text = part.get("text").getAsString();
                     if (!text.trim().isEmpty()) {
-                        sendSseEvent(responseBody, "text", text, false);
+                        // Stream the text word by word to maintain streaming effect
+                        streamTextToClient(responseBody, text);
                     }
                 }
             }
@@ -301,6 +302,52 @@ public class MCPServer {
         String sseEvent = "data: " + gson.toJson(sseData) + "\n\n";
         responseBody.write(sseEvent.getBytes(StandardCharsets.UTF_8));
         responseBody.flush();
+    }
+    
+    /**
+     * Stream text to client word by word to maintain streaming effect
+     */
+    private void streamTextToClient(OutputStream responseBody, String text) throws IOException {
+        if (text == null || text.trim().isEmpty()) return;
+        
+        // Split text into words but preserve spacing
+        String[] words = text.split("(?=\\s)|(?<=\\s)");
+        StringBuilder currentChunk = new StringBuilder();
+        
+        for (int i = 0; i < words.length; i++) {
+            currentChunk.append(words[i]);
+            
+            // Send chunk every 3-5 words or at natural breaks (punctuation)
+            boolean shouldSend = false;
+            if (i == words.length - 1) {
+                // Last word - always send
+                shouldSend = true;
+            } else if (currentChunk.length() > 30) {
+                // Chunk getting long - send it
+                shouldSend = true;
+            } else if (words[i].matches(".*[.!?:;,].*")) {
+                // Natural break point - send after punctuation
+                shouldSend = true;
+            }
+            
+            if (shouldSend && currentChunk.length() > 0) {
+                sendSseEvent(responseBody, "text", currentChunk.toString(), false);
+                currentChunk = new StringBuilder();
+                
+                // Small delay to simulate real streaming
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+        
+        // Send any remaining text
+        if (currentChunk.length() > 0) {
+            sendSseEvent(responseBody, "text", currentChunk.toString(), false);
+        }
     }
     
     private JsonObject callGeminiApiNonStreaming(String payload) throws IOException {
