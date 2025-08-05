@@ -1,11 +1,12 @@
 {
   "name": "drjava-insights",
   "private": false,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
-  "description": "A CLI tool for visualizing and replaying DrJava student coding sessions",
+  "description": "A CLI tool for visualizing and replaying DrJava student coding sessions. Install globally: npm install -g drjava-insights",
   "author": "Marko Tsymbaliuk",
   "license": "MIT",
+  "preferGlobal": true,
   "bin": {
     "drjava-insights": "./cli/drjava-insights-cli.js",
     "see-insights": "./cli/drjava-insights-cli.js"
@@ -57,6 +58,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/drjava-insights.git"
+    "url": "git+https://github.com/mrktsm/drjava.git"
   }
 }
