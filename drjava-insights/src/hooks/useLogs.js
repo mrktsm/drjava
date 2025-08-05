@@ -336,7 +336,11 @@ export default function useLogs() {
     };
 
     setLoading(true);
-    fetch("http://localhost:3001/api/logs")
+
+    // Use current host and port instead of hardcoded localhost:3001
+    const apiUrl = `${window.location.protocol}//${window.location.host}/api/logs`;
+
+    fetch(apiUrl)
       .then((res) => res.json())
       .then((data) => {
         const sortedLogs = data.sort(

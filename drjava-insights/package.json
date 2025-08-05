@@ -1,13 +1,27 @@
 {
   "name": "drjava-insights",
-  "private": true,
-  "version": "0.0.0",
+  "private": false,
+  "version": "1.0.0",
   "type": "module",
+  "description": "A CLI tool for visualizing and replaying DrJava student coding sessions",
+  "author": "Marko Tsymbaliuk",
+  "license": "MIT",
+  "bin": {
+    "drjava-insights": "./cli/drjava-insights-cli.js",
+    "see-insights": "./cli/drjava-insights-cli.js"
+  },
+  "files": [
+    "dist",
+    "cli",
+    "src/utils/logReader.js"
+  ],
   "scripts": {
     "dev": "concurrently \"npm:dev-vite\" \"npm:server\"",
     "dev-vite": "vite",
     "server": "nodemon server.js",
     "build": "vite build",
+    "build-cli": "npm run build && npm run prepare-cli",
+    "prepare-cli": "node scripts/prepare-cli.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -15,12 +29,13 @@
     "@monaco-editor/react": "^4.7.0",
     "concurrently": "^9.2.0",
     "cors": "^2.8.5",
-    "express": "^5.1.0",
+    "express": "^4.19.2",
     "lucide-react": "^0.533.0",
     "nodemon": "^3.1.10",
     "prop-types": "^15.8.1",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "open": "^10.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
@@ -32,5 +47,16 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
     "vite": "^7.0.4"
+  },
+  "keywords": [
+    "drjava",
+    "education",
+    "code-visualization",
+    "student-analytics",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/drjava-insights.git"
   }
 }
