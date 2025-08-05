@@ -254,7 +254,7 @@ function App() {
         fontSize={fontSize}
         onSetFontSize={setFontSize}
         autoSwitchFiles={autoSwitchFiles}
-        onToggleAutoSwitchFiles={() => setAutoSwitchFiles(!autoSwitchFiles)}
+        onToggleAutoSwitchFiles={(checked) => setAutoSwitchFiles(checked)}
         compileEvents={compileEvents}
         runEvents={runEvents}
         // Add typing activity props

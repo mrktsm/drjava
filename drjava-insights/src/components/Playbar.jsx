@@ -31,6 +31,8 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
   fileColorMap = {},
   currentTime,
   timelineWidth,
+  activeFile = "", // New prop for current active file
+  autoSwitchFiles = true, // New prop to know if autoswitch is enabled
 }) {
   // Helper function to darken a color
   const darkenColor = (color, amount = 0.3) => {
@@ -47,9 +49,30 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
     return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
   };
 
+  // Filter typing activity segments based on autoswitch mode
+  const filteredSegments = useMemo(() => {
+    if (!autoSwitchFiles && activeFile) {
+      // When autoswitch is off, only show typing activity for the current active file
+      return typingActivitySegments.filter((segment) => {
+        if (
+          keystrokeLogs.length > 0 &&
+          segment.startIndex < keystrokeLogs.length
+        ) {
+          const keystrokeAtStart = keystrokeLogs[segment.startIndex];
+          const filename = keystrokeAtStart?.filename || "untitled_document";
+          return filename === activeFile;
+        }
+        return false;
+      });
+    } else {
+      // When autoswitch is on, show all typing activity
+      return typingActivitySegments;
+    }
+  }, [typingActivitySegments, autoSwitchFiles, activeFile, keystrokeLogs]);
+
   return (
     <>
-      {typingActivitySegments.map((segment, index) => {
+      {filteredSegments.map((segment, index) => {
         const leftPercentage =
           ((segment.start - sessionStart) / sessionDuration) * 100;
         const rightPercentage =
@@ -360,6 +383,32 @@ function PlaybarComponent({
   const [scrollLeft, setScrollLeft] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
+
+  // Create effective file segments based on autoSwitch state
+  const effectiveFileSegments = useMemo(() => {
+    if (!autoSwitchFiles && activeFile) {
+      // When autoswitch is disabled, create a single continuous segment for the active file
+      return [
+        {
+          filename: activeFile,
+          start: sessionStart,
+          end: sessionEnd,
+          startIndex: 0,
+          endIndex: keystrokeLogs.length - 1,
+        },
+      ];
+    } else {
+      // When autoswitch is enabled, use the original file segments for switching
+      return fileSegments;
+    }
+  }, [
+    autoSwitchFiles,
+    activeFile,
+    sessionStart,
+    sessionEnd,
+    fileSegments,
+    keystrokeLogs.length,
+  ]);
 
   const containerRef = useRef(null);
   const timelineScrollRef = useRef(null);
@@ -908,7 +957,7 @@ function PlaybarComponent({
               onMouseDown={handleMouseDown}
             >
               {/* File-based Background Segments - divide the timeline background by files */}
-              {fileSegments.map((segment, index) => {
+              {effectiveFileSegments.map((segment, index) => {
                 const leftPercentage =
                   ((segment.start - sessionStart) / sessionDuration) * 100;
                 const rightPercentage =
@@ -917,7 +966,7 @@ function PlaybarComponent({
 
                 // Add a fixed 3-pixel gap between segments (except the last one)
                 let adjustedWidthPercentage = widthPercentage;
-                if (index < fileSegments.length - 1) {
+                if (index < effectiveFileSegments.length - 1) {
                   // Convert 3 pixels to percentage based on current timeline width
                   const gapPercentage = (3 / timelineWidth) * 100;
                   adjustedWidthPercentage = Math.max(
@@ -964,7 +1013,7 @@ function PlaybarComponent({
               })}
 
               {/* File-based Playbar Segments (colored progress) */}
-              {fileSegments.map((segment, index) => {
+              {effectiveFileSegments.map((segment, index) => {
                 const leftPercentage =
                   ((segment.start - sessionStart) / sessionDuration) * 100;
                 const rightPercentage =
@@ -992,7 +1041,7 @@ function PlaybarComponent({
 
                 // Apply the gap to the display width (for visual separation)
                 let displaySegmentWidthPercentage = fullSegmentWidthPercentage;
-                if (index < fileSegments.length - 1) {
+                if (index < effectiveFileSegments.length - 1) {
                   // Convert 3 pixels to percentage based on current timeline width
                   const gapPercentage = (3 / timelineWidth) * 100;
                   displaySegmentWidthPercentage = Math.max(
@@ -1053,14 +1102,16 @@ function PlaybarComponent({
                 sessionDuration={sessionDuration}
                 currentKeystrokeIndex={currentKeystrokeIndex}
                 keystrokeLogs={keystrokeLogs}
-                fileSegments={fileSegments}
+                fileSegments={effectiveFileSegments}
                 fileColorMap={fileColorMap}
                 currentTime={currentTime}
                 timelineWidth={timelineWidth}
+                activeFile={activeFile}
+                autoSwitchFiles={autoSwitchFiles}
               />
 
               {/* Filename Labels - separate layer with highest z-index */}
-              {fileSegments.map((segment, index) => {
+              {effectiveFileSegments.map((segment, index) => {
                 const leftPercentage =
                   ((segment.start - sessionStart) / sessionDuration) * 100;
                 const rightPercentage =
@@ -1069,7 +1120,7 @@ function PlaybarComponent({
 
                 // Add a fixed 3-pixel gap between segments (except the last one)
                 let adjustedWidthPercentage = widthPercentage;
-                if (index < fileSegments.length - 1) {
+                if (index < effectiveFileSegments.length - 1) {
                   // Convert 3 pixels to percentage based on current timeline width
                   const gapPercentage = (3 / timelineWidth) * 100;
                   adjustedWidthPercentage = Math.max(
