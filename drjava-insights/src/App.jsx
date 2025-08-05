@@ -7,6 +7,7 @@ import PlaybarComponent from "./components/Playbar";
 import useLogs from "./hooks/useLogs";
 import useKeystrokePlayback from "./hooks/useKeystrokePlayback";
 import useCodeReconstruction from "./hooks/useCodeReconstruction";
+import useTypingActivity from "./hooks/useTypingActivity";
 import {
   calculateFileSegments,
   getCurrentFileSegment,
@@ -92,6 +93,15 @@ function App() {
     keystrokeLogs,
     sessionStart,
     sessionEnd,
+    sessionDuration,
+  });
+
+  // Add typing activity detection
+  const { typingActivitySegments } = useTypingActivity({
+    keystrokeLogs,
+    currentKeystrokeIndex,
+    isPlaying,
+    sessionStart,
     sessionDuration,
   });
 
@@ -247,6 +257,9 @@ function App() {
         onToggleAutoSwitchFiles={() => setAutoSwitchFiles(!autoSwitchFiles)}
         compileEvents={compileEvents}
         runEvents={runEvents}
+        // Add typing activity props
+        typingActivitySegments={typingActivitySegments}
+        keystrokeLogs={keystrokeLogs}
       />
     </div>
   );

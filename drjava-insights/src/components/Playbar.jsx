@@ -20,6 +20,143 @@ import {
   getLighterColor,
 } from "../utils/fileSegmentUtils";
 
+// Add TypingActivityOverlays Component (renamed and repositioned)
+const TypingActivityOverlays = memo(function TypingActivityOverlays({
+  typingActivitySegments = [],
+  sessionStart,
+  sessionDuration,
+  currentKeystrokeIndex,
+  keystrokeLogs = [],
+  fileSegments = [],
+  fileColorMap = {},
+  currentTime,
+  timelineWidth,
+}) {
+  // Helper function to darken a color
+  const darkenColor = (color, amount = 0.3) => {
+    // Remove # if present
+    const hex = color.replace("#", "");
+
+    // Parse RGB values
+    const num = parseInt(hex, 16);
+    const r = Math.floor((num >> 16) * (1 - amount));
+    const g = Math.floor(((num >> 8) & 0x00ff) * (1 - amount));
+    const b = Math.floor((num & 0x0000ff) * (1 - amount));
+
+    // Convert back to hex
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+  };
+
+  return (
+    <>
+      {typingActivitySegments.map((segment, index) => {
+        const leftPercentage =
+          ((segment.start - sessionStart) / sessionDuration) * 100;
+        const rightPercentage =
+          ((segment.end - sessionStart) / sessionDuration) * 100;
+        const widthPercentage = rightPercentage - leftPercentage;
+
+        // Constrain to timeline boundaries
+        const constrainedLeftPercentage = Math.max(
+          0,
+          Math.min(leftPercentage, 100)
+        );
+        const constrainedWidthPercentage = Math.max(
+          0,
+          Math.min(widthPercentage, 100 - constrainedLeftPercentage)
+        );
+
+        // Determine if this segment is currently active
+        const isCurrentSegment =
+          currentKeystrokeIndex >= segment.startIndex &&
+          currentKeystrokeIndex <= segment.endIndex;
+
+        // Find the file this typing activity belongs to
+        let baseFileColor = "#E5E5E5"; // Default fallback color
+        if (
+          keystrokeLogs.length > 0 &&
+          segment.startIndex < keystrokeLogs.length
+        ) {
+          const keystrokeAtStart = keystrokeLogs[segment.startIndex];
+          const filename = keystrokeAtStart?.filename || "untitled_document";
+          baseFileColor = fileColorMap[filename] || "#E5E5E5";
+        }
+
+        // Use a darker version of the file color for better visibility
+        const segmentFileColor = darkenColor(baseFileColor, 0.2); // 20% darker
+
+        // Calculate progressive opacity based on cursor position (similar to filename text)
+        const currentTimePercentage =
+          ((currentTime - sessionStart) / sessionDuration) * 100;
+
+        // Check if cursor is over this segment
+        const isCursorOver =
+          currentTimePercentage >= constrainedLeftPercentage &&
+          currentTimePercentage <=
+            constrainedLeftPercentage + constrainedWidthPercentage;
+
+        // Calculate how much of this segment the cursor has passed through
+        let segmentProgress = 0;
+        if (
+          currentTimePercentage >=
+          constrainedLeftPercentage + constrainedWidthPercentage
+        ) {
+          // Cursor has completely passed this segment
+          segmentProgress = 1;
+        } else if (currentTimePercentage >= constrainedLeftPercentage) {
+          // Cursor is currently passing through this segment
+          segmentProgress =
+            (currentTimePercentage - constrainedLeftPercentage) /
+            constrainedWidthPercentage;
+        }
+        // If currentTimePercentage < constrainedLeftPercentage, segmentProgress stays 0
+
+        // Create opacity based on progress (similar to filename text)
+        const baseOpacity = isCurrentSegment ? 0.4 : 0.2; // Base opacity when not revealed
+        const revealedOpacity = isCurrentSegment ? 0.7 : 0.5; // Higher opacity when revealed by cursor
+
+        // Calculate final opacity
+        const finalOpacity =
+          baseOpacity + (revealedOpacity - baseOpacity) * segmentProgress;
+
+        // Convert to hex opacity
+        const opacityHex = Math.round(finalOpacity * 255)
+          .toString(16)
+          .padStart(2, "0");
+
+        // Border opacity (slightly higher than background)
+        const borderOpacity = Math.min(1, finalOpacity + 0.2);
+        const borderOpacityHex = Math.round(borderOpacity * 255)
+          .toString(16)
+          .padStart(2, "0");
+
+        return (
+          <div
+            key={`typing-activity-${index}`}
+            className={`typing-activity-overlay ${
+              isCurrentSegment ? "current" : ""
+            } ${isCursorOver ? "cursor-over" : ""}`}
+            style={{
+              position: "absolute",
+              left: `${constrainedLeftPercentage}%`,
+              top: "0px",
+              width: `${constrainedWidthPercentage}%`,
+              height: "100%",
+              backgroundColor: `${segmentFileColor}${opacityHex}`,
+              borderRadius: "0px", // Square corners
+              zIndex: 12, // Above progress bars (10) but below cursor (20)
+              pointerEvents: "none", // Don't interfere with timeline interactions
+              border: `1px solid ${segmentFileColor}${borderOpacityHex}`,
+              transition: "all 0.1s ease-out", // Smooth transition as cursor moves
+            }}
+            title={`Active typing: ${segment.startIndex} - ${segment.endIndex} keystrokes`}
+          />
+        );
+      })}
+    </>
+  );
+});
+
 const TimelineTicks = memo(function TimelineTicks({
   sessionStart,
   sessionDuration,
@@ -211,16 +348,16 @@ function PlaybarComponent({
   // Event props
   compileEvents = [],
   runEvents = [],
+  // Activity props (only keeping what's needed for overlays)
+  typingActivitySegments = [],
+  keystrokeLogs = [], // New prop for keystroke logs
 }) {
   const [isDragging, setIsDragging] = useState(false);
   // Remove playbarWidth state since we now use file segments
   // const [playbarWidth, setPlaybarWidth] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1); // Represents the actual zoom factor
   const [baseZoom, setBaseZoom] = useState(1); // The zoom factor for "100% fit-to-width"
-  const [
-    // scrollLeft,
-    setScrollLeft,
-  ] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
 
@@ -471,13 +608,6 @@ function PlaybarComponent({
     };
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Remove old playbar width calculation since we now use file segments
-  // const constrainedPlaybarWidth = useMemo(() => {
-  //   if (!containerRef.current) return playbarWidth;
-  //   const containerWidth = containerRef.current.offsetWidth;
-  //   return Math.min(playbarWidth, containerWidth - 3);
-  // }, [playbarWidth, containerRef.current?.offsetWidth]);
-
   // Auto-scroll when playing
   useEffect(() => {
     scrollToKeepCursorVisible();
@@ -669,7 +799,7 @@ function PlaybarComponent({
 
   return (
     <div className="playbar-wrapper">
-      {/* Zoom Controls with File Explorer and Font Size */}
+      {/* Zoom Controls with File Explorer, Font Size, and Activity Indicator */}
       <div className="zoom-controls">
         {/* File Explorer */}
         <div className="file-explorer-controls">
@@ -716,6 +846,9 @@ function PlaybarComponent({
             </label>
           </div>
         </div>
+
+        {/* Activity Indicator */}
+        {/* Removed ActivityIndicator component */}
 
         <label htmlFor="zoom-slider">Zoom:</label>
         <input
@@ -912,6 +1045,19 @@ function PlaybarComponent({
                 }
                 return null;
               })}
+
+              {/* Typing Activity Overlays - positioned above progress bars */}
+              <TypingActivityOverlays
+                typingActivitySegments={typingActivitySegments}
+                sessionStart={sessionStart}
+                sessionDuration={sessionDuration}
+                currentKeystrokeIndex={currentKeystrokeIndex}
+                keystrokeLogs={keystrokeLogs}
+                fileSegments={fileSegments}
+                fileColorMap={fileColorMap}
+                currentTime={currentTime}
+                timelineWidth={timelineWidth}
+              />
 
               {/* Filename Labels - separate layer with highest z-index */}
               {fileSegments.map((segment, index) => {

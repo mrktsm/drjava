@@ -97,32 +97,16 @@ export default function useLogs() {
         (log) => log.type === "app_activated" || log.type === "app_deactivated"
       );
 
-      // Use the same time calculation system as keystroke positioning
+      // Use keystroke session boundaries for everything
       const firstKeystrokeTime = new Date(keystrokeLogs[0].timestamp);
       const lastKeystrokeTime = new Date(
         keystrokeLogs[keystrokeLogs.length - 1].timestamp
       );
 
-      // Find the actual session boundaries including both keystrokes and activity
-      let actualSessionStart = firstKeystrokeTime;
-      let actualSessionEnd = lastKeystrokeTime;
-
-      if (activityLogs.length > 0) {
-        const firstActivityTime = new Date(activityLogs[0].timestamp);
-        const lastActivityTime = new Date(
-          activityLogs[activityLogs.length - 1].timestamp
-        );
-
-        // Expand session boundaries to include all relevant events
-        actualSessionStart = new Date(
-          Math.min(firstKeystrokeTime, firstActivityTime)
-        );
-        actualSessionEnd = new Date(
-          Math.max(lastKeystrokeTime, lastActivityTime)
-        );
-      }
-
-      const totalSessionMs = actualSessionEnd - actualSessionStart;
+      console.log("=== ACTIVITY PROCESSING DEBUG ===");
+      console.log("First keystroke:", firstKeystrokeTime.toISOString());
+      console.log("Last keystroke:", lastKeystrokeTime.toISOString());
+      console.log("Total activity events:", activityLogs.length);
 
       // Calculate session start/end using same logic as keystroke system
       const sessionStartHours =
@@ -135,55 +119,97 @@ export default function useLogs() {
         sessionEndTime.getSeconds() / 3600;
       const sessionDuration = sessionEndHours - sessionStartHours;
 
+      // Filter activity logs to only those within the keystroke session time range
+      const filteredActivityLogs = activityLogs.filter((log) => {
+        const logTime = new Date(log.timestamp);
+        return logTime >= firstKeystrokeTime && logTime <= lastKeystrokeTime;
+      });
+
+      console.log(
+        "Filtered activity events within session:",
+        filteredActivityLogs.length
+      );
+      filteredActivityLogs.forEach((log, i) => {
+        console.log(`  ${i}: ${log.timestamp} - ${log.type}`);
+      });
+
       // Helper function to convert activity timestamp to timeline position
       const activityTimeToTimelinePosition = (timestamp) => {
         const activityTime = new Date(timestamp);
 
-        // Use KEYSTROKE session boundaries for timeline calculation, not expanded boundaries
-        // This ensures activity segments align with the keystroke-based timeline
-        const keystrokeSessionMs = lastKeystrokeTime - firstKeystrokeTime;
+        // Use the EXACT same calculation as keystroke positioning!
+        const totalSessionMs = lastKeystrokeTime - firstKeystrokeTime;
 
-        if (keystrokeSessionMs === 0) {
+        if (totalSessionMs === 0) {
           return sessionStartHours;
         }
 
-        // Calculate progress relative to keystroke session boundaries
+        // Calculate progress relative to keystroke session boundaries (same as keystrokes)
         const progressThroughSession =
-          (activityTime - firstKeystrokeTime) / keystrokeSessionMs;
-        return sessionStartHours + progressThroughSession * sessionDuration;
+          (activityTime - firstKeystrokeTime) / totalSessionMs;
+
+        // Clamp to valid range as a safety measure
+        const clampedProgress = Math.max(
+          0,
+          Math.min(1, progressThroughSession)
+        );
+
+        return sessionStartHours + clampedProgress * sessionDuration;
       };
 
       const activitySegments = [];
       let currentActiveStart = null;
-      const sortedActivityLogs = activityLogs.sort(
+      const sortedActivityLogs = filteredActivityLogs.sort(
         (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
       );
 
       // Check if app was active at session start
       let wasActiveAtStart = false;
-      for (let i = sortedActivityLogs.length - 1; i >= 0; i--) {
-        const log = sortedActivityLogs[i];
+      const allSortedActivityLogs = activityLogs.sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+      );
+
+      // Find the actual app state at the time of the first keystroke
+      // We need to trace through all activity events up to the first keystroke
+      let currentState = false; // Assume inactive by default
+
+      for (let i = 0; i < allSortedActivityLogs.length; i++) {
+        const log = allSortedActivityLogs[i];
         const logTime = new Date(log.timestamp);
-        if (logTime < sessionStartTime) {
-          wasActiveAtStart = log.type === "app_activated";
+
+        // Stop when we reach events at or after the first keystroke
+        if (logTime >= firstKeystrokeTime) {
           break;
         }
+
+        // Update the current state based on this event
+        if (log.type === "app_activated") {
+          currentState = true;
+          console.log(`Pre-keystroke activation: ${log.timestamp}`);
+        } else if (log.type === "app_deactivated") {
+          currentState = false;
+          console.log(`Pre-keystroke deactivation: ${log.timestamp}`);
+        }
       }
+
+      wasActiveAtStart = currentState;
+      console.log(
+        `App state at first keystroke (${firstKeystrokeTime.toISOString()}): ${
+          wasActiveAtStart ? "ACTIVE" : "INACTIVE"
+        }`
+      );
 
       if (wasActiveAtStart) {
         currentActiveStart = sessionStartHours;
+        console.log("Starting with app active from session beginning");
       }
 
-      sortedActivityLogs.forEach((log) => {
+      // Process activity events within the session
+      sortedActivityLogs.forEach((log, index) => {
         const timelinePosition = activityTimeToTimelinePosition(log.timestamp);
-
-        // Skip events outside session boundaries
-        if (
-          timelinePosition < sessionStartHours ||
-          timelinePosition > sessionEndHours
-        ) {
-          return;
-        }
+        console.log(
+          `Processing event ${index}: ${log.timestamp} - ${log.type} -> timeline pos: ${timelinePosition}`
+        );
 
         if (log.type === "app_deactivated") {
           if (currentActiveStart !== null) {
@@ -192,27 +218,68 @@ export default function useLogs() {
               end: Math.min(timelinePosition, sessionEndHours),
             };
 
-            // Always add the segment - we'll filter later based on the gap duration
-            activitySegments.push(segment);
+            // Filter out very short segments (≤10ms equivalent in hours)
+            const segmentDurationHours = segment.end - segment.start;
+            const segmentDurationMs = segmentDurationHours * 3600 * 1000;
+
+            console.log(
+              `  -> Potential segment: ${segment.start} to ${segment.end} (${segmentDurationMs}ms)`
+            );
+
+            // Only add segments longer than 10ms
+            if (segmentDurationMs > 10) {
+              activitySegments.push(segment);
+              console.log(
+                `  -> Added segment: ${segment.start} to ${segment.end}`
+              );
+            } else {
+              console.log(
+                `  -> Filtered out short segment (${segmentDurationMs}ms)`
+              );
+            }
+
             currentActiveStart = null;
           }
         } else if (log.type === "app_activated") {
           currentActiveStart = Math.max(timelinePosition, sessionStartHours);
+          console.log(
+            `  -> Started new active period at: ${currentActiveStart}`
+          );
         }
       });
 
-      // Close any remaining active segment
+      // Close any remaining active segment at session end
       if (currentActiveStart !== null) {
         const finalSegment = {
           start: currentActiveStart,
           end: sessionEndHours,
         };
-        activitySegments.push(finalSegment);
+
+        // Apply the same 10ms filter to the final segment
+        const segmentDurationHours = finalSegment.end - finalSegment.start;
+        const segmentDurationMs = segmentDurationHours * 3600 * 1000;
+
+        console.log(
+          `Final segment: ${finalSegment.start} to ${finalSegment.end} (${segmentDurationMs}ms)`
+        );
+
+        if (segmentDurationMs > 10) {
+          activitySegments.push(finalSegment);
+          console.log("Added final segment");
+        } else {
+          console.log("Filtered out short final segment");
+        }
       }
 
-      // Post-process: merge segments with very short gaps between them
-      // This removes brief unfocus periods (like popup dialogs) while preserving actual activity patterns
-      const MIN_GAP_DURATION_SECONDS = 2;
+      console.log(`Pre-merge activity segments: ${activitySegments.length}`);
+      activitySegments.forEach((seg, i) => {
+        console.log(`  ${i}: ${seg.start} to ${seg.end}`);
+      });
+
+      // Filter out inactive periods (gaps) that are too short to be meaningful
+      // This merges activity segments that have very short gaps between them
+      const MIN_INACTIVE_DURATION_MS = 500; // Filter out inactive periods shorter than 500ms
+      const MIN_GAP_DURATION_SECONDS = 2; // Still merge gaps shorter than 2 seconds for UI clarity
       const mergedSegments = [];
 
       for (let i = 0; i < activitySegments.length; i++) {
@@ -225,16 +292,35 @@ export default function useLogs() {
 
         const lastMergedSegment = mergedSegments[mergedSegments.length - 1];
         const gapDurationHours = currentSegment.start - lastMergedSegment.end;
-        const gapDurationSeconds = gapDurationHours * 3600;
+        const gapDurationMs = gapDurationHours * 3600 * 1000;
+        const gapDurationSeconds = gapDurationMs / 1000;
 
-        // If the gap is very short, merge with the previous segment
-        if (gapDurationSeconds < MIN_GAP_DURATION_SECONDS) {
-          lastMergedSegment.end = currentSegment.end;
+        // If the inactive period (gap) is very short, merge the segments
+        if (
+          gapDurationMs < MIN_INACTIVE_DURATION_MS ||
+          gapDurationSeconds < MIN_GAP_DURATION_SECONDS
+        ) {
+          console.log(
+            `Merging segments: inactive period of ${gapDurationMs}ms (${gapDurationSeconds}s) is too short`
+          );
+          lastMergedSegment.end = Math.max(
+            lastMergedSegment.end,
+            currentSegment.end
+          );
         } else {
           // Gap is significant, keep as separate segment
+          console.log(
+            `Keeping separate: inactive period of ${gapDurationMs}ms (${gapDurationSeconds}s) is significant`
+          );
           mergedSegments.push({ ...currentSegment });
         }
       }
+
+      console.log(`Final merged activity segments: ${mergedSegments.length}`);
+      mergedSegments.forEach((seg, i) => {
+        console.log(`  ${i}: ${seg.start} to ${seg.end}`);
+      });
+      console.log("=== END ACTIVITY DEBUG ===");
 
       return mergedSegments;
     };

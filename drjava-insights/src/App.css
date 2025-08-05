@@ -518,6 +518,45 @@ input:active,
   border-radius: 4px;
 }
 
+/* Typing Activity Bar Styles */
+.typing-activity-bar-container {
+  position: relative;
+  height: 8px; /* Smaller bar for typing activity */
+  background-color: transparent; /* No background for container */
+  margin-top: 3px; /* Space between activity bars */
+  border-radius: 2px;
+}
+
+.typing-activity-segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.typing-activity-segment.current {
+  box-shadow: 0 0 4px rgba(76, 175, 80, 0.6);
+}
+
+/* Typing Activity Overlay Styles - replaces the above */
+.typing-activity-overlay {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transition: all 0.15s ease-out;
+  border-radius: 0px; /* Square corners */
+}
+
+.typing-activity-overlay.current {
+  /* Enhanced styling for active segments - border and background are set dynamically */
+}
+
+.typing-activity-overlay.cursor-over {
+  /* Additional styling when cursor is over the segment - makes it slightly taller */
+  transform: scaleY(1.02); /* 2% vertical scale increase */
+  transform-origin: center; /* Scale from the center so it grows in both directions */
+}
+
 .playbar {
   /* Hide the old continuous playbar since we now use file-based segments */
   display: none;
