@@ -273,11 +273,12 @@ const TimelineGaps = memo(function TimelineGaps({
                 fontSize: "12px",
                 height: "40px", // Fixed height
                 width: "80px", // Fixed width instead of minWidth
-                justifyContent: "center", // Center content
+                justifyContent: "flex-start", // Align items to start
+                paddingLeft: "10px", // Consistent left padding
               }}
             >
-              <BsTools size={14} color="#ffc107" />
-              <div style={{ textAlign: "center" }}>
+              <BsTools size={14} color="#ffc107" style={{ flexShrink: 0 }} />
+              <div style={{ textAlign: "center", flex: 1 }}>
                 <div style={{ fontWeight: "600", color: "#333" }}>
                   {selectedGap.compileCount}
                 </div>
@@ -299,11 +300,16 @@ const TimelineGaps = memo(function TimelineGaps({
                 fontSize: "12px",
                 height: "40px", // Fixed height
                 width: "80px", // Fixed width instead of minWidth
-                justifyContent: "center", // Center content
+                justifyContent: "flex-start", // Align items to start
+                paddingLeft: "10px", // Consistent left padding
               }}
             >
-              <BsPlayCircleFill size={14} color="#28a745" />
-              <div style={{ textAlign: "center" }}>
+              <BsPlayCircleFill
+                size={14}
+                color="#28a745"
+                style={{ flexShrink: 0 }}
+              />
+              <div style={{ textAlign: "center", flex: 1 }}>
                 <div style={{ fontWeight: "600", color: "#333" }}>
                   {selectedGap.runCount}
                 </div>
