@@ -52,7 +52,7 @@ function App() {
   } = useLogs();
 
   // Timeline compression state
-  const [compressionEnabled, setCompressionEnabled] = useState(false);
+  const [compressionEnabled, setCompressionEnabled] = useState(true); // Enable by default
   const [gapThreshold, setGapThreshold] = useState(DEFAULT_GAP_THRESHOLD_MS);
 
   // Create compressed timeline data

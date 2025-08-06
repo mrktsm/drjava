@@ -1874,6 +1874,8 @@ function PlaybarComponent({
                 sessionDuration={sessionDuration}
                 timelineWidth={timelineWidth}
                 isEnabled={compressionEnabled}
+                compileEvents={compileEvents}
+                runEvents={runEvents}
               />
 
               {/* Cursor - positioned based on current time */}
