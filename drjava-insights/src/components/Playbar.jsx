@@ -307,6 +307,69 @@ const TimelineTicks = memo(function TimelineTicks({
   compressionEnabled = false, // Add compression awareness
   compressionData = null, // Add compression data for proper time mapping
 }) {
+  // Helper function to convert compressed timeline position to original wall-clock time
+  const getOriginalTimeFromCompressedPosition = (
+    compressedTimelinePosition
+  ) => {
+    if (!compressionEnabled || !compressionData) {
+      return sessionStart + compressedTimelinePosition * sessionDuration;
+    }
+
+    // Convert timeline position to milliseconds into compressed session
+    const compressedDurationHours =
+      compressionData.totalCompressedDuration / (1000 * 60 * 60);
+    const timeIntoCompressedSession =
+      compressedTimelinePosition * compressedDurationHours * 3600 * 1000; // Convert to milliseconds
+
+    // Find which active segment this position falls into
+    const compressedSessionStart = new Date(
+      compressionData.activeSegments[0].compressedStartTime
+    );
+    const targetCompressedTime = new Date(
+      compressedSessionStart.getTime() + timeIntoCompressedSession
+    );
+
+    // Find the corresponding original time
+    for (const segment of compressionData.activeSegments) {
+      const segmentCompressedStart = new Date(segment.compressedStartTime);
+      const segmentCompressedEnd = new Date(segment.compressedEndTime);
+
+      if (
+        targetCompressedTime >= segmentCompressedStart &&
+        targetCompressedTime <= segmentCompressedEnd
+      ) {
+        // Calculate progress within this compressed segment
+        const segmentProgress =
+          (targetCompressedTime - segmentCompressedStart) /
+          (segmentCompressedEnd - segmentCompressedStart);
+
+        // Map to original time within this segment
+        const originalStartTime = new Date(segment.originalStartTime);
+        const originalEndTime = new Date(segment.originalEndTime);
+        const originalTime = new Date(
+          originalStartTime.getTime() +
+            segmentProgress * (originalEndTime - originalStartTime)
+        );
+
+        // Convert to hours for display
+        return (
+          originalTime.getHours() +
+          originalTime.getMinutes() / 60 +
+          originalTime.getSeconds() / 3600
+        );
+      }
+    }
+
+    // Fallback: return first segment start time
+    const firstSegment = compressionData.activeSegments[0];
+    const originalStartTime = new Date(firstSegment.originalStartTime);
+    return (
+      originalStartTime.getHours() +
+      originalStartTime.getMinutes() / 60 +
+      originalStartTime.getSeconds() / 3600
+    );
+  };
+
   const spacedLines = useMemo(() => {
     const lines = [];
     const numberOfLines = Math.max(10, Math.floor(10 * zoomLevel)); // More lines when zoomed in
@@ -331,26 +394,18 @@ const TimelineTicks = memo(function TimelineTicks({
 
       let label = null;
       if (isMainLine) {
-        // Calculate the time at this position in the compressed timeline
-        const timeAtLine = sessionStart + (i / totalLines) * sessionDuration;
-
-        // When compression is enabled, we need to show meaningful time labels
-        // For compressed timeline, show the relative time within the compressed session
+        // Calculate the time at this position
+        const timelinePosition = i / totalLines;
         let displayTime;
-        if (compressionEnabled && compressionData) {
-          // For compressed timeline, show elapsed time from start
-          const elapsedHours = (i / totalLines) * sessionDuration;
-          const totalMinutes = Math.round(elapsedHours * 60);
-          const hours = Math.floor(totalMinutes / 60);
-          const minutes = totalMinutes % 60;
 
-          if (hours > 0) {
-            displayTime = `${hours}:${minutes.toString().padStart(2, "0")}`;
-          } else {
-            displayTime = `${minutes}m`;
-          }
+        if (compressionEnabled && compressionData) {
+          // For compressed timeline, show actual wall-clock time accounting for gaps
+          const originalTime =
+            getOriginalTimeFromCompressedPosition(timelinePosition);
+          displayTime = formatTime(originalTime);
         } else {
           // For normal timeline, show actual clock time
+          const timeAtLine = sessionStart + timelinePosition * sessionDuration;
           displayTime = formatTime(timeAtLine);
         }
 
