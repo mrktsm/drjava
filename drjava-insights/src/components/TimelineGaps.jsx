@@ -49,7 +49,7 @@ const TimelineGaps = memo(function TimelineGaps({
   const gapPercentage = (3 / timelineWidth) * 100;
 
   // Function to handle gap click
-  const handleGapClick = (gap, gapIndex, positionPercentage) => {
+  const handleGapClick = (gap, gapIndex, positionPercentage, event) => {
     // Count compile and run events during this gap
     const gapStart = new Date(gap.originalStartTime);
     const gapEnd = new Date(gap.originalEndTime);
@@ -64,13 +64,22 @@ const TimelineGaps = memo(function TimelineGaps({
       return eventTime >= gapStart && eventTime <= gapEnd;
     }).length;
 
+    // Get the actual position of the clicked element
+    const rect = event.target
+      .closest(".timeline-gap-indicator")
+      .getBoundingClientRect();
+    const tooltipLeft = rect.left + rect.width / 2; // Center of the gap indicator
+    const tooltipTop = rect.top - 10; // Just above the gap indicator
+
     setSelectedGap({
       ...gap,
       gapIndex,
       compileCount,
       runCount,
       formattedDuration: formatGapDuration(gap.duration),
-      position: positionPercentage, // Store position for tooltip
+      position: positionPercentage, // Store percentage for reference
+      absoluteLeft: tooltipLeft, // Store actual screen position
+      absoluteTop: tooltipTop, // Store actual screen position
     });
   };
 
@@ -152,8 +161,8 @@ const TimelineGaps = memo(function TimelineGaps({
                 title={`Away for ${formatGapDuration(
                   gap.duration
                 )} - Click for details`}
-                onClick={() =>
-                  handleGapClick(gap, gapIndex, positionPercentage)
+                onClick={(event) =>
+                  handleGapClick(gap, gapIndex, positionPercentage, event)
                 }
               >
                 <MdOutlineHourglassBottom
@@ -180,10 +189,10 @@ const TimelineGaps = memo(function TimelineGaps({
         <div
           className="gap-tooltip"
           style={{
-            position: "fixed", // Change to fixed to escape stacking context
-            left: `${Math.max(0, Math.min(95, selectedGap.position || 50))}%`,
-            top: "200px", // Fixed position from top instead of relative to timeline
-            transform: "translateX(-50%)",
+            position: "fixed",
+            left: `${selectedGap.absoluteLeft}px`, // Use actual screen position
+            top: `${selectedGap.absoluteTop}px`, // Use actual screen position
+            transform: "translate(-50%, -100%)", // Center horizontally, position above
             backgroundColor: "white",
             borderRadius: "8px",
             padding: "12px",
