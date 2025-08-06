@@ -1438,6 +1438,7 @@ function PlaybarComponent({
                     compressionData.gaps &&
                     segmentProgress > 0
                   ) {
+                    // Find gaps that intersect with this file segment's timeline position
                     const gapsInSegment = compressionData.gaps.filter((gap) => {
                       const sessionStartTime = new Date(
                         compressionData.activeSegments[0].compressedStartTime
@@ -1453,15 +1454,21 @@ function PlaybarComponent({
                         const gapStartMs =
                           new Date(segmentBefore.compressedEndTime) -
                           sessionStartTime;
+                        const gapEndMs =
+                          new Date(segmentAfter.compressedStartTime) -
+                          sessionStartTime;
                         const gapStartPercentage =
                           (gapStartMs /
                             compressionData.totalCompressedDuration) *
                           100;
+                        const gapEndPercentage =
+                          (gapEndMs / compressionData.totalCompressedDuration) *
+                          100;
 
+                        // Check if this gap overlaps with the file segment
                         return (
-                          gapStartPercentage >= leftPercentage &&
-                          gapStartPercentage <=
-                            leftPercentage + fullFilledWidthPercentage
+                          gapStartPercentage < rightPercentage &&
+                          gapEndPercentage > leftPercentage
                         );
                       }
                       return false;
@@ -1469,10 +1476,35 @@ function PlaybarComponent({
 
                     if (gapsInSegment.length > 0) {
                       progressParts = [];
-                      let currentLeft = leftPercentage;
-                      let remainingProgress = fullFilledWidthPercentage;
+                      const currentTimePercentage =
+                        ((currentTime - sessionStart) / sessionDuration) * 100;
 
-                      gapsInSegment.forEach((gap) => {
+                      // Sort gaps by their start position
+                      const sortedGaps = gapsInSegment.sort((a, b) => {
+                        const sessionStartTime = new Date(
+                          compressionData.activeSegments[0].compressedStartTime
+                        );
+                        const aStartMs =
+                          new Date(
+                            compressionData.activeSegments.find(
+                              (s) =>
+                                s.endKeystrokeIndex === a.startKeystrokeIndex
+                            )?.compressedEndTime
+                          ) - sessionStartTime;
+                        const bStartMs =
+                          new Date(
+                            compressionData.activeSegments.find(
+                              (s) =>
+                                s.endKeystrokeIndex === b.startKeystrokeIndex
+                            )?.compressedEndTime
+                          ) - sessionStartTime;
+                        return aStartMs - bStartMs;
+                      });
+
+                      let currentPos = leftPercentage;
+                      const visualGapWidth = (3 / timelineWidth) * 100;
+
+                      for (const gap of sortedGaps) {
                         const sessionStartTime = new Date(
                           compressionData.activeSegments[0].compressedStartTime
                         );
@@ -1503,37 +1535,42 @@ function PlaybarComponent({
                               compressionData.totalCompressedDuration) *
                             100;
 
-                          // Add progress part before the gap, leaving space for visual gap
-                          const visualGapPercentage = (3 / timelineWidth) * 100;
-                          const progressBeforeGap = Math.min(
-                            remainingProgress,
-                            Math.max(
-                              0,
-                              gapStartPercentage -
-                                currentLeft -
-                                visualGapPercentage / 2
-                            )
-                          );
-                          if (progressBeforeGap > 0) {
-                            progressParts.push({
-                              left: currentLeft,
-                              width: progressBeforeGap,
-                            });
-                            remainingProgress -= progressBeforeGap;
+                          // Add progress before the gap (if current time reached it)
+                          if (currentTimePercentage > currentPos) {
+                            const progressWidth = Math.min(
+                              currentTimePercentage - currentPos,
+                              Math.max(0, gapStartPercentage - currentPos)
+                            );
+
+                            if (progressWidth > 0) {
+                              progressParts.push({
+                                left: currentPos,
+                                width: progressWidth,
+                              });
+                            }
                           }
 
-                          // Update current position to after the gap, accounting for visual spacing
-                          currentLeft =
-                            gapEndPercentage + visualGapPercentage / 2; // Reserve half gap after
+                          // Move position to after the gap
+                          currentPos = gapEndPercentage + visualGapWidth;
                         }
-                      });
+                      }
 
-                      // Add remaining progress after all gaps
-                      if (remainingProgress > 0) {
-                        progressParts.push({
-                          left: currentLeft,
-                          width: remainingProgress,
-                        });
+                      // Add remaining progress after all gaps (if any)
+                      if (
+                        currentTimePercentage > currentPos &&
+                        currentPos < rightPercentage
+                      ) {
+                        const remainingWidth = Math.min(
+                          currentTimePercentage - currentPos,
+                          rightPercentage - currentPos
+                        );
+
+                        if (remainingWidth > 0) {
+                          progressParts.push({
+                            left: currentPos,
+                            width: remainingWidth,
+                          });
+                        }
                       }
                     }
                   }
@@ -1544,7 +1581,8 @@ function PlaybarComponent({
                       let displayWidth = part.width;
                       if (
                         index < effectiveFileSegments.length - 1 &&
-                        partIndex === progressParts.length - 1
+                        partIndex === progressParts.length - 1 &&
+                        segmentProgress >= 1 // Only apply gap when segment is fully completed
                       ) {
                         // Convert 3 pixels to percentage based on current timeline width
                         const gapPercentage = (3 / timelineWidth) * 100;

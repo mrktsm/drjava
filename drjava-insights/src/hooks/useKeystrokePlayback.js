@@ -3,6 +3,10 @@ import {
   keystrokeIndexToTimelinePosition,
   timelinePositionToKeystrokeIndex,
 } from "../utils/keystrokePlaybackUtils";
+import {
+  keystrokeIndexToCompressedTimelinePosition,
+  compressedTimelinePositionToKeystrokeIndex,
+} from "../utils/compressedKeystrokePlaybackUtils";
 
 /**
  * A custom hook to manage the state and logic of keystroke playback.
@@ -42,6 +46,8 @@ export default function useKeystrokePlayback({
   sessionStart = 0,
   sessionEnd = 24,
   sessionDuration = 24,
+  compressionData = null, // New prop for compression data
+  originalKeystrokeLogs = [], // New prop for original logs when using compression
 }) {
   const [currentKeystrokeIndex, setCurrentKeystrokeIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -59,6 +65,43 @@ export default function useKeystrokePlayback({
     keystrokeLogs && keystrokeLogs.length > 0
       ? keystrokeLogs[currentKeystrokeIndex]
       : null;
+
+  // Helper functions that use appropriate utilities based on compression state
+  const keystrokeToTimelinePos = (keystrokeIndex) => {
+    if (compressionData && originalKeystrokeLogs.length > 0) {
+      return keystrokeIndexToCompressedTimelinePosition(
+        keystrokeIndex,
+        originalKeystrokeLogs,
+        compressionData,
+        sessionStart,
+        sessionDuration
+      );
+    }
+    return keystrokeIndexToTimelinePosition(
+      keystrokeIndex,
+      keystrokeLogs,
+      sessionStart,
+      sessionDuration
+    );
+  };
+
+  const timelinePosToKeystroke = (timelinePos) => {
+    if (compressionData && originalKeystrokeLogs.length > 0) {
+      return compressedTimelinePositionToKeystrokeIndex(
+        timelinePos,
+        originalKeystrokeLogs,
+        compressionData,
+        sessionStart,
+        sessionDuration
+      );
+    }
+    return timelinePositionToKeystrokeIndex(
+      timelinePos,
+      keystrokeLogs,
+      sessionStart,
+      sessionDuration
+    );
+  };
 
   // Schedule the next keystroke with authentic timing
   const scheduleNextKeystroke = () => {
@@ -116,21 +159,23 @@ export default function useKeystrokePlayback({
     }
   }, [isPlaying]);
 
-  // Sync currentKeystrokeIndex with currentTime changes during playback
+  // Keystroke synchronization effect - sync keystroke index to current time
   useEffect(() => {
-    if (keystrokeLogs.length > 0) {
-      const syncedKeystrokeIndex = timelinePositionToKeystrokeIndex(
-        currentTime,
-        keystrokeLogs,
-        sessionStart,
-        sessionDuration
-      );
-      // Only update if the index actually changed to avoid unnecessary re-renders
+    if (!isUserScrubbing && keystrokeLogs.length > 0) {
+      const syncedKeystrokeIndex = timelinePosToKeystroke(currentTime);
       if (syncedKeystrokeIndex !== currentKeystrokeIndex) {
         setCurrentKeystrokeIndex(syncedKeystrokeIndex);
       }
     }
-  }, [currentTime, keystrokeLogs, sessionStart, sessionDuration]);
+  }, [
+    currentTime,
+    keystrokeLogs,
+    sessionStart,
+    sessionDuration,
+    isUserScrubbing,
+    compressionData,
+    originalKeystrokeLogs,
+  ]);
 
   // Timeline synchronization effect - smooth authentic timestamp-based progression
   useEffect(() => {
@@ -146,11 +191,20 @@ export default function useKeystrokePlayback({
         const elapsedSincePlay = now - playbackStartTime;
 
         // Calculate how much timeline progress should have been made based on elapsed time
-        const firstTime = new Date(keystrokeLogs[0].timestamp);
-        const lastTime = new Date(
-          keystrokeLogs[keystrokeLogs.length - 1].timestamp
-        );
-        const totalSessionMs = lastTime - firstTime;
+        let totalSessionMs;
+
+        if (compressionData) {
+          // When compression is enabled, use the total compressed duration
+          // This includes buffers and properly represents the timeline
+          totalSessionMs = compressionData.totalCompressedDuration;
+        } else {
+          // For normal timeline, calculate from keystroke timestamps
+          const firstTime = new Date(keystrokeLogs[0].timestamp);
+          const lastTime = new Date(
+            keystrokeLogs[keystrokeLogs.length - 1].timestamp
+          );
+          totalSessionMs = lastTime - firstTime;
+        }
 
         // Calculate elapsed time in session scale
         const sessionElapsedMs = elapsedSincePlay * playbackSpeed;
@@ -193,6 +247,7 @@ export default function useKeystrokePlayback({
     sessionStart,
     sessionDuration,
     playbackSpeed,
+    compressionData, // Add compressionData to dependencies
     isUserScrubbing,
   ]);
 
@@ -200,116 +255,72 @@ export default function useKeystrokePlayback({
   const handlePlayPause = () => {
     if (isPlaying) {
       setIsPlaying(false);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+      clearTimeout(timeoutRef.current);
     } else {
-      if (currentKeystrokeIndex >= keystrokeLogs.length - 1) {
-        setCurrentKeystrokeIndex(0);
-        setCurrentTime(sessionStart);
-      }
+      setIsPlaying(true);
       setPlaybackStartTime(Date.now());
       setPlaybackStartKeystroke(currentKeystrokeIndex);
-      setPlaybackStartTimelinePosition(currentTime); // Use current timeline position
-      setIsPlaying(true);
+      setPlaybackStartTimelinePosition(currentTime);
     }
   };
 
   const handleRestart = () => {
-    setIsPlaying(false);
     setCurrentKeystrokeIndex(0);
     setCurrentTime(sessionStart);
+    setPlaybackStartTime(null);
     setPlaybackStartKeystroke(0);
-    setPlaybackStartTimelinePosition(sessionStart); // Reset to start
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    setPlaybackStartTimelinePosition(sessionStart);
+    setIsPlaying(false);
+    clearTimeout(timeoutRef.current);
   };
 
   const handleSkipToEnd = () => {
+    const lastIndex = keystrokeLogs.length - 1;
+    setCurrentKeystrokeIndex(lastIndex);
+    setCurrentTime(sessionStart + sessionDuration);
+    setPlaybackStartTime(null);
+    setPlaybackStartKeystroke(lastIndex);
+    setPlaybackStartTimelinePosition(sessionStart + sessionDuration);
     setIsPlaying(false);
-    const endIndex = keystrokeLogs.length - 1;
-    setCurrentKeystrokeIndex(endIndex);
-    setCurrentTime(sessionEnd);
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    clearTimeout(timeoutRef.current);
   };
 
   const handleSkipBackward = () => {
-    // Skip backward by 10 seconds (converted to timeline units)
-    // Since timeline is in hours, 10 seconds = 10/3600 hours
-    const skipTimeInterval = 10 / 3600; // 10 seconds in hours
-    const newTime = Math.max(sessionStart, currentTime - skipTimeInterval);
-
-    const newIndex = timelinePositionToKeystrokeIndex(
-      newTime,
-      keystrokeLogs,
-      sessionStart,
-      sessionDuration
-    );
+    const skipAmount = Math.floor(keystrokeLogs.length * 0.05); // Skip 5% of keystrokes
+    const newIndex = Math.max(0, currentKeystrokeIndex - skipAmount);
+    const newTime = keystrokeToTimelinePos(newIndex);
 
     setCurrentKeystrokeIndex(newIndex);
     setCurrentTime(newTime);
+    setPlaybackStartTime(Date.now());
     setPlaybackStartKeystroke(newIndex);
     setPlaybackStartTimelinePosition(newTime);
-    setPlaybackStartTime(Date.now());
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
   };
 
   const handleSkipForward = () => {
-    // Skip forward by 10 seconds (converted to timeline units)
-    // Since timeline is in hours, 10 seconds = 10/3600 hours
-    const skipTimeInterval = 10 / 3600; // 10 seconds in hours
-    const newTime = Math.min(sessionEnd, currentTime + skipTimeInterval);
-
-    const newIndex = timelinePositionToKeystrokeIndex(
-      newTime,
-      keystrokeLogs,
-      sessionStart,
-      sessionDuration
+    const skipAmount = Math.floor(keystrokeLogs.length * 0.05); // Skip 5% of keystrokes
+    const newIndex = Math.min(
+      keystrokeLogs.length - 1,
+      currentKeystrokeIndex + skipAmount
     );
+    const newTime = keystrokeToTimelinePos(newIndex);
 
     setCurrentKeystrokeIndex(newIndex);
     setCurrentTime(newTime);
+    setPlaybackStartTime(Date.now());
     setPlaybackStartKeystroke(newIndex);
     setPlaybackStartTimelinePosition(newTime);
-    setPlaybackStartTime(Date.now());
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
   };
 
   const handleTimelineChange = (newTime) => {
-    if (isPlaying) {
-      setIsPlaying(false);
-      setIsUserScrubbing(true);
-    }
-    const newKeystrokeIndex = timelinePositionToKeystrokeIndex(
-      newTime,
-      keystrokeLogs,
-      sessionStart,
-      sessionDuration
-    );
-    setCurrentKeystrokeIndex(newKeystrokeIndex);
+    const newKeystrokeIndex = timelinePosToKeystroke(newTime);
 
-    // Use the clicked position directly to allow positioning anywhere on timeline
     setCurrentTime(newTime);
-
-    setPlaybackStartKeystroke(newKeystrokeIndex);
-    setPlaybackStartTimelinePosition(newTime); // Store the exact clicked position
+    setCurrentKeystrokeIndex(newKeystrokeIndex);
     setPlaybackStartTime(Date.now());
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    setPlaybackStartKeystroke(newKeystrokeIndex);
+    setPlaybackStartTimelinePosition(newTime);
+    setIsUserScrubbing(false);
   };
 
   // Reset scrubbing state when user stops interacting

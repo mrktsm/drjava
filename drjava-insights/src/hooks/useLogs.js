@@ -338,7 +338,7 @@ export default function useLogs() {
     setLoading(true);
 
     // Use current host and port instead of hardcoded localhost:3001
-    const apiUrl = `${window.location.protocol}//${window.location.host}/api/logs`;
+    const apiUrl = `http://localhost:3001/api/logs`;
 
     fetch(apiUrl)
       .then((res) => res.json())

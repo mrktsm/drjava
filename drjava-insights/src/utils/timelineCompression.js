@@ -130,7 +130,7 @@ export function createCompressedTimeline(
     const originalStartTime = new Date(keystrokeLogs[0].timestamp);
     const originalEndTime = new Date(keystrokeLogs[segmentEnd].timestamp);
 
-    // Add buffer time after the last keystroke in this segment
+    // Add buffer time after the last keystroke in this segment (consistent with other segments)
     const segmentEndWithBuffer = new Date(originalEndTime.getTime() + bufferMs);
     const segmentDuration = segmentEndWithBuffer - originalStartTime;
 
@@ -147,12 +147,13 @@ export function createCompressedTimeline(
     });
 
     // Add keystrokes for this segment with compressed timestamps
+    // Use consistent positioning logic with other segments
     for (let i = 0; i <= segmentEnd; i++) {
       const originalKeystroke = keystrokeLogs[i];
       const originalTime = new Date(originalKeystroke.timestamp);
-      const relativeTime = originalTime - originalStartTime;
+      const relativeTime = originalTime - originalStartTime; // Relative to original start
       const compressedTime = new Date(
-        firstTime.getTime() + compressedTimeOffset + relativeTime
+        firstTime.getTime() + compressedTimeOffset + relativeTime // No buffer offset for first segment
       );
 
       compressedKeystrokeLogs.push({
@@ -205,13 +206,13 @@ export function createCompressedTimeline(
       });
 
       // Add keystrokes for this segment with compressed timestamps
-      // Note: We adjust for the buffer time when calculating relative positions
+      // Note: Use original segment times for keystroke positioning to maintain cursor/progress alignment
       for (let i = segmentStart; i <= segmentEnd; i++) {
         const originalKeystroke = keystrokeLogs[i];
         const originalTime = new Date(originalKeystroke.timestamp);
-        const relativeTime = originalTime - segmentStartWithBuffer;
+        const relativeTime = originalTime - originalStartTime; // Use original start, not buffered
         const compressedTime = new Date(
-          firstTime.getTime() + compressedTimeOffset + relativeTime
+          firstTime.getTime() + compressedTimeOffset + bufferMs + relativeTime // Add buffer offset
         );
 
         compressedKeystrokeLogs.push({
@@ -230,12 +231,8 @@ export function createCompressedTimeline(
   const lastTime = new Date(keystrokeLogs[keystrokeLogs.length - 1].timestamp);
   const totalOriginalDuration = lastTime - firstTime;
 
-  // Calculate total removed duration (sum of all removed gap durations)
-  const totalRemovedDuration = gaps.reduce(
-    (sum, gap) => sum + gap.removedDuration,
-    0
-  );
-  const totalCompressedDuration = totalOriginalDuration - totalRemovedDuration;
+  // Use the actual compressed timeline length (includes buffers and active segments)
+  const totalCompressedDuration = compressedTimeOffset;
 
   const compressionRatio =
     totalOriginalDuration > 0
