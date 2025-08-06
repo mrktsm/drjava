@@ -87,7 +87,12 @@ const TimelineGaps = memo(function TimelineGaps({
     });
   };
 
-  const closeModal = () => {
+  const closeModal = (event) => {
+    // Prevent cursor teleportation when closing
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     setSelectedGap(null);
   };
 
@@ -234,6 +239,11 @@ const TimelineGaps = memo(function TimelineGaps({
             </div>
             <button
               onClick={closeModal}
+              onMouseDown={(event) => {
+                // Prevent mouse down from causing cursor movement
+                event.preventDefault();
+                event.stopPropagation();
+              }}
               style={{
                 background: "none",
                 border: "none",
