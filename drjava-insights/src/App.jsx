@@ -10,10 +10,14 @@ import useCodeReconstruction from "./hooks/useCodeReconstruction";
 import useTypingActivity from "./hooks/useTypingActivity";
 import {
   calculateFileSegments,
-  getCurrentFileSegment,
-  getCurrentTimeInSegment,
   createFileColorMap,
 } from "./utils/fileSegmentUtils";
+import {
+  createCompressedTimeline,
+  DEFAULT_GAP_THRESHOLD_MS,
+  DEFAULT_BUFFER_MS,
+} from "./utils/timelineCompression";
+import { calculateCompressedFileSegments } from "./utils/compressedKeystrokePlaybackUtils";
 
 /**
  * DrJava Insights: A web-based tool for visualizing and replaying student coding sessions.
@@ -47,6 +51,22 @@ function App() {
     // error, // Error state for the logs, could be used to show an error screen
   } = useLogs();
 
+  // Timeline compression state
+  const [compressionEnabled, setCompressionEnabled] = useState(false);
+  const [gapThreshold, setGapThreshold] = useState(DEFAULT_GAP_THRESHOLD_MS);
+
+  // Create compressed timeline data
+  const compressionData = useMemo(() => {
+    if (!compressionEnabled || !keystrokeLogs || keystrokeLogs.length === 0) {
+      return null;
+    }
+    return createCompressedTimeline(
+      keystrokeLogs,
+      gapThreshold,
+      DEFAULT_BUFFER_MS
+    );
+  }, [keystrokeLogs, compressionEnabled, gapThreshold]);
+
   // Calculate session start/end/duration for timeline
   const sessionStart = sessionStartTime
     ? sessionStartTime.getHours() +
@@ -58,18 +78,52 @@ function App() {
       sessionEndTime.getMinutes() / 60 +
       sessionEndTime.getSeconds() / 3600
     : 24;
-  const sessionDuration =
+  const originalSessionDuration =
     sessionStartTime && sessionEndTime ? sessionEnd - sessionStart : 24;
+
+  // Use compressed session duration when compression is enabled
+  const sessionDuration = useMemo(() => {
+    if (compressionEnabled && compressionData) {
+      return compressionData.totalCompressedDuration / (1000 * 60 * 60); // Convert to hours
+    }
+    return originalSessionDuration;
+  }, [compressionEnabled, compressionData, originalSessionDuration]);
 
   // Calculate file segments from keystroke logs
   const fileSegments = useMemo(() => {
-    return calculateFileSegments(keystrokeLogs, sessionStart, sessionDuration);
-  }, [keystrokeLogs, sessionStart, sessionDuration]);
+    if (compressionEnabled && compressionData) {
+      return calculateCompressedFileSegments(
+        compressionData,
+        sessionStart,
+        sessionDuration
+      );
+    }
+    return calculateFileSegments(
+      keystrokeLogs,
+      sessionStart,
+      originalSessionDuration
+    );
+  }, [
+    keystrokeLogs,
+    sessionStart,
+    originalSessionDuration,
+    compressionEnabled,
+    compressionData,
+    sessionDuration,
+  ]);
 
   // Create color mapping for files
   const fileColorMap = useMemo(() => {
     return createFileColorMap(files);
   }, [files]);
+
+  // Use compressed keystroke logs when compression is enabled
+  const effectiveKeystrokeLogs = useMemo(() => {
+    if (compressionEnabled && compressionData) {
+      return compressionData.compressedKeystrokeLogs;
+    }
+    return keystrokeLogs;
+  }, [keystrokeLogs, compressionEnabled, compressionData]);
 
   // Playback logic extracted to hook
   const {
@@ -90,15 +144,17 @@ function App() {
     // isUserScrubbing,
     // setIsUserScrubbing,
   } = useKeystrokePlayback({
-    keystrokeLogs,
+    keystrokeLogs: effectiveKeystrokeLogs,
     sessionStart,
-    sessionEnd,
+    sessionEnd: sessionStart + sessionDuration,
     sessionDuration,
+    compressionData: compressionEnabled ? compressionData : null,
+    originalKeystrokeLogs: keystrokeLogs, // Pass original logs for mapping
   });
 
   // Add typing activity detection
   const { typingActivitySegments } = useTypingActivity({
-    keystrokeLogs,
+    keystrokeLogs: effectiveKeystrokeLogs,
     currentKeystrokeIndex,
     isPlaying,
     sessionStart,
@@ -260,6 +316,14 @@ function App() {
         // Add typing activity props
         typingActivitySegments={typingActivitySegments}
         keystrokeLogs={keystrokeLogs}
+        // Compression props
+        compressionEnabled={compressionEnabled}
+        onToggleCompression={setCompressionEnabled}
+        compressionData={compressionData}
+        gapThreshold={gapThreshold}
+        onSetGapThreshold={setGapThreshold}
+        bufferMs={DEFAULT_BUFFER_MS}
+        onSetBufferMs={() => {}}
       />
     </div>
   );

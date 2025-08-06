@@ -19,6 +19,11 @@ import {
   getCurrentTimeInSegment,
   getLighterColor,
 } from "../utils/fileSegmentUtils";
+import TimelineGaps from "./TimelineGaps";
+import {
+  formatGapDuration,
+  DEFAULT_BUFFER_MS,
+} from "../utils/timelineCompression";
 
 // Add TypingActivityOverlays Component (renamed and repositioned)
 const TypingActivityOverlays = memo(function TypingActivityOverlays({
@@ -33,6 +38,8 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
   timelineWidth,
   activeFile = "", // New prop for current active file
   autoSwitchFiles = true, // New prop to know if autoswitch is enabled
+  compressionEnabled = false, // New prop for compression state
+  compressionData = null, // New prop for compression data
 }) {
   // Helper function to darken a color
   const darkenColor = (color, amount = 0.3) => {
@@ -72,122 +79,233 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
 
   return (
     <>
-      {filteredSegments.map((segment, index) => {
-        const leftPercentage =
-          ((segment.start - sessionStart) / sessionDuration) * 100;
-        const rightPercentage =
-          ((segment.end - sessionStart) / sessionDuration) * 100;
-        const widthPercentage = rightPercentage - leftPercentage;
+      {filteredSegments
+        .map((segment, index) => {
+          const leftPercentage =
+            ((segment.start - sessionStart) / sessionDuration) * 100;
+          const rightPercentage =
+            ((segment.end - sessionStart) / sessionDuration) * 100;
+          const widthPercentage = rightPercentage - leftPercentage;
 
-        // Constrain to timeline boundaries
-        const constrainedLeftPercentage = Math.max(
-          0,
-          Math.min(leftPercentage, 100)
-        );
-        const constrainedWidthPercentage = Math.max(
-          0,
-          Math.min(widthPercentage, 100 - constrainedLeftPercentage)
-        );
+          // When compression is enabled, split typing activity around gaps
+          let activityParts = [
+            { left: leftPercentage, width: widthPercentage },
+          ];
 
-        // Determine if this segment is currently active
-        const isCurrentSegment =
-          currentKeystrokeIndex >= segment.startIndex &&
-          currentKeystrokeIndex <= segment.endIndex;
+          if (compressionEnabled && compressionData && compressionData.gaps) {
+            const gapsInSegment = compressionData.gaps.filter((gap) => {
+              const sessionStartTime = new Date(
+                compressionData.activeSegments[0].compressedStartTime
+              );
+              const segmentBefore = compressionData.activeSegments.find(
+                (s) => s.endKeystrokeIndex === gap.startKeystrokeIndex
+              );
+              const segmentAfter = compressionData.activeSegments.find(
+                (s) => s.startKeystrokeIndex === gap.endKeystrokeIndex
+              );
 
-        // Find the file this typing activity belongs to
-        let baseFileColor = "#E5E5E5"; // Default fallback color
-        if (
-          keystrokeLogs.length > 0 &&
-          segment.startIndex < keystrokeLogs.length
-        ) {
-          const keystrokeAtStart = keystrokeLogs[segment.startIndex];
-          const filename = keystrokeAtStart?.filename || "untitled_document";
-          baseFileColor = fileColorMap[filename] || "#E5E5E5";
-        }
+              if (segmentBefore && segmentAfter) {
+                const gapStartMs =
+                  new Date(segmentBefore.compressedEndTime) - sessionStartTime;
+                const gapEndMs =
+                  new Date(segmentAfter.compressedStartTime) - sessionStartTime;
+                const gapStartPercentage =
+                  (gapStartMs / compressionData.totalCompressedDuration) * 100;
+                const gapEndPercentage =
+                  (gapEndMs / compressionData.totalCompressedDuration) * 100;
 
-        // Use a darker version of the file color for better visibility
-        const segmentFileColor = darkenColor(baseFileColor, 0.2); // 20% darker
+                // Check if this gap overlaps with the current typing activity segment
+                return (
+                  (gapStartPercentage >= leftPercentage &&
+                    gapStartPercentage <= rightPercentage) ||
+                  (gapEndPercentage >= leftPercentage &&
+                    gapEndPercentage <= rightPercentage)
+                );
+              }
+              return false;
+            });
 
-        // Calculate progressive opacity based on cursor position (similar to filename text)
-        const currentTimePercentage =
-          ((currentTime - sessionStart) / sessionDuration) * 100;
+            if (gapsInSegment.length > 0) {
+              // Split this typing activity around the gaps
+              activityParts = [];
+              let currentLeft = leftPercentage;
 
-        // Check if cursor is over this segment
-        const isCursorOver =
-          currentTimePercentage >= constrainedLeftPercentage &&
-          currentTimePercentage <=
-            constrainedLeftPercentage + constrainedWidthPercentage;
+              gapsInSegment.forEach((gap) => {
+                const sessionStartTime = new Date(
+                  compressionData.activeSegments[0].compressedStartTime
+                );
+                const segmentBefore = compressionData.activeSegments.find(
+                  (s) => s.endKeystrokeIndex === gap.startKeystrokeIndex
+                );
+                const segmentAfter = compressionData.activeSegments.find(
+                  (s) => s.startKeystrokeIndex === gap.endKeystrokeIndex
+                );
 
-        // Calculate how much of this segment the cursor has passed through
-        let segmentProgress = 0;
-        if (
-          currentTimePercentage >=
-          constrainedLeftPercentage + constrainedWidthPercentage
-        ) {
-          // Cursor has completely passed this segment
-          segmentProgress = 1;
-        } else if (currentTimePercentage >= constrainedLeftPercentage) {
-          // Cursor is currently passing through this segment
-          segmentProgress =
-            (currentTimePercentage - constrainedLeftPercentage) /
-            constrainedWidthPercentage;
-        }
-        // If currentTimePercentage < constrainedLeftPercentage, segmentProgress stays 0
+                if (segmentBefore && segmentAfter) {
+                  const gapStartMs =
+                    new Date(segmentBefore.compressedEndTime) -
+                    sessionStartTime;
+                  const gapEndMs =
+                    new Date(segmentAfter.compressedStartTime) -
+                    sessionStartTime;
+                  const gapStartPercentage =
+                    (gapStartMs / compressionData.totalCompressedDuration) *
+                    100;
+                  const gapEndPercentage =
+                    (gapEndMs / compressionData.totalCompressedDuration) * 100;
 
-        // Create opacity based on progress (similar to filename text)
-        const baseOpacity = isCurrentSegment ? 0.4 : 0.2; // Base opacity when not revealed
-        const revealedOpacity = isCurrentSegment ? 0.7 : 0.5; // Higher opacity when revealed by cursor
+                  // Add activity part before the gap, leaving space for visual gap
+                  if (gapStartPercentage > currentLeft) {
+                    const activityWidth = gapStartPercentage - currentLeft;
+                    const visualGapPercentage = (3 / timelineWidth) * 100;
 
-        // Calculate final opacity
-        const finalOpacity =
-          baseOpacity + (revealedOpacity - baseOpacity) * segmentProgress;
+                    activityParts.push({
+                      left: currentLeft,
+                      width: Math.max(
+                        0,
+                        activityWidth - visualGapPercentage / 2
+                      ), // Reserve half gap before
+                    });
+                  }
 
-        // Convert to hex opacity
-        const opacityHex = Math.round(finalOpacity * 255)
-          .toString(16)
-          .padStart(2, "0");
+                  // Update current position to after the gap, accounting for visual spacing
+                  const visualGapPercentage = (3 / timelineWidth) * 100;
+                  currentLeft = gapEndPercentage + visualGapPercentage / 2; // Reserve half gap after
+                }
+              });
 
-        // Border opacity (slightly higher than background)
-        const borderOpacity = Math.min(1, finalOpacity + 0.2);
-        const borderOpacityHex = Math.round(borderOpacity * 255)
-          .toString(16)
-          .padStart(2, "0");
+              // Add remaining part after all gaps
+              if (currentLeft < rightPercentage) {
+                activityParts.push({
+                  left: currentLeft,
+                  width: rightPercentage - currentLeft,
+                });
+              }
+            }
+          }
 
-        return (
-          <div
-            key={`typing-activity-${index}`}
-            className={`typing-activity-overlay ${
-              isCurrentSegment ? "current" : ""
-            } ${isCursorOver ? "cursor-over" : ""}`}
-            style={{
-              position: "absolute",
-              left: `${constrainedLeftPercentage}%`,
-              top: "0px",
-              width: `${constrainedWidthPercentage}%`,
-              height: "100%",
-              backgroundColor: `${segmentFileColor}${opacityHex}`,
-              borderRadius: "0px", // Square corners
-              zIndex: 12, // Above progress bars (10) but below cursor (20)
-              pointerEvents: "none", // Don't interfere with timeline interactions
-              border: `1px solid ${segmentFileColor}${borderOpacityHex}`,
-              transition: "all 0.1s ease-out", // Smooth transition as cursor moves
-            }}
-            title={`Active typing: ${segment.startIndex} - ${segment.endIndex} keystrokes`}
-          />
-        );
-      })}
+          return activityParts
+            .map((part, partIndex) => {
+              // Constrain to timeline boundaries
+              const constrainedLeftPercentage = Math.max(
+                0,
+                Math.min(part.left, 100)
+              );
+              const constrainedWidthPercentage = Math.max(
+                0,
+                Math.min(part.width, 100 - constrainedLeftPercentage)
+              );
+
+              // Skip rendering if width is too small
+              if (constrainedWidthPercentage < 0.1) {
+                return null;
+              }
+
+              // Determine if this segment is currently active
+              const isCurrentSegment =
+                currentKeystrokeIndex >= segment.startIndex &&
+                currentKeystrokeIndex <= segment.endIndex;
+
+              // Find the file this typing activity belongs to
+              let baseFileColor = "#E5E5E5"; // Default fallback color
+              if (
+                keystrokeLogs.length > 0 &&
+                segment.startIndex < keystrokeLogs.length
+              ) {
+                const keystrokeAtStart = keystrokeLogs[segment.startIndex];
+                const filename =
+                  keystrokeAtStart?.filename || "untitled_document";
+                baseFileColor = fileColorMap[filename] || "#E5E5E5";
+              }
+
+              // Use a darker version of the file color for better visibility
+              const segmentFileColor = darkenColor(baseFileColor, 0.2); // 20% darker
+
+              // Calculate progressive opacity based on cursor position (similar to filename text)
+              const currentTimePercentage =
+                ((currentTime - sessionStart) / sessionDuration) * 100;
+
+              // Check if cursor is over this segment
+              const isCursorOver =
+                currentTimePercentage >= constrainedLeftPercentage &&
+                currentTimePercentage <=
+                  constrainedLeftPercentage + constrainedWidthPercentage;
+
+              // Calculate how much of this segment the cursor has passed through
+              let segmentProgress = 0;
+              if (
+                currentTimePercentage >=
+                constrainedLeftPercentage + constrainedWidthPercentage
+              ) {
+                // Cursor has completely passed this segment
+                segmentProgress = 1;
+              } else if (currentTimePercentage >= constrainedLeftPercentage) {
+                // Cursor is currently passing through this segment
+                segmentProgress =
+                  (currentTimePercentage - constrainedLeftPercentage) /
+                  constrainedWidthPercentage;
+              }
+              // If currentTimePercentage < constrainedLeftPercentage, segmentProgress stays 0
+
+              // Create opacity based on progress (similar to filename text)
+              const baseOpacity = isCurrentSegment ? 0.4 : 0.2; // Base opacity when not revealed
+              const revealedOpacity = isCurrentSegment ? 0.7 : 0.5; // Higher opacity when revealed by cursor
+
+              // Calculate final opacity
+              const finalOpacity =
+                baseOpacity + (revealedOpacity - baseOpacity) * segmentProgress;
+
+              // Convert to hex opacity
+              const opacityHex = Math.round(finalOpacity * 255)
+                .toString(16)
+                .padStart(2, "0");
+
+              // Border opacity (slightly higher than background)
+              const borderOpacity = Math.min(1, finalOpacity + 0.2);
+              const borderOpacityHex = Math.round(borderOpacity * 255)
+                .toString(16)
+                .padStart(2, "0");
+
+              return (
+                <div
+                  key={`typing-activity-${index}-${partIndex}`}
+                  className={`typing-activity-overlay ${
+                    isCurrentSegment ? "current" : ""
+                  } ${isCursorOver ? "cursor-over" : ""}`}
+                  style={{
+                    position: "absolute",
+                    left: `${constrainedLeftPercentage}%`,
+                    top: "0px",
+                    width: `${constrainedWidthPercentage}%`,
+                    height: "100%",
+                    backgroundColor: `${segmentFileColor}${opacityHex}`,
+                    borderRadius: "0px", // Square corners
+                    zIndex: 12, // Above progress bars (10) but below cursor (20)
+                    pointerEvents: "none", // Don't interfere with timeline interactions
+                    border: `1px solid ${segmentFileColor}${borderOpacityHex}`,
+                    transition: "all 0.1s ease-out", // Smooth transition as cursor moves
+                  }}
+                  title={`Active typing: ${segment.startIndex} - ${segment.endIndex} keystrokes`}
+                />
+              );
+            })
+            .filter(Boolean);
+        })
+        .flat()}
     </>
   );
 });
 
 const TimelineTicks = memo(function TimelineTicks({
   sessionStart,
-  sessionDuration,
+  sessionDuration, // This should be compressed duration when compression is enabled
   formatTime,
   zoomLevel,
   timelineWidth,
   compileEvents = [],
   runEvents = [],
+  compressionEnabled = false, // Add compression awareness
+  compressionData = null, // Add compression data for proper time mapping
 }) {
   const spacedLines = useMemo(() => {
     const lines = [];
@@ -213,8 +331,30 @@ const TimelineTicks = memo(function TimelineTicks({
 
       let label = null;
       if (isMainLine) {
+        // Calculate the time at this position in the compressed timeline
         const timeAtLine = sessionStart + (i / totalLines) * sessionDuration;
-        label = <div className="hour-label">{formatTime(timeAtLine)}</div>;
+
+        // When compression is enabled, we need to show meaningful time labels
+        // For compressed timeline, show the relative time within the compressed session
+        let displayTime;
+        if (compressionEnabled && compressionData) {
+          // For compressed timeline, show elapsed time from start
+          const elapsedHours = (i / totalLines) * sessionDuration;
+          const totalMinutes = Math.round(elapsedHours * 60);
+          const hours = Math.floor(totalMinutes / 60);
+          const minutes = totalMinutes % 60;
+
+          if (hours > 0) {
+            displayTime = `${hours}:${minutes.toString().padStart(2, "0")}`;
+          } else {
+            displayTime = `${minutes}m`;
+          }
+        } else {
+          // For normal timeline, show actual clock time
+          displayTime = formatTime(timeAtLine);
+        }
+
+        label = <div className="hour-label">{displayTime}</div>;
       }
 
       lines.push(
@@ -224,7 +364,14 @@ const TimelineTicks = memo(function TimelineTicks({
       );
     }
     return lines;
-  }, [sessionStart, sessionDuration, formatTime, zoomLevel]);
+  }, [
+    sessionStart,
+    sessionDuration,
+    formatTime,
+    zoomLevel,
+    compressionEnabled,
+    compressionData,
+  ]);
 
   return (
     <div className="time-ticks-container">
@@ -235,6 +382,8 @@ const TimelineTicks = memo(function TimelineTicks({
         runEvents={runEvents}
         sessionStart={sessionStart}
         sessionDuration={sessionDuration}
+        compressionEnabled={compressionEnabled}
+        compressionData={compressionData}
       />
     </div>
   );
@@ -247,23 +396,62 @@ const TimelineEvents = memo(function TimelineEvents({
   runEvents = [],
   sessionStart,
   sessionDuration,
+  compressionEnabled = false,
+  compressionData = null,
 }) {
   const events = useMemo(() => {
     const allEvents = [];
 
+    // Helper function to convert original time to compressed timeline position
+    const getCompressedPosition = (originalEventTime) => {
+      if (!compressionEnabled || !compressionData) {
+        // For normal timeline, use the original calculation
+        const eventHours =
+          originalEventTime.getHours() +
+          originalEventTime.getMinutes() / 60 +
+          originalEventTime.getSeconds() / 3600;
+        return ((eventHours - sessionStart) / sessionDuration) * 100;
+      }
+
+      // For compressed timeline, find which active segment contains this event
+      for (const segment of compressionData.activeSegments) {
+        if (
+          originalEventTime >= segment.originalStartTime &&
+          originalEventTime <= segment.originalEndTime
+        ) {
+          // Calculate position within this segment
+          const segmentProgress =
+            (originalEventTime - segment.originalStartTime) /
+            (segment.originalEndTime - segment.originalStartTime);
+
+          // Map to compressed timeline
+          const compressedEventTime = new Date(
+            segment.compressedStartTime.getTime() +
+              segmentProgress *
+                (segment.compressedEndTime - segment.compressedStartTime)
+          );
+
+          // Convert to timeline position
+          const compressedFirstTime = new Date(
+            compressionData.activeSegments[0].compressedStartTime
+          );
+          const timeIntoCompressedSession =
+            (compressedEventTime - compressedFirstTime) / 1000; // seconds
+          const sessionDurationSeconds = sessionDuration * 3600; // convert hours to seconds
+          return (timeIntoCompressedSession / sessionDurationSeconds) * 100;
+        }
+      }
+
+      // Event is in a gap that was removed, don't show it
+      return -1;
+    };
+
     // Process compile events
     compileEvents.forEach((event, index) => {
-      // Convert timestamp to session time
       const eventTime = new Date(event.timestamp);
-      const eventHours =
-        eventTime.getHours() +
-        eventTime.getMinutes() / 60 +
-        eventTime.getSeconds() / 3600;
+      const position = getCompressedPosition(eventTime);
 
-      // Calculate position as percentage across timeline
-      const position = ((eventHours - sessionStart) / sessionDuration) * 100;
-
-      // Only add events that fall within the session timeline
+      // Only add events that fall within the visible timeline
       if (position >= 0 && position <= 100) {
         allEvents.push({
           id: `compile-${index}`,
@@ -279,17 +467,10 @@ const TimelineEvents = memo(function TimelineEvents({
 
     // Process run events
     runEvents.forEach((event, index) => {
-      // Convert timestamp to session time
       const eventTime = new Date(event.timestamp);
-      const eventHours =
-        eventTime.getHours() +
-        eventTime.getMinutes() / 60 +
-        eventTime.getSeconds() / 3600;
+      const position = getCompressedPosition(eventTime);
 
-      // Calculate position as percentage across timeline
-      const position = ((eventHours - sessionStart) / sessionDuration) * 100;
-
-      // Only add events that fall within the session timeline
+      // Only add events that fall within the visible timeline
       if (position >= 0 && position <= 100) {
         allEvents.push({
           id: `run-${index}`,
@@ -304,7 +485,14 @@ const TimelineEvents = memo(function TimelineEvents({
     });
 
     return allEvents.sort((a, b) => a.position - b.position);
-  }, [compileEvents, runEvents, sessionStart, sessionDuration]);
+  }, [
+    compileEvents,
+    runEvents,
+    sessionStart,
+    sessionDuration,
+    compressionEnabled,
+    compressionData,
+  ]);
 
   return (
     <div className="timeline-events">
@@ -374,6 +562,14 @@ function PlaybarComponent({
   // Activity props (only keeping what's needed for overlays)
   typingActivitySegments = [],
   keystrokeLogs = [], // New prop for keystroke logs
+  // Compression props
+  compressionEnabled = false,
+  onToggleCompression,
+  compressionData = null,
+  gapThreshold = 180000, // 3 minutes in milliseconds
+  onSetGapThreshold,
+  bufferMs = 3000, // 3 seconds in milliseconds
+  onSetBufferMs,
 }) {
   const [isDragging, setIsDragging] = useState(false);
   // Remove playbarWidth state since we now use file segments
@@ -894,6 +1090,54 @@ function PlaybarComponent({
               Auto-switch files
             </label>
           </div>
+
+          {/* Timeline Compression Control */}
+          <div className="compression-control">
+            <input
+              type="checkbox"
+              id="timeline-compression"
+              checked={compressionEnabled}
+              onChange={(e) => {
+                if (onToggleCompression) {
+                  onToggleCompression(e.target.checked);
+                }
+              }}
+              className="compression-checkbox"
+            />
+            <label htmlFor="timeline-compression" className="compression-label">
+              Compress timeline
+            </label>
+            {compressionEnabled && compressionData && (
+              <span className="compression-info">
+                ({Math.round((1 - compressionData.compressionRatio) * 100)}%
+                shorter)
+              </span>
+            )}
+          </div>
+
+          {/* Gap Threshold Control (shown when compression enabled) */}
+          {compressionEnabled && (
+            <div className="gap-threshold-control">
+              <label htmlFor="gap-threshold-slider">Gap threshold:</label>
+              <input
+                id="gap-threshold-slider"
+                type="range"
+                min="60000" // 1 minute
+                max="1800000" // 30 minutes
+                step="60000" // 1 minute steps
+                value={gapThreshold}
+                onChange={(e) => {
+                  if (onSetGapThreshold) {
+                    onSetGapThreshold(parseInt(e.target.value));
+                  }
+                }}
+                className="gap-threshold-slider"
+              />
+              <span className="gap-threshold-display">
+                {formatGapDuration(gapThreshold)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Activity Indicator */}
@@ -949,6 +1193,8 @@ function PlaybarComponent({
               timelineWidth={timelineWidth}
               compileEvents={compileEvents}
               runEvents={runEvents}
+              compressionEnabled={compressionEnabled}
+              compressionData={compressionData}
             />
             <div className="timeline-divider" />
             <div
@@ -957,143 +1203,397 @@ function PlaybarComponent({
               onMouseDown={handleMouseDown}
             >
               {/* File-based Background Segments - divide the timeline background by files */}
-              {effectiveFileSegments.map((segment, index) => {
-                const leftPercentage =
-                  ((segment.start - sessionStart) / sessionDuration) * 100;
-                const rightPercentage =
-                  ((segment.end - sessionStart) / sessionDuration) * 100;
-                const widthPercentage = rightPercentage - leftPercentage;
+              {effectiveFileSegments
+                .map((segment, index) => {
+                  const leftPercentage =
+                    ((segment.start - sessionStart) / sessionDuration) * 100;
+                  const rightPercentage =
+                    ((segment.end - sessionStart) / sessionDuration) * 100;
+                  const widthPercentage = rightPercentage - leftPercentage;
 
-                // Add a fixed 3-pixel gap between segments (except the last one)
-                let adjustedWidthPercentage = widthPercentage;
-                if (index < effectiveFileSegments.length - 1) {
-                  // Convert 3 pixels to percentage based on current timeline width
-                  const gapPercentage = (3 / timelineWidth) * 100;
-                  adjustedWidthPercentage = Math.max(
-                    0,
-                    widthPercentage - gapPercentage
+                  // When compression is enabled, we need to account for gaps that might be within this segment
+                  let segmentParts = [
+                    { left: leftPercentage, width: widthPercentage },
+                  ];
+
+                  if (
+                    compressionEnabled &&
+                    compressionData &&
+                    compressionData.gaps
+                  ) {
+                    // Check if any gaps fall within this segment's time range
+                    const gapsInSegment = compressionData.gaps.filter((gap) => {
+                      // Find the compressed timeline positions for this gap
+                      const sessionStartTime = new Date(
+                        compressionData.activeSegments[0].compressedStartTime
+                      );
+
+                      // Find segments before and after this gap
+                      const segmentBefore = compressionData.activeSegments.find(
+                        (s) => s.endKeystrokeIndex === gap.startKeystrokeIndex
+                      );
+                      const segmentAfter = compressionData.activeSegments.find(
+                        (s) => s.startKeystrokeIndex === gap.endKeystrokeIndex
+                      );
+
+                      if (segmentBefore && segmentAfter) {
+                        const gapStartTime = new Date(
+                          segmentBefore.compressedEndTime
+                        );
+                        const gapEndTime = new Date(
+                          segmentAfter.compressedStartTime
+                        );
+
+                        const gapStartMs = gapStartTime - sessionStartTime;
+                        const gapEndMs = gapEndTime - sessionStartTime;
+
+                        const gapStartPercentage =
+                          (gapStartMs /
+                            compressionData.totalCompressedDuration) *
+                          100;
+                        const gapEndPercentage =
+                          (gapEndMs / compressionData.totalCompressedDuration) *
+                          100;
+
+                        // Check if this gap overlaps with the current segment
+                        return (
+                          (gapStartPercentage >= leftPercentage &&
+                            gapStartPercentage <= rightPercentage) ||
+                          (gapEndPercentage >= leftPercentage &&
+                            gapEndPercentage <= rightPercentage)
+                        );
+                      }
+                      return false;
+                    });
+
+                    if (gapsInSegment.length > 0) {
+                      // Split this segment around the gaps
+                      segmentParts = [];
+                      let currentLeft = leftPercentage;
+
+                      gapsInSegment.forEach((gap) => {
+                        const sessionStartTime = new Date(
+                          compressionData.activeSegments[0].compressedStartTime
+                        );
+                        const segmentBefore =
+                          compressionData.activeSegments.find(
+                            (s) =>
+                              s.endKeystrokeIndex === gap.startKeystrokeIndex
+                          );
+                        const segmentAfter =
+                          compressionData.activeSegments.find(
+                            (s) =>
+                              s.startKeystrokeIndex === gap.endKeystrokeIndex
+                          );
+
+                        if (segmentBefore && segmentAfter) {
+                          const gapStartTime = new Date(
+                            segmentBefore.compressedEndTime
+                          );
+                          const gapEndTime = new Date(
+                            segmentAfter.compressedStartTime
+                          );
+
+                          const gapStartMs = gapStartTime - sessionStartTime;
+                          const gapEndMs = gapEndTime - sessionStartTime;
+
+                          const gapStartPercentage =
+                            (gapStartMs /
+                              compressionData.totalCompressedDuration) *
+                            100;
+                          const gapEndPercentage =
+                            (gapEndMs /
+                              compressionData.totalCompressedDuration) *
+                            100;
+
+                          // Add segment part before the gap, leaving space for visual gap
+                          if (gapStartPercentage > currentLeft) {
+                            const segmentWidth =
+                              gapStartPercentage - currentLeft;
+                            const visualGapPercentage =
+                              (3 / timelineWidth) * 100;
+
+                            segmentParts.push({
+                              left: currentLeft,
+                              width: Math.max(
+                                0,
+                                segmentWidth - visualGapPercentage / 2
+                              ), // Reserve half gap before
+                            });
+                          }
+
+                          // Update current position to after the gap, accounting for visual spacing
+                          const visualGapPercentage = (3 / timelineWidth) * 100;
+                          currentLeft =
+                            gapEndPercentage + visualGapPercentage / 2; // Reserve half gap after
+                        }
+                      });
+
+                      // Add remaining part after all gaps
+                      if (currentLeft < rightPercentage) {
+                        segmentParts.push({
+                          left: currentLeft,
+                          width: rightPercentage - currentLeft,
+                        });
+                      }
+                    }
+                  }
+
+                  // Add a fixed 3-pixel gap between segments (except the last one)
+                  const adjustedSegmentParts = segmentParts.map(
+                    (part, partIndex) => {
+                      let adjustedWidth = part.width;
+                      if (
+                        index < effectiveFileSegments.length - 1 &&
+                        partIndex === segmentParts.length - 1
+                      ) {
+                        // Convert 3 pixels to percentage based on current timeline width
+                        const gapPercentage = (3 / timelineWidth) * 100;
+                        adjustedWidth = Math.max(0, part.width - gapPercentage);
+                      }
+                      return { ...part, width: adjustedWidth };
+                    }
                   );
-                }
 
-                // Constrain to timeline boundaries (respecting CSS padding)
-                const constrainedLeftPercentage = Math.max(
-                  0,
-                  Math.min(leftPercentage, 100)
-                );
-                const constrainedWidthPercentage = Math.max(
-                  0,
-                  Math.min(
-                    adjustedWidthPercentage,
-                    100 - constrainedLeftPercentage
-                  )
-                );
+                  return adjustedSegmentParts.map((part, partIndex) => {
+                    // Constrain to timeline boundaries (respecting CSS padding)
+                    const constrainedLeftPercentage = Math.max(
+                      0,
+                      Math.min(part.left, 100)
+                    );
+                    const constrainedWidthPercentage = Math.max(
+                      0,
+                      Math.min(part.width, 100 - constrainedLeftPercentage)
+                    );
 
-                // Get the file color and lighter version for background
-                const fileColor = fileColorMap[segment.filename] || "#E5E5E5";
-                const lightFileColor = getLighterColor(fileColor);
+                    // Skip rendering if width is too small
+                    if (constrainedWidthPercentage < 0.1) {
+                      return null;
+                    }
 
-                return (
-                  <div
-                    key={`file-bg-segment-${index}`}
-                    className="file-background-segment"
-                    style={{
-                      position: "absolute",
-                      left: `${constrainedLeftPercentage}%`,
-                      top: "0px",
-                      width: `${constrainedWidthPercentage}%`,
-                      height: "100%",
-                      backgroundColor: lightFileColor, // Use lighter version of file color
-                      border: `1px solid ${fileColor}`, // Use main file color for border
-                      borderRadius: "2px",
-                      zIndex: 1, // Below progress bars but above default background
-                    }}
-                    title={`File: ${segment.filename}`}
-                  />
-                );
-              })}
+                    // Get the file color and lighter version for background
+                    const fileColor =
+                      fileColorMap[segment.filename] || "#E5E5E5";
+                    const lightFileColor = getLighterColor(fileColor);
+
+                    return (
+                      <div
+                        key={`file-bg-segment-${index}-${partIndex}`}
+                        className="file-background-segment"
+                        style={{
+                          position: "absolute",
+                          left: `${constrainedLeftPercentage}%`,
+                          top: "0px",
+                          width: `${constrainedWidthPercentage}%`,
+                          height: "100%",
+                          backgroundColor: lightFileColor, // Use lighter version of file color
+                          border: `1px solid ${fileColor}`, // Use main file color for border
+                          borderRadius: "2px",
+                          zIndex: 1, // Below progress bars but above default background
+                        }}
+                        title={`File: ${segment.filename}`}
+                      />
+                    );
+                  });
+                })
+                .flat()
+                .filter(Boolean)}
 
               {/* File-based Playbar Segments (colored progress) */}
-              {effectiveFileSegments.map((segment, index) => {
-                const leftPercentage =
-                  ((segment.start - sessionStart) / sessionDuration) * 100;
-                const rightPercentage =
-                  ((segment.end - sessionStart) / sessionDuration) * 100;
-                const fullSegmentWidthPercentage =
-                  rightPercentage - leftPercentage;
+              {effectiveFileSegments
+                .map((segment, index) => {
+                  const leftPercentage =
+                    ((segment.start - sessionStart) / sessionDuration) * 100;
+                  const rightPercentage =
+                    ((segment.end - sessionStart) / sessionDuration) * 100;
+                  const fullSegmentWidthPercentage =
+                    rightPercentage - leftPercentage;
 
-                // Calculate how much of this segment should be filled
-                let segmentProgress = 0;
-                if (
-                  currentTime >= segment.start &&
-                  currentTime <= segment.end
-                ) {
-                  // Currently in this segment
-                  segmentProgress =
-                    (currentTime - segment.start) /
-                    (segment.end - segment.start);
-                } else if (currentTime > segment.end) {
-                  // Past this segment
-                  segmentProgress = 1;
-                }
+                  // Calculate how much of this segment should be filled
+                  let segmentProgress = 0;
+                  if (
+                    currentTime >= segment.start &&
+                    currentTime <= segment.end
+                  ) {
+                    // Currently in this segment
+                    segmentProgress =
+                      (currentTime - segment.start) /
+                      (segment.end - segment.start);
+                  } else if (currentTime > segment.end) {
+                    // Past this segment
+                    segmentProgress = 1;
+                  }
 
-                const fullFilledWidthPercentage =
-                  fullSegmentWidthPercentage * segmentProgress;
+                  const fullFilledWidthPercentage =
+                    fullSegmentWidthPercentage * segmentProgress;
 
-                // Apply the gap to the display width (for visual separation)
-                let displaySegmentWidthPercentage = fullSegmentWidthPercentage;
-                if (index < effectiveFileSegments.length - 1) {
-                  // Convert 3 pixels to percentage based on current timeline width
-                  const gapPercentage = (3 / timelineWidth) * 100;
-                  displaySegmentWidthPercentage = Math.max(
-                    0,
-                    fullSegmentWidthPercentage - gapPercentage
+                  // When compression is enabled, split progress around gaps
+                  let progressParts = [
+                    { left: leftPercentage, width: fullFilledWidthPercentage },
+                  ];
+
+                  if (
+                    compressionEnabled &&
+                    compressionData &&
+                    compressionData.gaps &&
+                    segmentProgress > 0
+                  ) {
+                    const gapsInSegment = compressionData.gaps.filter((gap) => {
+                      const sessionStartTime = new Date(
+                        compressionData.activeSegments[0].compressedStartTime
+                      );
+                      const segmentBefore = compressionData.activeSegments.find(
+                        (s) => s.endKeystrokeIndex === gap.startKeystrokeIndex
+                      );
+                      const segmentAfter = compressionData.activeSegments.find(
+                        (s) => s.startKeystrokeIndex === gap.endKeystrokeIndex
+                      );
+
+                      if (segmentBefore && segmentAfter) {
+                        const gapStartMs =
+                          new Date(segmentBefore.compressedEndTime) -
+                          sessionStartTime;
+                        const gapStartPercentage =
+                          (gapStartMs /
+                            compressionData.totalCompressedDuration) *
+                          100;
+
+                        return (
+                          gapStartPercentage >= leftPercentage &&
+                          gapStartPercentage <=
+                            leftPercentage + fullFilledWidthPercentage
+                        );
+                      }
+                      return false;
+                    });
+
+                    if (gapsInSegment.length > 0) {
+                      progressParts = [];
+                      let currentLeft = leftPercentage;
+                      let remainingProgress = fullFilledWidthPercentage;
+
+                      gapsInSegment.forEach((gap) => {
+                        const sessionStartTime = new Date(
+                          compressionData.activeSegments[0].compressedStartTime
+                        );
+                        const segmentBefore =
+                          compressionData.activeSegments.find(
+                            (s) =>
+                              s.endKeystrokeIndex === gap.startKeystrokeIndex
+                          );
+                        const segmentAfter =
+                          compressionData.activeSegments.find(
+                            (s) =>
+                              s.startKeystrokeIndex === gap.endKeystrokeIndex
+                          );
+
+                        if (segmentBefore && segmentAfter) {
+                          const gapStartMs =
+                            new Date(segmentBefore.compressedEndTime) -
+                            sessionStartTime;
+                          const gapEndMs =
+                            new Date(segmentAfter.compressedStartTime) -
+                            sessionStartTime;
+                          const gapStartPercentage =
+                            (gapStartMs /
+                              compressionData.totalCompressedDuration) *
+                            100;
+                          const gapEndPercentage =
+                            (gapEndMs /
+                              compressionData.totalCompressedDuration) *
+                            100;
+
+                          // Add progress part before the gap, leaving space for visual gap
+                          const visualGapPercentage = (3 / timelineWidth) * 100;
+                          const progressBeforeGap = Math.min(
+                            remainingProgress,
+                            Math.max(
+                              0,
+                              gapStartPercentage -
+                                currentLeft -
+                                visualGapPercentage / 2
+                            )
+                          );
+                          if (progressBeforeGap > 0) {
+                            progressParts.push({
+                              left: currentLeft,
+                              width: progressBeforeGap,
+                            });
+                            remainingProgress -= progressBeforeGap;
+                          }
+
+                          // Update current position to after the gap, accounting for visual spacing
+                          currentLeft =
+                            gapEndPercentage + visualGapPercentage / 2; // Reserve half gap after
+                        }
+                      });
+
+                      // Add remaining progress after all gaps
+                      if (remainingProgress > 0) {
+                        progressParts.push({
+                          left: currentLeft,
+                          width: remainingProgress,
+                        });
+                      }
+                    }
+                  }
+
+                  // Apply the gap to the display width (for visual separation)
+                  const adjustedProgressParts = progressParts.map(
+                    (part, partIndex) => {
+                      let displayWidth = part.width;
+                      if (
+                        index < effectiveFileSegments.length - 1 &&
+                        partIndex === progressParts.length - 1
+                      ) {
+                        // Convert 3 pixels to percentage based on current timeline width
+                        const gapPercentage = (3 / timelineWidth) * 100;
+                        displayWidth = Math.max(0, part.width - gapPercentage);
+                      }
+                      return { ...part, width: displayWidth };
+                    }
                   );
-                }
 
-                // The progress width should be proportional to the display width
-                const filledWidthPercentage = Math.min(
-                  fullFilledWidthPercentage,
-                  displaySegmentWidthPercentage
-                );
+                  return adjustedProgressParts.map((part, partIndex) => {
+                    // Constrain to timeline boundaries (respecting CSS padding)
+                    const constrainedLeftPercentage = Math.max(
+                      0,
+                      Math.min(part.left, 100)
+                    );
+                    const constrainedFilledWidthPercentage = Math.max(
+                      0,
+                      Math.min(part.width, 100 - constrainedLeftPercentage)
+                    );
 
-                // Constrain to timeline boundaries (respecting CSS padding)
-                const constrainedLeftPercentage = Math.max(
-                  0,
-                  Math.min(leftPercentage, 100)
-                );
-                const constrainedFilledWidthPercentage = Math.max(
-                  0,
-                  Math.min(
-                    filledWidthPercentage,
-                    100 - constrainedLeftPercentage
-                  )
-                );
+                    // Only render if there's progress to show
+                    if (constrainedFilledWidthPercentage > 0) {
+                      // Get the file color
+                      const fileColor =
+                        fileColorMap[segment.filename] || "#2196F3";
 
-                // Get the file color
-                const fileColor = fileColorMap[segment.filename] || "#2196F3";
-
-                // Only render if there's progress to show
-                if (constrainedFilledWidthPercentage > 0) {
-                  return (
-                    <div
-                      key={`file-segment-${index}`}
-                      className="file-playbar-segment"
-                      style={{
-                        position: "absolute",
-                        left: `${constrainedLeftPercentage}%`,
-                        top: "0px", // Align with the top of the playbar container
-                        width: `${constrainedFilledWidthPercentage}%`,
-                        height: "100%", // Match the height of the main timeline bar
-                        backgroundColor: fileColor, // Use file-specific color
-                        borderRadius: "2px",
-                        zIndex: 10, // Higher z-index to appear above timeline background
-                      }}
-                      title={`File: ${segment.filename} (Progress)`}
-                    />
-                  );
-                }
-                return null;
-              })}
+                      return (
+                        <div
+                          key={`file-segment-${index}-${partIndex}`}
+                          className="file-playbar-segment"
+                          style={{
+                            position: "absolute",
+                            left: `${constrainedLeftPercentage}%`,
+                            top: "0px", // Align with the top of the playbar container
+                            width: `${constrainedFilledWidthPercentage}%`,
+                            height: "100%", // Match the height of the main timeline bar
+                            backgroundColor: fileColor, // Use file-specific color
+                            borderRadius: "2px",
+                            zIndex: 10, // Higher z-index to appear above timeline background
+                          }}
+                          title={`File: ${segment.filename} (Progress)`}
+                        />
+                      );
+                    }
+                    return null;
+                  });
+                })
+                .flat()
+                .filter(Boolean)}
 
               {/* Typing Activity Overlays - positioned above progress bars */}
               <TypingActivityOverlays
@@ -1108,6 +1608,8 @@ function PlaybarComponent({
                 timelineWidth={timelineWidth}
                 activeFile={activeFile}
                 autoSwitchFiles={autoSwitchFiles}
+                compressionEnabled={compressionEnabled}
+                compressionData={compressionData}
               />
 
               {/* Filename Labels - separate layer with highest z-index */}
@@ -1314,6 +1816,15 @@ function PlaybarComponent({
                 }
                 return null;
               })}
+
+              {/* Timeline Gaps - positioned above all other elements */}
+              <TimelineGaps
+                compressionData={compressionData}
+                sessionStart={sessionStart}
+                sessionDuration={sessionDuration}
+                timelineWidth={timelineWidth}
+                isEnabled={compressionEnabled}
+              />
 
               {/* Cursor - positioned based on current time */}
               <div
