@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 import { formatGapDuration } from "../utils/timelineCompression";
-import { MdAccessTime } from "react-icons/md";
+import { MdOutlineHourglassBottom } from "react-icons/md";
 
 /**
  * Component that renders gap indicators in the timeline to show inactive periods
@@ -74,14 +74,14 @@ const TimelineGaps = memo(function TimelineGaps({
             }}
             title={`Away for ${formatGapDuration(gap.duration)}`}
           >
-            <MdAccessTime
+            <MdOutlineHourglassBottom
               size={18}
-              color="#666"
+              color="#ff8c00"
               style={{
                 backgroundColor: "white",
-                borderRadius: "50%",
+                borderRadius: "4px",
                 padding: "2px",
-                border: "1px solid #ccc",
+                border: "1px solid #ffb347",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
               }}
             />
