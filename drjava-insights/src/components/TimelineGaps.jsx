@@ -50,6 +50,10 @@ const TimelineGaps = memo(function TimelineGaps({
 
   // Function to handle gap click
   const handleGapClick = (gap, gapIndex, positionPercentage, event) => {
+    // Prevent default behavior and stop propagation to avoid cursor jumping
+    event.preventDefault();
+    event.stopPropagation();
+
     // Count compile and run events during this gap
     const gapStart = new Date(gap.originalStartTime);
     const gapEnd = new Date(gap.originalEndTime);
@@ -164,6 +168,11 @@ const TimelineGaps = memo(function TimelineGaps({
                 onClick={(event) =>
                   handleGapClick(gap, gapIndex, positionPercentage, event)
                 }
+                onMouseDown={(event) => {
+                  // Prevent mouse down from causing cursor movement
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
               >
                 <MdOutlineHourglassBottom
                   size={18}
