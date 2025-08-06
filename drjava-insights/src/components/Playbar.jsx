@@ -1092,7 +1092,7 @@ function PlaybarComponent({
           </div>
 
           {/* Timeline Compression Control */}
-          <div className="compression-control">
+          {/* <div className="compression-control">
             <input
               type="checkbox"
               id="timeline-compression"
@@ -1113,10 +1113,10 @@ function PlaybarComponent({
                 shorter)
               </span>
             )}
-          </div>
+          </div> */}
 
           {/* Gap Threshold Control (shown when compression enabled) */}
-          {compressionEnabled && (
+          {/* {compressionEnabled && (
             <div className="gap-threshold-control">
               <label htmlFor="gap-threshold-slider">Gap threshold:</label>
               <input
@@ -1137,7 +1137,7 @@ function PlaybarComponent({
                 {formatGapDuration(gapThreshold)}
               </span>
             </div>
-          )}
+          )} */}
         </div>
 
         {/* Activity Indicator */}
@@ -1536,10 +1536,13 @@ function PlaybarComponent({
                             100;
 
                           // Add progress before the gap (if current time reached it)
-                          if (currentTimePercentage > currentPos) {
+                          if (
+                            currentTimePercentage > currentPos &&
+                            currentPos < gapStartPercentage
+                          ) {
                             const progressWidth = Math.min(
                               currentTimePercentage - currentPos,
-                              Math.max(0, gapStartPercentage - currentPos)
+                              gapStartPercentage - currentPos
                             );
 
                             if (progressWidth > 0) {
@@ -1550,8 +1553,11 @@ function PlaybarComponent({
                             }
                           }
 
-                          // Move position to after the gap
-                          currentPos = gapEndPercentage + visualGapWidth;
+                          // Move position to after the gap (with visual gap spacing)
+                          currentPos = Math.max(
+                            leftPercentage,
+                            gapEndPercentage + visualGapWidth
+                          );
                         }
                       }
 
@@ -1560,14 +1566,20 @@ function PlaybarComponent({
                         currentTimePercentage > currentPos &&
                         currentPos < rightPercentage
                       ) {
+                        // Ensure we don't start before the segment's actual start
+                        const effectiveStartPos = Math.max(
+                          currentPos,
+                          leftPercentage
+                        );
+
                         const remainingWidth = Math.min(
-                          currentTimePercentage - currentPos,
-                          rightPercentage - currentPos
+                          currentTimePercentage - effectiveStartPos,
+                          rightPercentage - effectiveStartPos
                         );
 
                         if (remainingWidth > 0) {
                           progressParts.push({
-                            left: currentPos,
+                            left: effectiveStartPos,
                             width: remainingWidth,
                           });
                         }
