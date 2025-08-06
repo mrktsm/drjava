@@ -314,7 +314,6 @@ const TimelineGaps = memo(function TimelineGaps({
 
       <style jsx>{`
         .gap-icon-hover:hover {
-          transform: scale(1.1);
           box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3) !important;
         }
       `}</style>
