@@ -1,0 +1,95 @@
+import React, { memo } from "react";
+import { formatGapDuration } from "../utils/timelineCompression";
+import { MdAccessTime } from "react-icons/md";
+
+/**
+ * Component that renders gap indicators in the timeline to show inactive periods
+ * that have been compressed out of the timeline.
+ */
+const TimelineGaps = memo(function TimelineGaps({
+  compressionData,
+  sessionStart,
+  sessionDuration, // This is the compressed duration when compression is enabled
+  timelineWidth,
+  isEnabled = false, // Whether compression is enabled
+}) {
+  if (
+    !isEnabled ||
+    !compressionData ||
+    !compressionData.gaps ||
+    compressionData.gaps.length === 0 ||
+    !compressionData.activeSegments ||
+    compressionData.activeSegments.length < 2
+  ) {
+    return null;
+  }
+
+  return (
+    <div className="timeline-gaps">
+      {/* Place gap indicators between active segments */}
+      {compressionData.gaps.map((gap, gapIndex) => {
+        // Find which two active segments this gap is between
+        let segmentBefore = null;
+        let segmentAfter = null;
+
+        for (let i = 0; i < compressionData.activeSegments.length; i++) {
+          const segment = compressionData.activeSegments[i];
+
+          if (segment.endKeystrokeIndex === gap.startKeystrokeIndex) {
+            segmentBefore = segment;
+          }
+          if (segment.startKeystrokeIndex === gap.endKeystrokeIndex) {
+            segmentAfter = segment;
+          }
+        }
+
+        if (!segmentBefore || !segmentAfter) {
+          return null;
+        }
+
+        // Position the gap indicator at the end of the "before" segment
+        const sessionStartTime = new Date(
+          compressionData.activeSegments[0].compressedStartTime
+        );
+        const segmentEndTime = new Date(segmentBefore.compressedEndTime);
+
+        const elapsedMs = segmentEndTime - sessionStartTime;
+        const totalCompressedMs = compressionData.totalCompressedDuration;
+        const positionPercentage = (elapsedMs / totalCompressedMs) * 100;
+
+        return (
+          <div
+            key={`gap-${gapIndex}`}
+            className="timeline-gap-indicator"
+            style={{
+              position: "absolute",
+              left: `${Math.max(0, Math.min(100, positionPercentage))}%`,
+              top: "50%",
+              transform: "translate(-50%, -50%)", // Center both horizontally and vertically
+              zIndex: 25, // Above all other timeline elements
+              pointerEvents: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            title={`Away for ${formatGapDuration(gap.duration)}`}
+          >
+            <MdAccessTime
+              size={18}
+              color="#666"
+              style={{
+                backgroundColor: "white",
+                borderRadius: "50%",
+                padding: "2px",
+                border: "1px solid #ccc",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              }}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+});
+
+export default TimelineGaps;
