@@ -200,7 +200,7 @@ input:active,
   height: auto; /* Changed from fixed 180px to auto */
   min-height: 0; /* Allow it to shrink if needed */
   flex-shrink: 0; /* Don't let it shrink smaller than its content */
-  background-color: #e9ecef;
+  background-color: transparent;
   border-top: 1px solid #ced4da;
   margin-bottom: 0; /* Removed margin below the playbar */
 }
@@ -554,7 +554,7 @@ input:active,
 .typing-activity-overlay.cursor-over {
   /* Additional styling when cursor is over the segment - makes it slightly taller */
   transform: scaleY(1.02); /* 2% vertical scale increase */
-  transform-origin: center; /* Scale from the center so it grows in both directions */
+  transform-origin: bottom; /* Scale from the bottom so it grows upward only */
 }
 
 .playbar {
@@ -808,7 +808,7 @@ input:active,
 
 /* Media Controls Bar - Now integrated in playbar */
 .playbar-wrapper .media-controls-container {
-  background-color: #e9ecef; /* Changed to match playbar wrapper */
+  background-color: transparent;
   padding: 6px 15px;
   display: flex;
   align-items: center;

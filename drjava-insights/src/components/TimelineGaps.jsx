@@ -207,29 +207,30 @@ const TimelineGaps = memo(function TimelineGaps({
             left: `${selectedGap.absoluteLeft}px`,
             top: `${selectedGap.absoluteTop}px`,
             transform: "translate(-50%, -100%)",
-            backgroundColor: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(8px)",
-            borderRadius: "12px",
-            padding: "12px",
-            minWidth: "180px",
-            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.15)",
+            backgroundColor: "#f8f9fa",
+            border: "1px solid #ced4da",
+            borderRadius: "4px",
+            padding: "8px 12px",
+            minWidth: "140px",
+            boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
             zIndex: 9999,
-            border: "1px solid rgba(255, 255, 255, 0.2)",
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
               marginBottom: "8px",
+              paddingRight: "24px", // Space for the absolutely positioned close button
             }}
           >
             <div
               style={{
-                fontSize: "14px",
-                fontWeight: "500",
-                color: "#374151",
+                fontSize: "12px",
+                fontWeight: "600",
+                color: "#495057",
               }}
             >
               Away for {selectedGap.formattedDuration}
@@ -241,18 +242,20 @@ const TimelineGaps = memo(function TimelineGaps({
                 event.stopPropagation();
               }}
               style={{
+                position: "absolute",
+                top: "4px",
+                right: "4px",
                 background: "none",
                 border: "none",
                 cursor: "pointer",
                 padding: "2px",
-                borderRadius: "4px",
-                color: "#9CA3AF",
+                borderRadius: "2px",
+                color: "#6c757d",
                 transition: "color 0.2s ease",
-                marginLeft: "12px",
                 flexShrink: 0,
               }}
             >
-              <MdClose size={16} />
+              <MdClose size={14} />
             </button>
           </div>
 
@@ -260,19 +263,20 @@ const TimelineGaps = memo(function TimelineGaps({
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "6px",
-              fontSize: "13px",
+              gap: "4px",
+              fontSize: "11px",
             }}
           >
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "6px",
+                color: "#495057",
               }}
             >
-              <BsTools size={16} color="#D97706" />
-              <span style={{ fontWeight: "500", color: "#374151" }}>
+              <BsTools size={12} color="#ffc107" />
+              <span style={{ fontWeight: "500" }}>
                 {selectedGap.compileCount} compile
                 {selectedGap.compileCount !== 1 ? "s" : ""}
               </span>
@@ -282,11 +286,12 @@ const TimelineGaps = memo(function TimelineGaps({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: "6px",
+                color: "#495057",
               }}
             >
-              <BsPlayCircleFill size={16} color="#059669" />
-              <span style={{ fontWeight: "500", color: "#374151" }}>
+              <BsPlayCircleFill size={12} color="#28a745" />
+              <span style={{ fontWeight: "500" }}>
                 {selectedGap.runCount} run
                 {selectedGap.runCount !== 1 ? "s" : ""}
               </span>
@@ -297,14 +302,14 @@ const TimelineGaps = memo(function TimelineGaps({
           <div
             style={{
               position: "absolute",
-              bottom: "-8px",
+              bottom: "-6px",
               left: "50%",
               transform: "translateX(-50%)",
               width: 0,
               height: 0,
-              borderLeft: "8px solid transparent",
-              borderRight: "8px solid transparent",
-              borderTop: "8px solid rgba(255, 255, 255, 0.95)",
+              borderLeft: "6px solid transparent",
+              borderRight: "6px solid transparent",
+              borderTop: "6px solid #f8f9fa",
             }}
           />
         </div>
