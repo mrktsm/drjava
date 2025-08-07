@@ -234,13 +234,34 @@ function App() {
     originalKeystrokeLogs: keystrokeLogs, // Pass original logs for mapping
   });
 
+  // Calculate session start for typing activity based on compression mode
+  const typingActivitySessionStart = useMemo(() => {
+    if (
+      !autoSwitchFiles &&
+      compressionEnabled &&
+      compressionData &&
+      compressionData.compressedKeystrokeLogs.length > 0
+    ) {
+      // For per-file compression, use the start time of the first compressed keystroke
+      const firstCompressedKeystroke =
+        compressionData.compressedKeystrokeLogs[0];
+      const firstTime = new Date(firstCompressedKeystroke.timestamp);
+      return (
+        firstTime.getHours() +
+        firstTime.getMinutes() / 60 +
+        firstTime.getSeconds() / 3600
+      );
+    }
+    return sessionStart;
+  }, [autoSwitchFiles, compressionEnabled, compressionData, sessionStart]);
+
   // Add typing activity detection
   const { typingActivitySegments } = useTypingActivity({
     keystrokeLogs: effectiveKeystrokeLogs,
     currentKeystrokeIndex,
     isPlaying,
-    sessionStart,
-    sessionDuration,
+    sessionStart: typingActivitySessionStart,
+    sessionDuration: sessionDuration,
   });
 
   // Update active file when files are loaded

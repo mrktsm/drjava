@@ -282,9 +282,17 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
               const baseOpacity = isCurrentSegment ? 0.4 : 0.2; // Base opacity when not revealed
               const revealedOpacity = isCurrentSegment ? 0.7 : 0.5; // Higher opacity when revealed by cursor
 
-              // Calculate final opacity
-              const finalOpacity =
-                baseOpacity + (revealedOpacity - baseOpacity) * segmentProgress;
+              // Calculate final opacity - show base opacity for upcoming segments, increase after cursor passes
+              let finalOpacity;
+              if (segmentProgress === 0) {
+                // Cursor hasn't reached this segment yet - show base opacity
+                finalOpacity = 0.15; // Low but visible opacity for upcoming segments
+              } else {
+                // Cursor has started or completed this segment - show progressive highlighting
+                finalOpacity =
+                  baseOpacity +
+                  (revealedOpacity - baseOpacity) * segmentProgress;
+              }
 
               // Convert to hex opacity
               const opacityHex = Math.round(finalOpacity * 255)
