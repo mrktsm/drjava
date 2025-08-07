@@ -58,19 +58,32 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
 
   // Filter typing activity segments based on autoswitch mode
   const filteredSegments = useMemo(() => {
+    // When autoswitch is off and we're using per-file compression,
+    // the typing activity segments are already calculated from the filtered/compressed logs
+    // so we don't need to filter them again - they should all belong to the active file
     if (!autoSwitchFiles && activeFile) {
-      // When autoswitch is off, only show typing activity for the current active file
-      return typingActivitySegments.filter((segment) => {
-        if (
-          keystrokeLogs.length > 0 &&
-          segment.startIndex < keystrokeLogs.length
-        ) {
-          const keystrokeAtStart = keystrokeLogs[segment.startIndex];
-          const filename = keystrokeAtStart?.filename || "untitled_document";
-          return filename === activeFile;
-        }
-        return false;
-      });
+      // Check if we're dealing with compressed keystroke logs
+      const isCompressed =
+        keystrokeLogs.length > 0 &&
+        keystrokeLogs[0].originalIndex !== undefined;
+
+      if (isCompressed) {
+        // For compressed logs, all segments should already be for the active file
+        return typingActivitySegments;
+      } else {
+        // For non-compressed per-file logs, filter segments by filename
+        return typingActivitySegments.filter((segment) => {
+          if (
+            keystrokeLogs.length > 0 &&
+            segment.startIndex < keystrokeLogs.length
+          ) {
+            const keystrokeAtStart = keystrokeLogs[segment.startIndex];
+            const filename = keystrokeAtStart?.filename || "untitled_document";
+            return filename === activeFile;
+          }
+          return false;
+        });
+      }
     } else {
       // When autoswitch is on, show all typing activity
       return typingActivitySegments;
@@ -204,19 +217,19 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
               // Determine if this segment is currently active
               // For compressed logs, we need to use the indices that match the effective keystroke logs
               const isCurrentSegment = (() => {
-                // If we have compressed logs (keystrokeLogs has originalIndex),
-                // we need to check against the compressed indices
-                if (
+                const isCompressed =
                   keystrokeLogs.length > 0 &&
-                  keystrokeLogs[0].originalIndex !== undefined
-                ) {
-                  // This is a compressed log, use the segment's regular indices
+                  keystrokeLogs[0].originalIndex !== undefined;
+
+                if (isCompressed) {
+                  // For compressed logs, the currentKeystrokeIndex is already in terms of compressed logs
+                  // and the segment indices are also in terms of compressed logs, so direct comparison should work
                   return (
                     currentKeystrokeIndex >= segment.startIndex &&
                     currentKeystrokeIndex <= segment.endIndex
                   );
                 } else {
-                  // This is a regular log, use the segment's indices
+                  // For regular logs, use direct comparison
                   return (
                     currentKeystrokeIndex >= segment.startIndex &&
                     currentKeystrokeIndex <= segment.endIndex
