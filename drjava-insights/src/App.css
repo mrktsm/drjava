@@ -494,7 +494,7 @@ input:active,
 
 .playbar-container {
   position: relative;
-  height: 100px; /* Increased from 80px */
+  height: 125px; /* Increased from 100px to fill space previously used by activity bar */
   background-color: transparent; /* Changed from #cce7ff to transparent */
   border: none; /* Removed blue outline */
   padding: 8px 0; /* Add vertical padding */

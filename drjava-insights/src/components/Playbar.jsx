@@ -1944,8 +1944,8 @@ function PlaybarComponent({
               />
             </div>
 
-            {/* Activity Bar (Orange) */}
-            <div className="activity-bar-container">
+            {/* Activity Bar (Orange) - Disabled per user request */}
+            {/* <div className="activity-bar-container">
               {activitySegments.map((seg, index) => {
                 const leftPercentage =
                   ((seg.start - sessionStart) / sessionDuration) * 100;
@@ -1975,7 +1975,7 @@ function PlaybarComponent({
                   />
                 );
               })}
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
