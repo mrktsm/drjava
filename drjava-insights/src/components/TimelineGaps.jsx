@@ -204,17 +204,17 @@ const TimelineGaps = memo(function TimelineGaps({
           className="gap-tooltip"
           style={{
             position: "fixed",
-            left: `${selectedGap.absoluteLeft}px`, // Use actual screen position
-            top: `${selectedGap.absoluteTop}px`, // Use actual screen position
-            transform: "translate(-50%, -100%)", // Center horizontally, position above
-            backgroundColor: "white",
-            borderRadius: "8px",
+            left: `${selectedGap.absoluteLeft}px`,
+            top: `${selectedGap.absoluteTop}px`,
+            transform: "translate(-50%, -100%)",
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(8px)",
+            borderRadius: "12px",
             padding: "12px",
-            minWidth: "200px",
-            maxWidth: "300px",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-            zIndex: 9999, // Much higher z-index
-            border: "1px solid #ddd",
+            minWidth: "180px",
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.15)",
+            zIndex: 9999,
+            border: "1px solid rgba(255, 255, 255, 0.2)",
           }}
         >
           <div
@@ -227,12 +227,9 @@ const TimelineGaps = memo(function TimelineGaps({
           >
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
                 fontSize: "14px",
-                fontWeight: "600",
-                color: "#333",
+                fontWeight: "500",
+                color: "#374151",
               }}
             >
               Away for {selectedGap.formattedDuration}
@@ -240,7 +237,6 @@ const TimelineGaps = memo(function TimelineGaps({
             <button
               onClick={closeModal}
               onMouseDown={(event) => {
-                // Prevent mouse down from causing cursor movement
                 event.preventDefault();
                 event.stopPropagation();
               }}
@@ -249,89 +245,66 @@ const TimelineGaps = memo(function TimelineGaps({
                 border: "none",
                 cursor: "pointer",
                 padding: "2px",
-                borderRadius: "2px",
-                color: "#666",
-                fontSize: "12px",
+                borderRadius: "4px",
+                color: "#9CA3AF",
+                transition: "color 0.2s ease",
+                marginLeft: "12px",
+                flexShrink: 0,
               }}
             >
-              <MdClose size={14} />
+              <MdClose size={16} />
             </button>
           </div>
 
           <div
-            style={{ display: "flex", gap: "12px", justifyContent: "center" }}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              fontSize: "13px",
+            }}
           >
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "4px",
-                padding: "6px 8px",
-                backgroundColor: "#fff3cd",
-                borderRadius: "4px",
-                border: "1px solid #ffeaa7",
-                fontSize: "12px",
-                height: "40px", // Fixed height
-                width: "80px", // Fixed width instead of minWidth
-                justifyContent: "flex-start", // Align items to start
-                paddingLeft: "10px", // Consistent left padding
+                gap: "8px",
               }}
             >
-              <BsTools size={14} color="#ffc107" style={{ flexShrink: 0 }} />
-              <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ fontWeight: "600", color: "#333" }}>
-                  {selectedGap.compileCount}
-                </div>
-                <div style={{ fontSize: "10px", color: "#666" }}>
-                  Compile{selectedGap.compileCount !== 1 ? "s" : ""}
-                </div>
-              </div>
+              <BsTools size={16} color="#D97706" />
+              <span style={{ fontWeight: "500", color: "#374151" }}>
+                {selectedGap.compileCount} compile
+                {selectedGap.compileCount !== 1 ? "s" : ""}
+              </span>
             </div>
 
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "4px",
-                padding: "6px 8px",
-                backgroundColor: "#d4edda",
-                borderRadius: "4px",
-                border: "1px solid #c3e6cb",
-                fontSize: "12px",
-                height: "40px", // Fixed height
-                width: "80px", // Fixed width instead of minWidth
-                justifyContent: "flex-start", // Align items to start
-                paddingLeft: "10px", // Consistent left padding
+                gap: "8px",
               }}
             >
-              <BsPlayCircleFill
-                size={14}
-                color="#28a745"
-                style={{ flexShrink: 0 }}
-              />
-              <div style={{ textAlign: "center", flex: 1 }}>
-                <div style={{ fontWeight: "600", color: "#333" }}>
-                  {selectedGap.runCount}
-                </div>
-                <div style={{ fontSize: "10px", color: "#666" }}>
-                  Run{selectedGap.runCount !== 1 ? "s" : ""}
-                </div>
-              </div>
+              <BsPlayCircleFill size={16} color="#059669" />
+              <span style={{ fontWeight: "500", color: "#374151" }}>
+                {selectedGap.runCount} run
+                {selectedGap.runCount !== 1 ? "s" : ""}
+              </span>
             </div>
           </div>
 
-          {/* Small arrow pointing down to the gap indicator */}
+          {/* Arrow pointing down */}
           <div
             style={{
               position: "absolute",
-              bottom: "-6px",
+              bottom: "-8px",
               left: "50%",
               transform: "translateX(-50%)",
               width: 0,
               height: 0,
-              borderLeft: "6px solid transparent",
-              borderRight: "6px solid transparent",
-              borderTop: "6px solid white",
+              borderLeft: "8px solid transparent",
+              borderRight: "8px solid transparent",
+              borderTop: "8px solid rgba(255, 255, 255, 0.95)",
             }}
           />
         </div>
