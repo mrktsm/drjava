@@ -14,6 +14,7 @@ import {
 } from "./utils/fileSegmentUtils";
 import {
   createCompressedTimeline,
+  createPerFileCompressedTimeline,
   DEFAULT_GAP_THRESHOLD_MS,
   DEFAULT_BUFFER_MS,
 } from "./utils/timelineCompression";
@@ -55,17 +56,51 @@ function App() {
   const [compressionEnabled, setCompressionEnabled] = useState(true); // Enable by default
   const [gapThreshold, setGapThreshold] = useState(DEFAULT_GAP_THRESHOLD_MS);
 
+  // File dropdown state
+  const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
+
+  // Use the first file from logs as default, or fallback
+  const [activeFile, setActiveFile] = useState("");
+
+  // Font size state
+  const [fontSize, setFontSize] = useState(18); // Default font size
+
+  // Auto-switch files state
+  const [autoSwitchFiles, setAutoSwitchFiles] = useState(true);
+
   // Create compressed timeline data
   const compressionData = useMemo(() => {
     if (!compressionEnabled || !keystrokeLogs || keystrokeLogs.length === 0) {
       return null;
     }
+
+    // When auto-switch is OFF, use per-file compression for the active file
+    if (!autoSwitchFiles && activeFile) {
+      return createPerFileCompressedTimeline(
+        keystrokeLogs,
+        activeFile,
+        gapThreshold,
+        DEFAULT_BUFFER_MS,
+        compileEvents,
+        runEvents
+      );
+    }
+
+    // When auto-switch is ON, use global compression
     return createCompressedTimeline(
       keystrokeLogs,
       gapThreshold,
       DEFAULT_BUFFER_MS
     );
-  }, [keystrokeLogs, compressionEnabled, gapThreshold]);
+  }, [
+    keystrokeLogs,
+    compressionEnabled,
+    gapThreshold,
+    autoSwitchFiles,
+    activeFile,
+    compileEvents,
+    runEvents,
+  ]);
 
   // Calculate session start/end/duration for timeline
   const sessionStart = sessionStartTime
@@ -91,6 +126,30 @@ function App() {
 
   // Calculate file segments from keystroke logs
   const fileSegments = useMemo(() => {
+    // When auto-switch is OFF, calculate segments for the active file only
+    if (!autoSwitchFiles && activeFile) {
+      if (compressionEnabled && compressionData) {
+        // Use per-file compressed segments
+        return calculateCompressedFileSegments(
+          compressionData,
+          sessionStart,
+          sessionDuration
+        );
+      } else {
+        // Calculate segments from filtered keystrokes (no compression)
+        const filteredKeystrokes = keystrokeLogs.filter(
+          (keystroke) =>
+            (keystroke.filename || "untitled_document") === activeFile
+        );
+        return calculateFileSegments(
+          filteredKeystrokes,
+          sessionStart,
+          originalSessionDuration
+        );
+      }
+    }
+
+    // When auto-switch is ON, use global file segments
     if (compressionEnabled && compressionData) {
       return calculateCompressedFileSegments(
         compressionData,
@@ -110,6 +169,8 @@ function App() {
     compressionEnabled,
     compressionData,
     sessionDuration,
+    autoSwitchFiles,
+    activeFile,
   ]);
 
   // Create color mapping for files
@@ -119,11 +180,32 @@ function App() {
 
   // Use compressed keystroke logs when compression is enabled
   const effectiveKeystrokeLogs = useMemo(() => {
+    // When auto-switch is OFF, filter to only show the active file
+    if (!autoSwitchFiles && activeFile) {
+      if (compressionEnabled && compressionData) {
+        // Use per-file compressed logs
+        return compressionData.compressedKeystrokeLogs;
+      } else {
+        // Filter to only show keystrokes for the active file (no compression)
+        return keystrokeLogs.filter(
+          (keystroke) =>
+            (keystroke.filename || "untitled_document") === activeFile
+        );
+      }
+    }
+
+    // When auto-switch is ON, use global compression or all keystrokes
     if (compressionEnabled && compressionData) {
       return compressionData.compressedKeystrokeLogs;
     }
     return keystrokeLogs;
-  }, [keystrokeLogs, compressionEnabled, compressionData]);
+  }, [
+    keystrokeLogs,
+    compressionEnabled,
+    compressionData,
+    autoSwitchFiles,
+    activeFile,
+  ]);
 
   // Playback logic extracted to hook
   const {
@@ -160,18 +242,6 @@ function App() {
     sessionStart,
     sessionDuration,
   });
-
-  // File dropdown state
-  const [isFileDropdownOpen, setIsFileDropdownOpen] = useState(false);
-
-  // Use the first file from logs as default, or fallback
-  const [activeFile, setActiveFile] = useState("");
-
-  // Font size state
-  const [fontSize, setFontSize] = useState(18); // Default font size
-
-  // Auto-switch files state
-  const [autoSwitchFiles, setAutoSwitchFiles] = useState(true);
 
   // Update active file when files are loaded
   useEffect(() => {
@@ -315,7 +385,7 @@ function App() {
         runEvents={runEvents}
         // Add typing activity props
         typingActivitySegments={typingActivitySegments}
-        keystrokeLogs={keystrokeLogs}
+        keystrokeLogs={effectiveKeystrokeLogs} // Use effective keystroke logs for proper alignment
         // Compression props
         compressionEnabled={compressionEnabled}
         onToggleCompression={setCompressionEnabled}

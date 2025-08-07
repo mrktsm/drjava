@@ -202,9 +202,27 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
               }
 
               // Determine if this segment is currently active
-              const isCurrentSegment =
-                currentKeystrokeIndex >= segment.startIndex &&
-                currentKeystrokeIndex <= segment.endIndex;
+              // For compressed logs, we need to use the indices that match the effective keystroke logs
+              const isCurrentSegment = (() => {
+                // If we have compressed logs (keystrokeLogs has originalIndex),
+                // we need to check against the compressed indices
+                if (
+                  keystrokeLogs.length > 0 &&
+                  keystrokeLogs[0].originalIndex !== undefined
+                ) {
+                  // This is a compressed log, use the segment's regular indices
+                  return (
+                    currentKeystrokeIndex >= segment.startIndex &&
+                    currentKeystrokeIndex <= segment.endIndex
+                  );
+                } else {
+                  // This is a regular log, use the segment's indices
+                  return (
+                    currentKeystrokeIndex >= segment.startIndex &&
+                    currentKeystrokeIndex <= segment.endIndex
+                  );
+                }
+              })();
 
               // Find the file this typing activity belongs to
               let baseFileColor = "#E5E5E5"; // Default fallback color
@@ -716,11 +734,18 @@ function PlaybarComponent({
 
   // Convert decimal hours to time string
   const formatTime = useCallback((decimalHours) => {
-    const hours = Math.floor(decimalHours).toString().padStart(2, "0");
-    const minutes = Math.round((decimalHours % 1) * 60)
+    let hours = Math.floor(decimalHours);
+    let minutes = Math.round((decimalHours % 1) * 60);
+
+    // Handle rollover when minutes equals 60
+    if (minutes === 60) {
+      hours += 1;
+      minutes = 0;
+    }
+
+    return `${hours.toString().padStart(2, "0")}:${minutes
       .toString()
-      .padStart(2, "0");
-    return `${hours}:${minutes}`;
+      .padStart(2, "0")}`;
   }, []);
 
   // Convert time position to pixel position (accounting for zoom)

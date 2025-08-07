@@ -38,6 +38,10 @@ export default function useTypingActivity({
     let currentSegmentStart = null;
     let currentSegmentKeystrokes = [];
 
+    // Check if we're dealing with compressed keystroke logs (they have originalIndex)
+    const isCompressedLogs =
+      keystrokeLogs.length > 0 && keystrokeLogs[0].originalIndex !== undefined;
+
     for (let i = 0; i < keystrokeLogs.length; i++) {
       const currentKeystroke = keystrokeLogs[i];
       const currentTime = new Date(currentKeystroke.timestamp);
@@ -84,6 +88,15 @@ export default function useTypingActivity({
             endIndex: currentSegmentStart + currentSegmentKeystrokes.length - 1,
             type: "active",
             keystrokeCount: currentSegmentKeystrokes.length,
+            // Add original indices for compressed logs
+            originalStartIndex: isCompressedLogs
+              ? keystrokeLogs[currentSegmentStart].originalIndex
+              : currentSegmentStart,
+            originalEndIndex: isCompressedLogs
+              ? keystrokeLogs[
+                  currentSegmentStart + currentSegmentKeystrokes.length - 1
+                ].originalIndex
+              : currentSegmentStart + currentSegmentKeystrokes.length - 1,
           });
         }
 
@@ -115,6 +128,15 @@ export default function useTypingActivity({
         endIndex: currentSegmentStart + currentSegmentKeystrokes.length - 1,
         type: "active",
         keystrokeCount: currentSegmentKeystrokes.length,
+        // Add original indices for compressed logs
+        originalStartIndex: isCompressedLogs
+          ? keystrokeLogs[currentSegmentStart].originalIndex
+          : currentSegmentStart,
+        originalEndIndex: isCompressedLogs
+          ? keystrokeLogs[
+              currentSegmentStart + currentSegmentKeystrokes.length - 1
+            ].originalIndex
+          : currentSegmentStart + currentSegmentKeystrokes.length - 1,
       });
     }
 
