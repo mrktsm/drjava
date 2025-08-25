@@ -44,18 +44,18 @@ import edu.rice.cs.drjava.ui.aichat.ShimmerText;
  */
 public class AIChatPanel extends JPanel {
   
-  // Modern color scheme
-  private static final Color BACKGROUND_COLOR = new Color(248, 249, 250);
-  private static final Color CHAT_BACKGROUND = Color.WHITE;
-  private static final Color INPUT_BACKGROUND = Color.WHITE;
-  private static final Color BORDER_COLOR = new Color(208, 215, 222);
-  private static final Color TEXT_COLOR = new Color(51, 51, 51); // Dark grey for text
-  private static final Color SECONDARY_TEXT_COLOR = new Color(101, 109, 118);
-  private static final Color ACCENT_COLOR = new Color(13, 110, 253);
-  private static final Color USER_BUBBLE_COLOR = new Color(242, 242, 242); // Light gray
-  private static final Color AI_BUBBLE_COLOR = new Color(242, 242, 242);
-  private static final Color USER_TEXT_COLOR = new Color(51, 51, 51); // Dark text for gray background
-  private static final Color AI_TEXT_COLOR = new Color(36, 41, 47);
+  // Modern color scheme - now loaded from ChatTheme
+  private static final Color BACKGROUND_COLOR = ChatTheme.BACKGROUND_COLOR;
+  private static final Color CHAT_BACKGROUND = ChatTheme.CHAT_BACKGROUND;
+  private static final Color INPUT_BACKGROUND = ChatTheme.INPUT_BACKGROUND;
+  private static final Color BORDER_COLOR = ChatTheme.BORDER_COLOR;
+  private static final Color TEXT_COLOR = ChatTheme.TEXT_COLOR;
+  private static final Color SECONDARY_TEXT_COLOR = ChatTheme.SECONDARY_TEXT_COLOR;
+  private static final Color ACCENT_COLOR = ChatTheme.ACCENT_COLOR;
+  private static final Color USER_BUBBLE_COLOR = ChatTheme.USER_BUBBLE_COLOR;
+  private static final Color AI_BUBBLE_COLOR = ChatTheme.AI_BUBBLE_COLOR;
+  private static final Color USER_TEXT_COLOR = ChatTheme.USER_TEXT_COLOR;
+  private static final Color AI_TEXT_COLOR = ChatTheme.AI_TEXT_COLOR;
   
   private JPanel _messagesPanel;
   private JTextField _inputField;
@@ -76,7 +76,7 @@ public class AIChatPanel extends JPanel {
   private int _currentContextEndLine;
   
   // Color for the custom send button
-  private Color _sendButtonColor = new Color(148, 163, 184); // Light blue-grey
+  private Color _sendButtonColor = ChatTheme.SEND_BUTTON_COLOR;
   
   // HTTP client for MCP server communication
   private static final String MCP_SERVER_URL = "http://localhost:8080/chat";
@@ -1134,13 +1134,7 @@ public class AIChatPanel extends JPanel {
   }
   
   private void _addWelcomeMessage() {
-    _addAIMessage("Hello! I'm your AI programming assistant.\n\n" +
-      "I can help you with:\n" +
-      "• Code explanations and debugging\n" +
-      "• Java programming questions\n" +
-      "• Code generation and suggestions\n" +
-      "• Best practices and optimization\n\n" +
-      "Type your question below to get started!");
+    _addAIMessage(ChatTheme.WELCOME_MESSAGE);
     // Don't add welcome message to conversation history
   }
   
@@ -1445,6 +1439,7 @@ public class AIChatPanel extends JPanel {
                     String toolArgs = _extractJsonField(jsonData, "args");
                     
                     String shimmerMessage = getShimmerMessage(toolName, toolArgs);
+                    String iconPath = getIconPathForTool(toolName);
                     String toolId = toolName + "_" + System.currentTimeMillis();
                     
                     SwingUtilities.invokeLater(() -> {
@@ -1464,8 +1459,8 @@ public class AIChatPanel extends JPanel {
                         streamingPanel.add(contentPanel, BorderLayout.CENTER);
                       }
                       
-                      // Create and add ShimmerText
-                      ShimmerText shimmerText = new ShimmerText(shimmerMessage);
+                      // Create and add ShimmerText with appropriate icon
+                      ShimmerText shimmerText = new ShimmerText(shimmerMessage, iconPath);
                       shimmerText.setAlignmentX(Component.LEFT_ALIGNMENT);
                       _activeShimmerComponents.put(toolId, shimmerText);
                       
@@ -1478,14 +1473,16 @@ public class AIChatPanel extends JPanel {
                     });
                     
                   } else if ("tool_result".equals(eventType)) {
-                    // Tool result event - update ShimmerText to static result and add typing indicator
+                    // Tool result event - update ShimmerText to completion message and add typing indicator
+                    String toolName = _extractJsonField(jsonData, "tool");
                     String result = _extractJsonField(jsonData, "result");
                     if (result != null && !result.trim().isEmpty()) {
-                      String resultMessage = formatToolResultMessage(result);
+                      String completionMessage = getCompletionMessage(toolName, result);
+                      String resultMessage = completionMessage != null ? completionMessage : formatToolResultMessage(result);
                       
                       Timer delayTimer = new Timer(1200, e -> {
                         SwingUtilities.invokeLater(() -> {
-                          // Update shimmer components to static text but keep them visible
+                          // Update shimmer components to static completion text but keep them visible
                           for (ShimmerText shimmerText : _activeShimmerComponents.values()) {
                             shimmerText.stopAnimation();
                             shimmerText.setText(resultMessage);
@@ -2918,14 +2915,39 @@ public class AIChatPanel extends JPanel {
           return "Reading file...";
           
         case "list_directory":
-          return "Listing directory...";
+        case "list_dir":
+          return "Listing directories...";
           
+        case "list_files":
+          return "Listing files...";
+          
+        case "file_search":
         case "search_files":
           String pattern = extractArgValue(toolArgs, "pattern");
           if (pattern != null) {
             return "Searching '" + pattern + "'...";
           }
           return "Searching files...";
+          
+        case "grep_search":
+          String query = extractArgValue(toolArgs, "query");
+          if (query != null && query.length() > 20) {
+            query = query.substring(0, 17) + "...";
+          }
+          if (query != null) {
+            return "Searching '" + query + "'...";
+          }
+          return "Searching...";
+          
+        case "codebase_search":
+          String searchQuery = extractArgValue(toolArgs, "query");
+          if (searchQuery != null && searchQuery.length() > 20) {
+            searchQuery = searchQuery.substring(0, 17) + "...";
+          }
+          if (searchQuery != null) {
+            return "Searching '" + searchQuery + "'...";
+          }
+          return "Searching codebase...";
           
         default:
           return "Processing...";
@@ -2935,6 +2957,123 @@ public class AIChatPanel extends JPanel {
     }
   }
   
+  /**
+   * Get the appropriate icon path for a tool
+   */
+  private String getIconPathForTool(String toolName) {
+    if (toolName == null) return "/edu/rice/cs/drjava/ui/icons/LieEye.png";
+    
+    switch (toolName) {
+      case "list_directory":
+      case "list_dir":
+      case "list_files":
+        return "/edu/rice/cs/drjava/ui/icons/LieFolder.png";
+      case "file_search":
+      case "search_files":
+      case "grep_search":
+      case "codebase_search":
+        return "/edu/rice/cs/drjava/ui/icons/LieFolder.png";
+      default:
+        return "/edu/rice/cs/drjava/ui/icons/LieEye.png";
+    }
+  }
+  
+  /**
+   * Create completion message for tool results
+   */
+  private String getCompletionMessage(String toolName, String result) {
+    if (toolName == null || result == null) return null;
+    
+    try {
+      switch (toolName) {
+        case "list_directory":
+        case "list_dir":
+        case "list_files":
+          // Count files and directories in the result
+          int fileCount = countItemsInListing(result);
+          if (fileCount > 0) {
+            return "Listed " + fileCount + " items";
+          }
+          break;
+        case "file_search":
+        case "search_files":
+          // Count found files
+          int foundFiles = countFilesInSearchResult(result);
+          if (foundFiles > 0) {
+            return "Found " + foundFiles + " files";
+          }
+          break;
+        case "grep_search":
+        case "codebase_search":
+          // Count matches
+          int matches = countMatchesInSearchResult(result);
+          if (matches > 0) {
+            return "Found " + matches + " matches";
+          }
+          break;
+      }
+    } catch (Exception e) {
+      // Ignore counting errors
+    }
+    
+    return null; // No completion message for this tool
+  }
+  
+  /**
+   * Count items in a directory listing result
+   */
+  private int countItemsInListing(String result) {
+    if (result == null || result.trim().isEmpty()) return 0;
+    
+    // Count lines that start with [file] or [directory] or similar patterns
+    String[] lines = result.split("\n");
+    int count = 0;
+    for (String line : lines) {
+      line = line.trim();
+      if (line.startsWith("[file]") || line.startsWith("[directory]") || 
+          line.startsWith("[dir]") || line.contains(".")) {
+        count++;
+      }
+    }
+    return count;
+  }
+  
+  /**
+   * Count files in a search result
+   */
+  private int countFilesInSearchResult(String result) {
+    if (result == null || result.trim().isEmpty()) return 0;
+    
+    // Count lines that look like file paths
+    String[] lines = result.split("\n");
+    int count = 0;
+    for (String line : lines) {
+      line = line.trim();
+      if (line.contains("/") && (line.contains(".") || line.startsWith("File:"))) {
+        count++;
+      }
+    }
+    return count;
+  }
+  
+  /**
+   * Count matches in a search result
+   */
+  private int countMatchesInSearchResult(String result) {
+    if (result == null || result.trim().isEmpty()) return 0;
+    
+    // Count lines that start with "Line" or contain "File:"
+    String[] lines = result.split("\n");
+    int count = 0;
+    for (String line : lines) {
+      line = line.trim();
+      if (line.startsWith("Line ") || line.startsWith("File:") || line.contains("Match:")) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   /**
    * Add ShimmerText component to the streaming panel
    */
