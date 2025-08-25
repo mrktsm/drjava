@@ -91,6 +91,10 @@ public class AIChatPanel extends JPanel {
   // Add field to track active shimmer components
   private Map<String, ShimmerText> _activeShimmerComponents = new HashMap<>();
   
+  // Streaming control
+  private boolean _isStreaming = false;
+  private CompletableFuture<Void> _currentStreamingTask = null;
+  
   // Inner class to represent a chat message
   public static class ChatMessage {
     public final String role; // "user" or "assistant"
@@ -830,16 +834,22 @@ public class AIChatPanel extends JPanel {
     // Add hover effect
     button.addMouseListener(new java.awt.event.MouseAdapter() {
       public void mouseEntered(java.awt.event.MouseEvent e) {
-        _sendButtonColor = new Color(131, 146, 164);
+        _sendButtonColor = new Color(131, 146, 164); // Darker blue on hover
         button.repaint();
       }
       public void mouseExited(java.awt.event.MouseEvent e) {
-        _sendButtonColor = new Color(148, 163, 184);
+        _sendButtonColor = ChatTheme.SEND_BUTTON_COLOR; // Default blue color
         button.repaint();
       }
     });
     
-    button.addActionListener(e -> _sendMessage());
+    button.addActionListener(e -> {
+      if (_isStreaming) {
+        _stopStreaming();
+      } else {
+        _sendMessage();
+      }
+    });
     
     return button;
   }
@@ -1119,10 +1129,14 @@ public class AIChatPanel extends JPanel {
   private void _setUpEventListeners() {
     ActionListener sendAction = new ActionListener() {
       public void actionPerformed(ActionEvent e) {
-        _sendMessage();
+        if (_isStreaming) {
+          _stopStreaming();
+        } else {
+          _sendMessage();
+        }
       }
     };
-    _sendButton.addActionListener(sendAction);
+    // Note: _sendButton action listener is already set in _createSendButton()
     _inputField.addActionListener(sendAction);
     
     // Ensure input field gets focus when panel is shown
@@ -1139,6 +1153,11 @@ public class AIChatPanel extends JPanel {
   }
   
   private void _sendMessage() {
+    // Don't send new messages while streaming is in progress
+    if (_isStreaming) {
+      return;
+    }
+    
     String inputText = _inputField.getText().trim();
     
     // Store context information if available
@@ -1231,7 +1250,8 @@ public class AIChatPanel extends JPanel {
     _scrollToBottom();
     
     // Call MCP server with streaming and full conversation history, including context
-    _callMCPServerStreamAsync(_conversationHistory, streamingMessagePanel, workingDirectory, currentFilePath);
+    _startStreaming();
+    _currentStreamingTask = _callMCPServerStreamAsync(_conversationHistory, streamingMessagePanel, workingDirectory, currentFilePath);
   }
   
   private JPanel _createLoadingMessage() {
@@ -1348,8 +1368,8 @@ public class AIChatPanel extends JPanel {
     }
   }
   
-  private void _callMCPServerStreamAsync(List<ChatMessage> conversationHistory, JPanel streamingPanel, String workingDirectory, String currentFilePath) {
-    CompletableFuture.runAsync(() -> {
+  private CompletableFuture<Void> _callMCPServerStreamAsync(List<ChatMessage> conversationHistory, JPanel streamingPanel, String workingDirectory, String currentFilePath) {
+    return CompletableFuture.runAsync(() -> {
       try {
         // Create request JSON with conversation history
         StringBuilder messagesJson = new StringBuilder();
@@ -1412,6 +1432,12 @@ public class AIChatPanel extends JPanel {
             boolean streamCompleted = false;
             
             while ((line = reader.readLine()) != null) {
+              // Check if the task has been cancelled
+              if (Thread.currentThread().isInterrupted()) {
+                System.out.println("Streaming task was cancelled");
+                break;
+              }
+              
               if (line.startsWith("data: ")) {
                 String jsonData = line.substring(6); // Remove "data: " prefix
                 lastDataTime = System.currentTimeMillis(); // Reset timeout
@@ -1598,6 +1624,11 @@ public class AIChatPanel extends JPanel {
           _updateStreamingMessage(streamingPanel, "Sorry, I encountered an error: " + e.getMessage() + 
                                    "\n\nMake sure the MCP server is running on localhost:8080.", true);
         });
+      } finally {
+        // Always stop streaming when task completes (either successfully or with error)
+        SwingUtilities.invokeLater(() -> {
+          _stopStreaming();
+        });
       }
     });
   }
@@ -1666,6 +1697,8 @@ public class AIChatPanel extends JPanel {
       
       streamingPanel.add(contentPanel, BorderLayout.CENTER);
       streamingPanel.putClientProperty("isStreaming", false);
+      // Stop streaming when content is complete
+      _stopStreaming();
     } else {
       // Streaming in progress - check if we have any code blocks (complete or incomplete)
       boolean hasAnyCodeBlocks = content.contains("```");
@@ -1705,6 +1738,47 @@ public class AIChatPanel extends JPanel {
         // For streaming updates, use a gentler approach with less frequent updates
         _scrollToBottomSmooth();
       }
+    }
+  }
+  
+  /**
+   * Start streaming mode - update button appearance and state
+   */
+  private void _startStreaming() {
+    _isStreaming = true;
+    _sendButton.setText("⏹"); // Stop square symbol (U+23F9)
+    _sendButton.repaint();
+  }
+  
+  /**
+   * Stop streaming mode - update button appearance and cancel task if needed
+   */
+  private void _stopStreaming() {
+    _isStreaming = false;
+    _sendButton.setText("→"); // Send arrow symbol
+    _sendButton.repaint();
+    
+    // Cancel the current streaming task if it's still running
+    if (_currentStreamingTask != null && !_currentStreamingTask.isDone()) {
+      _currentStreamingTask.cancel(true);
+      _currentStreamingTask = null;
+      
+      // Add a cancelled message to the chat
+      SwingUtilities.invokeLater(() -> {
+        // Find the last streaming panel and update it with cancelled message
+        Component[] components = _messagesPanel.getComponents();
+        for (int i = components.length - 1; i >= 0; i--) {
+          Component comp = components[i];
+          if (comp instanceof JPanel) {
+            JPanel panel = (JPanel) comp;
+            Boolean isStreaming = (Boolean) panel.getClientProperty("isStreaming");
+            if (isStreaming != null && isStreaming) {
+              _updateStreamingMessage(panel, "\n*Generation stopped by user*", true);
+              break;
+            }
+          }
+        }
+      });
     }
   }
   
