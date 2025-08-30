@@ -67,12 +67,19 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
         keystrokeLogs.length > 0 &&
         keystrokeLogs[0].originalIndex !== undefined;
 
+      console.log("=== TYPING OVERLAY FILTERING ===");
+      console.log("Auto-switch files:", autoSwitchFiles);
+      console.log("Active file:", activeFile);
+      console.log("Is compressed:", isCompressed);
+      console.log("Total typing segments:", typingActivitySegments.length);
+
       if (isCompressed) {
         // For compressed logs, all segments should already be for the active file
+        console.log("Using compressed segments:", typingActivitySegments);
         return typingActivitySegments;
       } else {
         // For non-compressed per-file logs, filter segments by filename
-        return typingActivitySegments.filter((segment) => {
+        const filtered = typingActivitySegments.filter((segment) => {
           if (
             keystrokeLogs.length > 0 &&
             segment.startIndex < keystrokeLogs.length
@@ -83,9 +90,15 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
           }
           return false;
         });
+        console.log("Filtered segments:", filtered);
+        return filtered;
       }
     } else {
       // When autoswitch is on, show all typing activity
+      console.log(
+        "Using all segments (autoswitch on):",
+        typingActivitySegments
+      );
       return typingActivitySegments;
     }
   }, [typingActivitySegments, autoSwitchFiles, activeFile, keystrokeLogs]);
@@ -99,6 +112,14 @@ const TypingActivityOverlays = memo(function TypingActivityOverlays({
           const rightPercentage =
             ((segment.end - sessionStart) / sessionDuration) * 100;
           const widthPercentage = rightPercentage - leftPercentage;
+
+          console.log(`=== RENDERING TYPING SEGMENT ${index} ===`);
+          console.log("Segment:", segment);
+          console.log("Session start:", sessionStart);
+          console.log("Session duration:", sessionDuration);
+          console.log("Left percentage:", leftPercentage);
+          console.log("Right percentage:", rightPercentage);
+          console.log("Width percentage:", widthPercentage);
 
           // When compression is enabled, split typing activity around gaps
           let activityParts = [

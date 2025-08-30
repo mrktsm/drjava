@@ -15,17 +15,21 @@ public class ShimmerText extends JComponent {
   private Timer _animationTimer;
   private float _shimmerPosition = 0.0f;
   private final float _shimmerWidth = 0.8f; // Much wider shimmer effect (was 0.3f)
-  private Icon _eyeIcon;
+  private Icon _icon;
   private final int _iconTextGap = 4; // Gap between icon and text (reduced from 6)
   
   public ShimmerText(String text) {
-    _text = text != null ? text : "Reading..."; // Default to "Reading..." if no text provided
+    this(text, "/edu/rice/cs/drjava/ui/icons/LieEye.png");
+  }
+  
+  public ShimmerText(String text, String iconPath) {
+    _text = text != null ? text : "Processing..."; // Default to "Processing..." if no text provided
     _font = new Font("Segoe UI", Font.PLAIN, 13);
     _baseColor = new Color(101, 109, 118); // Secondary text color
     _shimmerColor = new Color(200, 200, 200); // Much lighter shimmer color
     
-    // Load the LieEye.png icon
-    _eyeIcon = loadEyeIcon();
+    // Load the specified icon
+    _icon = loadIcon(iconPath);
     
     setOpaque(false);
     
@@ -52,11 +56,11 @@ public class ShimmerText extends JComponent {
   }
   
   /**
-   * Loads the LieEye.png icon from the icons directory
+   * Loads an icon from the specified path
    */
-  private Icon loadEyeIcon() {
+  private Icon loadIcon(String iconPath) {
     try {
-      java.net.URL iconURL = getClass().getResource("/edu/rice/cs/drjava/ui/icons/LieEye.png");
+      java.net.URL iconURL = getClass().getResource(iconPath);
       if (iconURL != null) {
         ImageIcon originalIcon = new ImageIcon(iconURL);
         Image originalImage = originalIcon.getImage();
@@ -66,7 +70,7 @@ public class ShimmerText extends JComponent {
         int originalHeight = originalIcon.getIconHeight();
         
         // Calculate scaled dimensions while preserving aspect ratio
-        // Target height of 8 pixels (half the previous size)
+        // Target height of 12 pixels
         int targetHeight = 12;
         int targetWidth = (originalWidth * targetHeight) / originalHeight;
         
@@ -76,11 +80,22 @@ public class ShimmerText extends JComponent {
       }
     } catch (Exception e) {
       // Fall back to programmatic icon if loading fails
-      System.err.println("Could not load LieEye.png, using fallback icon: " + e.getMessage());
+      System.err.println("Could not load icon from " + iconPath + ", using fallback icon: " + e.getMessage());
     }
     
-    // Fallback to programmatic icon
-    return createFallbackEyeIcon();
+    // Fallback to programmatic icon based on icon path
+    if (iconPath.contains("Folder")) {
+      return createFallbackFolderIcon();
+    } else {
+      return createFallbackEyeIcon();
+    }
+  }
+
+  /**
+   * Loads the LieEye.png icon from the icons directory
+   */
+  private Icon loadEyeIcon() {
+    return loadIcon("/edu/rice/cs/drjava/ui/icons/LieEye.png");
   }
   
   /**
@@ -109,6 +124,32 @@ public class ShimmerText extends JComponent {
     };
   }
   
+  /**
+   * Creates a simple folder icon programmatically as fallback
+   */
+  private Icon createFallbackFolderIcon() {
+    return new Icon() {
+      @Override
+      public void paintIcon(Component c, Graphics g, int x, int y) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setColor(_baseColor); // Match the base text color
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Draw simple folder shape
+        g2d.drawRect(x, y + 4, 12, 8); // Folder body
+        g2d.drawRect(x, y + 2, 6, 2); // Folder tab
+        
+        g2d.dispose();
+      }
+      
+      @Override
+      public int getIconWidth() { return 16; }
+      
+      @Override
+      public int getIconHeight() { return 16; }
+    };
+  }
+  
   @Override
   protected void paintComponent(Graphics g) {
     super.paintComponent(g);
@@ -117,12 +158,12 @@ public class ShimmerText extends JComponent {
     g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
     g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
     
-    // Draw the eye icon on the left
-    int iconY = (getHeight() - _eyeIcon.getIconHeight()) / 2 + 1; // Move down by 1 pixel
-    _eyeIcon.paintIcon(this, g2d, 0, iconY);
+    // Draw the icon on the left
+    int iconY = (getHeight() - _icon.getIconHeight()) / 2 + 1; // Move down by 1 pixel
+    _icon.paintIcon(this, g2d, 0, iconY);
     
     // Calculate text position (after icon + gap)
-    int textStartX = _eyeIcon.getIconWidth() + _iconTextGap;
+    int textStartX = _icon.getIconWidth() + _iconTextGap;
     
     g2d.setFont(_font);
     FontMetrics fm = g2d.getFontMetrics();
@@ -182,8 +223,8 @@ public class ShimmerText extends JComponent {
     int textHeight = fm.getHeight();
     
     // Total width = icon width + gap + text width + padding
-    int width = _eyeIcon.getIconWidth() + _iconTextGap + textWidth + 20;
-    int height = Math.max(_eyeIcon.getIconHeight(), textHeight) + 10;
+    int width = _icon.getIconWidth() + _iconTextGap + textWidth + 20;
+    int height = Math.max(_icon.getIconHeight(), textHeight) + 10;
     
     return new Dimension(width, height);
   }
@@ -204,7 +245,7 @@ public class ShimmerText extends JComponent {
    * Updates the text and restarts the animation
    */
   public void setText(String text) {
-    _text = text != null ? text : "Reading...";
+    _text = text != null ? text : "Processing...";
     repaint();
   }
 } 

@@ -30,3 +30,4 @@ public class ChatTheme {
         "• Best practices and optimization\n\n" +
         "Type your question below to get started!";
 }
+

@@ -31,6 +31,13 @@ export default function useTypingActivity({
       return [];
     }
 
+    console.log("=== TYPING ACTIVITY DEBUG ===");
+    console.log("Total keystrokes:", keystrokeLogs.length);
+    console.log("Session start:", sessionStart);
+    console.log("Session duration:", sessionDuration);
+    console.log("First keystroke:", keystrokeLogs[0]);
+    console.log("Last keystroke:", keystrokeLogs[keystrokeLogs.length - 1]);
+
     const segments = [];
     const ACTIVE_TYPING_THRESHOLD_MS = 3000; // If keystrokes are within 3 seconds, consider it active typing
     const MIN_SEGMENT_KEYSTROKES = 3; // Minimum keystrokes to be considered a meaningful segment
@@ -41,6 +48,8 @@ export default function useTypingActivity({
     // Check if we're dealing with compressed keystroke logs (they have originalIndex)
     const isCompressedLogs =
       keystrokeLogs.length > 0 && keystrokeLogs[0].originalIndex !== undefined;
+
+    console.log("Is compressed logs:", isCompressedLogs);
 
     for (let i = 0; i < keystrokeLogs.length; i++) {
       const currentKeystroke = keystrokeLogs[i];
@@ -80,6 +89,17 @@ export default function useTypingActivity({
             sessionStart,
             sessionDuration
           );
+
+          console.log(`Segment ${segments.length}:`, {
+            startIndex: currentSegmentStart,
+            endIndex: currentSegmentStart + currentSegmentKeystrokes.length - 1,
+            startTime: segmentStartTime,
+            endTime: segmentEndTime,
+            keystrokeCount: currentSegmentKeystrokes.length,
+            firstKeystroke: currentSegmentKeystrokes[0],
+            lastKeystroke:
+              currentSegmentKeystrokes[currentSegmentKeystrokes.length - 1],
+          });
 
           segments.push({
             start: segmentStartTime,
@@ -121,6 +141,17 @@ export default function useTypingActivity({
         sessionDuration
       );
 
+      console.log(`Final Segment ${segments.length}:`, {
+        startIndex: currentSegmentStart,
+        endIndex: currentSegmentStart + currentSegmentKeystrokes.length - 1,
+        startTime: segmentStartTime,
+        endTime: segmentEndTime,
+        keystrokeCount: currentSegmentKeystrokes.length,
+        firstKeystroke: currentSegmentKeystrokes[0],
+        lastKeystroke:
+          currentSegmentKeystrokes[currentSegmentKeystrokes.length - 1],
+      });
+
       segments.push({
         start: segmentStartTime,
         end: segmentEndTime,
@@ -139,6 +170,9 @@ export default function useTypingActivity({
           : currentSegmentStart + currentSegmentKeystrokes.length - 1,
       });
     }
+
+    console.log("Final typing activity segments:", segments);
+    console.log("=== END TYPING ACTIVITY DEBUG ===");
 
     return segments;
   }, [keystrokeLogs, sessionStart, sessionDuration]);

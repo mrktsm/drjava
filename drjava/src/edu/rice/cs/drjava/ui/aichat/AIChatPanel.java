@@ -3099,13 +3099,35 @@ public class AIChatPanel extends JPanel {
   private int countItemsInListing(String result) {
     if (result == null || result.trim().isEmpty()) return 0;
     
-    // Count lines that start with [file] or [directory] or similar patterns
+    // First, try to extract count from "Total: X items" line if present
+    if (result.contains("Total:") && result.contains("items")) {
+      String[] lines = result.split("\n");
+      for (String line : lines) {
+        if (line.contains("Total:") && line.contains("items")) {
+          try {
+            // Extract number from "Total: X items (Y directories, Z files)"
+            String[] parts = line.split("\\s+");
+            for (int i = 0; i < parts.length - 1; i++) {
+              if (parts[i].equals("Total:")) {
+                return Integer.parseInt(parts[i + 1]);
+              }
+            }
+          } catch (NumberFormatException e) {
+            // Fall through to manual counting
+          }
+          break;
+        }
+      }
+    }
+    
+    // Fallback: Count lines that start with emoji or [file]/[directory] patterns
     String[] lines = result.split("\n");
     int count = 0;
     for (String line : lines) {
       line = line.trim();
-      if (line.startsWith("[file]") || line.startsWith("[directory]") || 
-          line.startsWith("[dir]") || line.contains(".")) {
+      if (line.startsWith("📄") || line.startsWith("📁") ||
+          line.startsWith("[file]") || line.startsWith("[directory]") || 
+          line.startsWith("[dir]") || (line.contains(".") && line.contains(")"))) {
         count++;
       }
     }

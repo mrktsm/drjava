@@ -1,3 +1,4 @@
 com/drjava/mcp/MCPServer.class
+com/drjava/mcp/MCPServer$1.class
 com/drjava/mcp/MCPServer$StreamChatHandler.class
 com/drjava/mcp/MCPServer$HealthHandler.class

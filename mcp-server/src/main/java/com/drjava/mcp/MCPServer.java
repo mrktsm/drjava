@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpServer;
 import io.github.cdimascio.dotenv.Dotenv;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -20,7 +21,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
 import com.google.gson.GsonBuilder;
-import com.google.gson.stream.JsonReader;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -46,8 +46,17 @@ public class MCPServer {
         }
         
         // Set workspace root to parent directory (drjava project root)
-        workspaceRoot = Paths.get("").toAbsolutePath().getParent().toString();
-        System.out.println("Workspace root: " + workspaceRoot);
+        String detectedRoot = Paths.get("").toAbsolutePath().getParent().toString();
+        
+        // Check if we need to go one more level down to find the actual drjava project
+        Path drjavaProjectPath = Paths.get(detectedRoot, "drjava");
+        if (Files.exists(drjavaProjectPath) && Files.isDirectory(drjavaProjectPath)) {
+            workspaceRoot = drjavaProjectPath.toString();
+            System.out.println("Using drjava subdirectory as workspace root: " + workspaceRoot);
+        } else {
+            workspaceRoot = detectedRoot;
+            System.out.println("Using parent directory as workspace root: " + workspaceRoot);
+        }
     }
 
     public static void main(String[] args) throws IOException {
@@ -212,14 +221,12 @@ public class MCPServer {
             JsonArray parts = content.getAsJsonArray("parts");
             if (parts == null) continue;
             
-            boolean hasToolCalls = false;
             boolean hasTextResponse = false;
             
             for (JsonElement partEl : parts) {
                 JsonObject part = partEl.getAsJsonObject();
                 
                 if (part.has("functionCall")) {
-                    hasToolCalls = true;
                     JsonObject functionCall = part.getAsJsonObject("functionCall");
                     String functionName = functionCall.get("name").getAsString();
                     JsonObject args = functionCall.getAsJsonObject("args");
@@ -231,7 +238,7 @@ public class MCPServer {
                     String toolResult = executeToolCall(functionName, args, contextWorkingDirectory);
                     
                     // Send tool result event  
-                    sendSseToolResult(responseBody, toolResult);
+                    sendSseToolResult(responseBody, functionName, toolResult);
                     
                     // Add tool result to conversation as function response
                     JsonObject functionResponse = new JsonObject();
@@ -293,10 +300,47 @@ public class MCPServer {
         responseBody.flush();
     }
     
-    private void sendSseToolResult(OutputStream responseBody, String result) throws IOException {
+    private void sendSseToolResult(OutputStream responseBody, String toolName, String result) throws IOException {
                     JsonObject sseData = new JsonObject();
         sseData.addProperty("type", "tool_result");
-        sseData.addProperty("result", result.length() > 200 ? result.substring(0, 200) + "..." : result);
+        sseData.addProperty("tool", toolName);
+        
+        // Smart truncation that preserves summary information for directory listings
+        String displayResult = result;
+        if (result.length() > 500) {
+            // For directory listings, try to preserve the summary line
+            if (result.contains("Total:")) {
+                String[] lines = result.split("\n");
+                StringBuilder truncated = new StringBuilder();
+                String summaryLine = "";
+                
+                // Find the summary line
+                for (String line : lines) {
+                    if (line.startsWith("Total:")) {
+                        summaryLine = line;
+                        break;
+                    }
+                }
+                
+                // Add first few lines plus summary
+                int charCount = 0;
+                for (String line : lines) {
+                    if (line.startsWith("Total:")) break;
+                    if (charCount + line.length() > 350) break;
+                    truncated.append(line).append("\n");
+                    charCount += line.length() + 1;
+                }
+                
+                if (!summaryLine.isEmpty()) {
+                    truncated.append("...\n").append(summaryLine);
+                }
+                displayResult = truncated.toString();
+            } else {
+                displayResult = result.substring(0, 500) + "...";
+            }
+        }
+        
+        sseData.addProperty("result", displayResult);
                     sseData.addProperty("done", false);
                     
                     String sseEvent = "data: " + gson.toJson(sseData) + "\n\n";
@@ -478,17 +522,29 @@ public class MCPServer {
         }
         
         if (!Files.exists(filePath)) {
-            // If file doesn't exist with the given path, try to find it relative to the original workspace
+            // If file doesn't exist with the given path, try multiple fallback strategies
             Path alternativePath = workspaceRoot.resolve(relativePath).normalize();
+            Path srcAlternativePath = workspaceRoot.resolve("src").resolve(relativePath).normalize();
+            
             if (Files.exists(alternativePath) && alternativePath.startsWith(workspaceRoot)) {
                 filePath = alternativePath;
+            } else if (Files.exists(srcAlternativePath) && srcAlternativePath.startsWith(workspaceRoot)) {
+                filePath = srcAlternativePath;
             } else {
-                throw new IOException("File not found: " + relativePath + " (tried: " + filePath + ")");
+                // Try finding any file with this path pattern within the workspace
+                Path foundPath = findFileByPattern(workspaceRoot, relativePath);
+                if (foundPath != null) {
+                    filePath = foundPath;
+                } else {
+                    throw new IOException("File not found: " + relativePath + " (tried: " + filePath + ", " + alternativePath + ", and " + srcAlternativePath + ")");
+                }
             }
         }
         
         if (Files.isDirectory(filePath)) {
-            throw new IOException("Path is a directory, not a file: " + relativePath);
+            // If it's a directory, use the list_directory functionality instead
+            String relativeDir = workspaceRoot.relativize(filePath).toString();
+            return listDirectory(relativeDir, this.workspaceRoot);
         }
         
         // Check file size to prevent reading huge files
@@ -504,17 +560,45 @@ public class MCPServer {
     }
     
     private String listDirectory(String relativePath, String contextWorkingDirectory) throws IOException {
-        Path dirPath = relativePath.isEmpty() ? Paths.get(contextWorkingDirectory) : 
-                       Paths.get(contextWorkingDirectory, relativePath).normalize();
+        Path dirPath;
+        Path workspaceRoot = Paths.get(this.workspaceRoot);
+        
+        // Handle both absolute and relative paths with robust resolution like read_file
+        if (relativePath.isEmpty()) {
+            dirPath = Paths.get(contextWorkingDirectory);
+        } else if (Paths.get(relativePath).isAbsolute()) {
+            dirPath = Paths.get(relativePath).normalize();
+        } else {
+            dirPath = Paths.get(contextWorkingDirectory, relativePath).normalize();
+        }
         
         // Security check - ensure path is within workspace
-        Path workspaceRoot = Paths.get(this.workspaceRoot);
         if (!dirPath.startsWith(workspaceRoot)) {
             throw new SecurityException("Access denied: path outside workspace");
         }
         
         if (!Files.exists(dirPath)) {
-            throw new IOException("Directory not found: " + relativePath);
+            // If directory doesn't exist with the given path, try multiple fallback strategies
+            if (!relativePath.isEmpty()) {
+                Path alternativePath = workspaceRoot.resolve(relativePath).normalize();
+                Path srcAlternativePath = workspaceRoot.resolve("src").resolve(relativePath).normalize();
+                
+                if (Files.exists(alternativePath) && alternativePath.startsWith(workspaceRoot) && Files.isDirectory(alternativePath)) {
+                    dirPath = alternativePath;
+                } else if (Files.exists(srcAlternativePath) && srcAlternativePath.startsWith(workspaceRoot) && Files.isDirectory(srcAlternativePath)) {
+                    dirPath = srcAlternativePath;
+                } else {
+                    // Try finding any directory with this path pattern within the workspace
+                    Path foundPath = findDirectoryByPattern(workspaceRoot, relativePath);
+                    if (foundPath != null) {
+                        dirPath = foundPath;
+                    } else {
+                        throw new IOException("Directory not found: " + relativePath + " (tried: " + dirPath + ", " + alternativePath + ", and " + srcAlternativePath + ")");
+                    }
+                }
+            } else {
+                throw new IOException("Directory not found: " + relativePath + " (tried: " + dirPath + ")");
+            }
         }
         
         if (!Files.isDirectory(dirPath)) {
@@ -522,27 +606,113 @@ public class MCPServer {
         }
         
         StringBuilder result = new StringBuilder();
-        String displayPath = relativePath.isEmpty() ? 
-                            workspaceRoot.relativize(dirPath).toString() : relativePath;
+        String displayPath = workspaceRoot.relativize(dirPath).toString();
         if (displayPath.isEmpty()) displayPath = ".";
         result.append("Directory: ").append(displayPath).append("\n\n");
         
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dirPath)) {
-            List<String> entries = new ArrayList<>();
+            List<String> directories = new ArrayList<>();
+            List<String> files = new ArrayList<>();
             
             for (Path entry : stream) {
                 String name = entry.getFileName().toString();
-                String type = Files.isDirectory(entry) ? "📁 " : "📄 ";
-                entries.add(type + name);
+                if (Files.isDirectory(entry)) {
+                    directories.add("📁 " + name);
+                } else {
+                    // Get file size for display
+                    try {
+                        long size = Files.size(entry);
+                        String sizeStr = formatFileSize(size);
+                        files.add("📄 " + name + " (" + sizeStr + ")");
+                    } catch (IOException e) {
+                        files.add("📄 " + name);
+                    }
+                }
             }
             
-            entries.sort(String::compareToIgnoreCase);
-            for (String entry : entries) {
-                result.append(entry).append("\n");
+            // Sort separately and display directories first
+            directories.sort(String::compareToIgnoreCase);
+            files.sort(String::compareToIgnoreCase);
+            
+            for (String dir : directories) {
+                result.append(dir).append("\n");
             }
+            for (String file : files) {
+                result.append(file).append("\n");
+            }
+            
+            // Add summary
+            int totalItems = directories.size() + files.size();
+            result.append("\nTotal: ").append(totalItems).append(" items (")
+                  .append(directories.size()).append(" directories, ")
+                  .append(files.size()).append(" files)");
         }
         
         return result.toString();
+    }
+    
+    /**
+     * Format file size in human-readable format
+     */
+    private String formatFileSize(long size) {
+        if (size < 1024) return size + "B";
+        if (size < 1024 * 1024) return String.format("%.1fKB", size / 1024.0);
+        if (size < 1024 * 1024 * 1024) return String.format("%.1fMB", size / (1024.0 * 1024.0));
+        return String.format("%.1fGB", size / (1024.0 * 1024.0 * 1024.0));
+    }
+    
+    /**
+     * Find a directory matching the given pattern within the workspace
+     */
+    private Path findDirectoryByPattern(Path workspaceRoot, String pattern) {
+        try {
+            // Split pattern into parts and try to find matching path
+            String[] parts = pattern.split("[/\\\\]");
+            if (parts.length == 0) return null;
+            
+            // Walk the file tree to find directories matching the pattern
+            return Files.walk(workspaceRoot, 6) // Limit depth to avoid deep recursion
+                        .filter(Files::isDirectory)
+                        .filter(path -> {
+                            // Check if path ends with the pattern we're looking for
+                            String pathStr = path.toString();
+                            String normalizedPattern = pattern.replace('\\', '/');
+                            return pathStr.endsWith(normalizedPattern.replace('/', File.separatorChar)) ||
+                                   pathStr.contains(normalizedPattern.replace('/', File.separatorChar));
+                        })
+                        .findFirst()
+                        .orElse(null);
+        } catch (IOException e) {
+            System.err.println("Error searching for directory pattern: " + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Find a file matching the given pattern within the workspace
+     */
+    private Path findFileByPattern(Path workspaceRoot, String pattern) {
+        try {
+            // Extract filename from pattern
+            String fileName = Paths.get(pattern).getFileName().toString();
+            
+            // Walk the file tree to find files matching the pattern
+            return Files.walk(workspaceRoot, 8) // Limit depth to avoid deep recursion
+                        .filter(Files::isRegularFile)
+                        .filter(path -> {
+                            // Check if filename matches or if path ends with the pattern
+                            String pathStr = path.toString();
+                            String normalizedPattern = pattern.replace('\\', '/');
+                            return path.getFileName().toString().equals(fileName) ||
+                                   pathStr.endsWith(normalizedPattern.replace('/', File.separatorChar)) ||
+                                   pathStr.contains(normalizedPattern.replace('/', File.separatorChar));
+                        })
+                        .findFirst()
+                        .orElse(null);
+        } catch (IOException e) {
+            System.err.println("Error searching for file pattern: " + e.getMessage());
+            return null;
+        }
     }
     
     private String searchFiles(String pattern, String directory, String contextWorkingDirectory) throws IOException {

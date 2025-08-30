@@ -260,9 +260,39 @@ function App() {
     keystrokeLogs: effectiveKeystrokeLogs,
     currentKeystrokeIndex,
     isPlaying,
-    sessionStart: typingActivitySessionStart,
+    sessionStart: sessionStart,
     sessionDuration: sessionDuration,
   });
+
+  // Debug logging for typing activity parameters
+  useEffect(() => {
+    if (effectiveKeystrokeLogs.length > 0) {
+      console.log("=== APP TYPING ACTIVITY PARAMS ===");
+      console.log("Auto-switch files:", autoSwitchFiles);
+      console.log("Active file:", activeFile);
+      console.log("Compression enabled:", compressionEnabled);
+      console.log("Compression data exists:", !!compressionData);
+      console.log(
+        "Effective keystroke logs count:",
+        effectiveKeystrokeLogs.length
+      );
+      console.log("Original keystroke logs count:", keystrokeLogs.length);
+      console.log("Typing activity session start:", sessionStart);
+      console.log("Session duration:", sessionDuration);
+      console.log("Original session duration:", originalSessionDuration);
+      console.log("=== END APP TYPING PARAMS ===");
+    }
+  }, [
+    effectiveKeystrokeLogs,
+    autoSwitchFiles,
+    activeFile,
+    compressionEnabled,
+    compressionData,
+    sessionStart,
+    sessionDuration,
+    originalSessionDuration,
+    keystrokeLogs.length,
+  ]);
 
   // Update active file when files are loaded
   useEffect(() => {
